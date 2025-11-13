@@ -102,5 +102,75 @@ class TestTextFileProcesing:
         assert len(result['cleaned_text']) > 0
 
 
+class TestRTFProcessing:
+    """Tests for RTF file processing."""
+
+    @pytest.fixture
+    def cleaner(self):
+        return DocumentCleaner()
+
+    def test_process_rtf_file(self, cleaner, tmp_path):
+        """Test processing an RTF file with formatting codes."""
+        # Create a test RTF file with typical RTF formatting
+        test_file = tmp_path / "test.rtf"
+        rtf_content = r"""{\rtf1\ansi\deff0
+{\fonttbl{\f0 Times New Roman;}}
+\f0\fs24
+{\b SUPREME COURT}\par
+\par
+This is a test document with plaintiff and defendant.\par
+The court finds in favor of the plaintiff.\par
+}"""
+        test_file.write_text(rtf_content)
+
+        result = cleaner.process_document(str(test_file))
+
+        assert result['status'] == 'success'
+        assert result['method'] == 'rtf_extraction'
+        assert result['confidence'] == 100
+        assert len(result['cleaned_text']) > 0
+        # Verify formatting codes are removed
+        assert '\\rtf' not in result['cleaned_text']
+        assert '\\par' not in result['cleaned_text']
+        assert 'SUPREME COURT' in result['cleaned_text']
+        assert 'plaintiff' in result['cleaned_text']
+
+    def test_process_rtf_with_special_chars(self, cleaner, tmp_path):
+        """Test RTF file with special characters and escaped quotes."""
+        test_file = tmp_path / "test_special.rtf"
+        rtf_content = r"""{\rtf1\ansi
+The plaintiff\rquote s claim was denied.\par
+The defendant said \ldblquote no comment\rdblquote in response.\par
+}"""
+        test_file.write_text(rtf_content)
+
+        result = cleaner.process_document(str(test_file))
+
+        assert result['status'] == 'success'
+        assert result['method'] == 'rtf_extraction'
+        # Verify text is extracted (striprtf should handle special chars)
+        assert len(result['cleaned_text']) > 0
+        assert 'claim' in result['cleaned_text']
+
+    def test_process_sample_rtf_file(self, cleaner):
+        """Test processing the sample RTF motion file."""
+        sample_file = Path(__file__).parent / "sample_docs" / "test_motion.rtf"
+
+        # Skip if sample file doesn't exist
+        if not sample_file.exists():
+            pytest.skip("Sample RTF file not found")
+
+        result = cleaner.process_document(str(sample_file))
+
+        assert result['status'] == 'success'
+        assert result['method'] == 'rtf_extraction'
+        assert result['confidence'] == 100
+        assert len(result['cleaned_text']) > 0
+        # Verify key legal terms are preserved
+        assert 'SUPREME COURT' in result['cleaned_text']
+        assert 'plaintiff' in result['cleaned_text'].lower()
+        assert 'defendant' in result['cleaned_text'].lower()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

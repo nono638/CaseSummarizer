@@ -189,11 +189,25 @@ class DocumentCleaner:
         debug(f"Processing as text file: {file_path.name}")
 
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                text = f.read()
+            # Check if RTF or plain text
+            if file_path.suffix.lower() == '.rtf':
+                # RTF file - use striprtf to extract plain text
+                from striprtf.striprtf import rtf_to_text
+
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    rtf_content = f.read()
+
+                text = rtf_to_text(rtf_content)
+                method = 'rtf_extraction'
+                debug(f"Extracted {len(text)} characters from RTF")
+            else:
+                # Plain text file
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    text = f.read()
+                method = 'direct_read'
 
             return {
-                'method': 'direct_read',
+                'method': method,
                 'confidence': 100,
                 'cleaned_text': text,
                 'status': 'success'
