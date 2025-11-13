@@ -102,6 +102,139 @@ class TestTextFileProcesing:
         assert len(result['cleaned_text']) > 0
 
 
+class TestPageNumberRemoval:
+    """Tests for page number removal."""
+
+    @pytest.fixture
+    def cleaner(self):
+        return DocumentCleaner()
+
+    def test_removes_page_X(self, cleaner):
+        """Test removal of 'Page X' format."""
+        text = "Some content here.\nPage 1\nMore content here."
+        cleaned = cleaner._clean_text(text)
+        assert "Page 1" not in cleaned
+        assert "content" in cleaned
+
+    def test_removes_page_X_of_Y(self, cleaner):
+        """Test removal of 'Page X of Y' format."""
+        text = "Content line 1.\nPage 1 of 10\nContent line 2."
+        cleaned = cleaner._clean_text(text)
+        assert "Page 1 of 10" not in cleaned
+
+    def test_removes_dashed_page_numbers(self, cleaner):
+        """Test removal of '- X -' format."""
+        text = "First paragraph.\n- 5 -\nSecond paragraph."
+        cleaned = cleaner._clean_text(text)
+        assert "- 5 -" not in cleaned
+
+    def test_removes_standalone_numbers(self, cleaner):
+        """Test removal of standalone page numbers."""
+        text = "Paragraph text here.\n42\nMore text here with substance."
+        cleaned = cleaner._clean_text(text)
+        # Should remove standalone "42" but keep text
+        assert "text here with substance" in cleaned
+
+
+class TestCaseNumberExtraction:
+    """Tests for case number extraction."""
+
+    @pytest.fixture
+    def cleaner(self):
+        return DocumentCleaner()
+
+    def test_extract_federal_case_number(self, cleaner):
+        """Test extraction of federal case numbers."""
+        text = "This matter is Case No. 1:23-cv-12345 before the court."
+        case_nums = cleaner._extract_case_numbers(text)
+        assert len(case_nums) > 0
+        assert any("1:23-cv-12345" in num for num in case_nums)
+
+    def test_extract_ny_index_number(self, cleaner):
+        """Test extraction of NY Index numbers."""
+        text = "Index No. 123456/2024 in the Supreme Court."
+        case_nums = cleaner._extract_case_numbers(text)
+        assert len(case_nums) > 0
+        assert any("123456/2024" in num for num in case_nums)
+
+    def test_extract_multiple_case_numbers(self, cleaner):
+        """Test extraction of multiple case numbers."""
+        text = "Case No. 1:23-cv-12345 and Index No. 987654/2024"
+        case_nums = cleaner._extract_case_numbers(text)
+        assert len(case_nums) >= 2
+
+    def test_case_numbers_in_result(self, cleaner, tmp_path):
+        """Test that case numbers appear in processing result."""
+        test_file = tmp_path / "test.txt"
+        test_content = "SUPREME COURT\nIndex No. 654321/2024\nThe plaintiff brings this action."
+        test_file.write_text(test_content)
+
+        result = cleaner.process_document(str(test_file))
+
+        assert result['status'] == 'success'
+        assert 'case_numbers' in result
+        assert len(result['case_numbers']) > 0
+
+
+class TestProgressCallback:
+    """Tests for progress callback functionality."""
+
+    @pytest.fixture
+    def cleaner(self):
+        return DocumentCleaner()
+
+    def test_progress_callback_called(self, cleaner, tmp_path):
+        """Test that progress callback is invoked."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Test content for progress tracking.")
+
+        progress_calls = []
+
+        def capture_progress(message, percent):
+            progress_calls.append((message, percent))
+
+        result = cleaner.process_document(str(test_file), progress_callback=capture_progress)
+
+        assert result['status'] == 'success'
+        assert len(progress_calls) > 0
+        # Should have start, extraction, cleaning, and completion
+        assert any(p[1] == 0 for p in progress_calls)  # Start
+        assert any(p[1] == 100 for p in progress_calls)  # Complete
+
+    def test_progress_callback_exception_handling(self, cleaner, tmp_path):
+        """Test that callback exceptions don't crash processing."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("This is test content for progress tracking that has enough substance to pass cleaning filters.")
+
+        def failing_callback(message, percent):
+            raise Exception("Callback failed!")
+
+        # Should not raise exception despite callback failure
+        result = cleaner.process_document(str(test_file), progress_callback=failing_callback)
+        assert result['status'] == 'success'
+
+
+class TestImprovedErrorMessages:
+    """Tests for improved error message handling."""
+
+    @pytest.fixture
+    def cleaner(self):
+        return DocumentCleaner()
+
+    def test_unsupported_file_type_message(self, cleaner, tmp_path):
+        """Test error message for unsupported file types."""
+        test_file = tmp_path / "test.docx"
+        test_file.write_text("test")
+
+        result = cleaner.process_document(str(test_file))
+
+        assert result['status'] == 'error'
+        assert 'Supported formats' in result['error_message']
+        assert 'PDF' in result['error_message']
+        assert 'TXT' in result['error_message']
+        assert 'RTF' in result['error_message']
+
+
 class TestRTFProcessing:
     """Tests for RTF file processing."""
 
