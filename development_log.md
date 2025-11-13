@@ -99,3 +99,28 @@ The core functionality is complete, but the following enhancements could be adde
 - Add support for RTF file parsing
 - Add progress callbacks for integration with UI
 - More comprehensive error messages for specific PDF issues
+
+---
+
+## 2025-11-13 16:00 - Documentation Cleanup
+**Maintenance:** Removed redundant documentation files
+
+Cleaned up duplicate and redundant markdown files that were causing confusion:
+- **Deleted `project_overview.md`**: Redundant with the comprehensive `Project_Specification_LocalScribe_v2.0_FINAL.md` (1,148 lines) provided by the user
+- **Deleted `claude.md`**: Duplicate of CLAUDE.md in parent directory
+- **Updated CLAUDE.md** (parent directory): Modified to prevent future AI agents from recreating project_overview.md when a comprehensive specification already exists
+
+**Remaining documentation structure:**
+- `Project_Specification_LocalScribe_v2.0_FINAL.md` - Primary source of truth (comprehensive specification)
+- `development_log.md` - Timestamped change history
+- `human_summary.md` - Current status snapshot
+- `scratchpad.md` - Future ideas and refinements
+
+**CLAUDE.md Updates:**
+- Changed "Project Context" section to reference user-provided specification files instead of assuming project_overview.md
+- Added explicit note: "Do NOT create a project_overview.md file if a comprehensive specification document already exists"
+- Updated pattern documentation to use development_log.md instead of project_overview.md
+- Reorganized documentation system section to remove project_overview.md references
+- Updated checklist to reference "project specification document" generically
+
+This prevents the AI from recreating redundant files in future sessions.
