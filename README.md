@@ -14,25 +14,28 @@ LocalScribe is a private, secure Windows desktop application that processes lega
 
 ## Current Status
 
-**Phase 1: Pre-processing Engine** (In Progress)
+**Phase 2: Desktop UI** (In Progress)
 
-The document cleaning module (`src/cleaner.py`) has been implemented with:
-- PDF text extraction (digital PDFs)
-- OCR processing for scanned documents
-- Intelligent text cleaning rules
-- Command-line interface for testing
-
-### What's Working
-- ✅ Text extraction from digital PDFs
+### Phase 1: Complete ✅
+- ✅ Text extraction from digital PDFs, TXT, and RTF files
 - ✅ OCR processing with Tesseract
 - ✅ Confidence scoring
 - ✅ Text cleaning (line filtering, de-hyphenation, whitespace normalization)
+- ✅ Case number extraction
 - ✅ Error handling (file size limits, corrupted files, password-protected PDFs)
 - ✅ Debug mode with performance timing
+- ✅ 24 passing unit tests
+
+### Phase 2: Desktop UI (Current)
+- ✅ PySide6 main window with file selection
+- ✅ File Review Table showing processing results
+- ✅ Background processing with progress indicators
+- ✅ Status indicators (Ready/Warning/Failed)
+- ✅ Integration with DocumentCleaner
+- ✅ Error dialogs and user feedback
 
 ### What's Next
-- Phase 2: PySide6 UI development
-- Phase 3: AI model integration
+- Phase 3: AI model integration (summary generation)
 - Phase 4: Vocabulary extraction
 - Phase 5: License system
 - Phase 6: Settings and polish
@@ -88,7 +91,33 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-## Usage (Phase 1 - Command Line)
+## Usage
+
+### Desktop GUI (Phase 2 - Recommended)
+
+**NOTE:** Make sure virtual environment is activated first: `venv\Scripts\activate`
+
+Launch the desktop application:
+```bash
+python -m src.main
+```
+
+**Features:**
+- **File Selection:** Click "Select Files..." or use File → Select Files (Ctrl+O)
+- **Automatic Processing:** Selected files are automatically processed with OCR detection
+- **File Review Table:** View processing results with confidence scores
+  - ✓ Ready (green): High confidence, ready for AI processing
+  - ⚠ Warning (yellow): Low confidence (<70%), may be unreliable
+  - ✗ Failed (red): Processing error
+- **Include/Exclude:** Use checkboxes to select files for AI processing (Phase 3)
+- **Progress Tracking:** Real-time progress bar and status updates
+
+**Supported Formats:**
+- PDF (digital and scanned)
+- TXT (plain text)
+- RTF (rich text format)
+
+### Command Line Interface (Phase 1)
 
 **NOTE:** Make sure virtual environment is activated first: `venv\Scripts\activate`
 
@@ -141,12 +170,17 @@ pytest tests/test_cleaner.py -v
 ```
 CaseSummarizer/
 ├── src/
+│   ├── main.py             # GUI application entry point
 │   ├── cleaner.py          # Document pre-processing engine
 │   ├── config.py           # Configuration constants
+│   ├── ui/
+│   │   ├── main_window.py  # Main application window
+│   │   └── widgets.py      # Custom widgets (File Review Table)
 │   └── utils/
 │       └── logger.py       # Logging with debug mode support
 ├── tests/
-│   └── test_cleaner.py     # Unit tests for cleaner module
+│   ├── test_cleaner.py     # Unit tests for cleaner module
+│   └── sample_docs/        # Sample documents for testing
 ├── data/
 │   ├── keywords/           # Legal keyword lists (to be added)
 │   └── frequency/          # Word frequency lists (to be added)
@@ -154,7 +188,6 @@ CaseSummarizer/
 └── docs/                   # Documentation
 
 Documentation Files:
-├── project_overview.md            # Main project reference
 ├── development_log.md             # Development history
 ├── human_summary.md               # High-level status
 ├── scratchpad.md                  # Future ideas
