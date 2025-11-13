@@ -11,6 +11,15 @@ echo "🔧 Setting up Python environment for LocalScribe..."
 # Navigate to project directory
 cd "$CLAUDE_PROJECT_DIR"
 
+# Install system dependencies (Tesseract OCR)
+echo "📦 Installing system dependencies..."
+if ! command -v tesseract &> /dev/null; then
+  apt-get install -y -qq tesseract-ocr > /dev/null 2>&1
+  echo "   ✅ Tesseract OCR installed"
+else
+  echo "   ✅ Tesseract OCR already available"
+fi
+
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
   echo "📦 Creating virtual environment..."
