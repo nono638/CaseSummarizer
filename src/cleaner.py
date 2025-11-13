@@ -353,8 +353,8 @@ class DocumentCleaner:
         Apply cleaning rules to raw text.
 
         Rules:
-        1. Line filtering (remove short lines, require lowercase or legal headers)
-        2. De-hyphenation (rejoin words split across lines)
+        1. De-hyphenation (rejoin words split across lines) - FIRST to preserve content
+        2. Line filtering (remove short lines, require lowercase or legal headers)
         3. Whitespace normalization
 
         Args:
@@ -365,12 +365,23 @@ class DocumentCleaner:
         """
         debug("Applying text cleaning rules")
 
-        # Rule 1: Line Filtering
+        # Rule 1: De-hyphenation (do this FIRST before line filtering)
+        # Remove hyphen + newline when it's clearly a word break
+        text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
+
+        # Rule 2: Line Filtering
         cleaned_lines = []
-        for line in raw_text.split('\n'):
+        for line in text.split('\n'):
             # Minimum length check
             if len(line) <= MIN_LINE_LENGTH:
-                continue
+                # Exception: Allow short legal headers even if under minimum length
+                is_legal_header = (
+                    line.isupper() and
+                    len(line) < 50 and
+                    any(keyword in line for keyword in self.legal_keywords)
+                )
+                if not is_legal_header:
+                    continue
 
             # Check if line has lowercase letters
             has_lowercase = any(c.islower() for c in line)
@@ -391,10 +402,6 @@ class DocumentCleaner:
                 cleaned_lines.append(line)
 
         text = '\n'.join(cleaned_lines)
-
-        # Rule 2: De-hyphenation
-        # Remove hyphen + newline when it's clearly a word break
-        text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
 
         # Rule 3: Whitespace Normalization
         # Remove excess blank lines (max 1 between paragraphs)
