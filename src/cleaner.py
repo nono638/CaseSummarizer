@@ -90,29 +90,40 @@ class DocumentCleaner:
             self.english_words = set(word.lower() for word in words.words())
             debug(f"Downloaded and loaded {len(self.english_words)} English words")
 
-    def process_document(self, file_path: str) -> Dict:
+    def process_document(self, file_path: str, progress_callback=None) -> Dict:
         """
         Process a single document.
 
         Args:
             file_path: Path to the document file
+            progress_callback: Optional callback function(message: str, percent: int)
+                             for progress updates
 
         Returns:
             Dictionary with keys:
                 - filename: Name of the file
                 - file_path: Full path to file
                 - status: 'success', 'warning', or 'error'
-                - method: 'direct_read', 'digital_text', 'ocr'
+                - method: 'direct_read', 'digital_text', 'ocr', 'rtf_extraction'
                 - confidence: OCR confidence score (0-100)
                 - cleaned_text: Cleaned text content
                 - pages: Number of pages (for PDFs)
                 - size_mb: File size in MB
+                - case_numbers: List of detected case numbers
                 - error_message: Error description (if status is 'error')
         """
         file_path = Path(file_path)
         filename = file_path.name
 
         info(f"Processing document: {filename}")
+
+        # Helper function to report progress
+        def report_progress(message: str, percent: int):
+            if progress_callback:
+                try:
+                    progress_callback(message, percent)
+                except Exception:
+                    pass  # Ignore callback errors
 
         result = {
             'filename': filename,
@@ -123,11 +134,14 @@ class DocumentCleaner:
             'cleaned_text': '',
             'pages': None,
             'size_mb': 0,
+            'case_numbers': [],
             'error_message': None
         }
 
         try:
             with Timer(f"Processing {filename}"):
+                report_progress(f"Starting {filename}", 0)
+
                 # Check file exists
                 if not file_path.exists():
                     result['status'] = 'error'
@@ -151,15 +165,27 @@ class DocumentCleaner:
                 # Determine file type and process
                 file_extension = file_path.suffix.lower()
 
+                report_progress("Extracting text", 20)
+
                 if file_extension in ['.txt', '.rtf']:
                     result.update(self._process_text_file(file_path))
                 elif file_extension == '.pdf':
                     result.update(self._process_pdf(file_path))
                 else:
                     result['status'] = 'error'
-                    result['error_message'] = f"Unsupported file type: {file_extension}"
+                    result['error_message'] = f"Unsupported file type: {file_extension}. Supported formats: PDF, TXT, RTF"
                     error(result['error_message'])
                     return result
+
+                report_progress("Extracting case numbers", 60)
+
+                # Extract case numbers from raw text (before cleaning removes short lines)
+                if result['status'] != 'error' and result['cleaned_text']:
+                    result['case_numbers'] = self._extract_case_numbers(result['cleaned_text'])
+                    if result['case_numbers']:
+                        debug(f"Found case numbers: {result['case_numbers']}")
+
+                report_progress("Cleaning text", 70)
 
                 # Apply text cleaning
                 if result['status'] != 'error' and result['cleaned_text']:
@@ -177,10 +203,13 @@ class DocumentCleaner:
                     if result['confidence'] < OCR_CONFIDENCE_THRESHOLD:
                         result['status'] = 'warning'
 
+                report_progress("Complete", 100)
+
         except Exception as e:
             result['status'] = 'error'
             result['error_message'] = f"Unexpected error: {str(e)}"
             error(f"Error processing {filename}: {str(e)}", exc_info=True)
+            report_progress("Error", 0)
 
         return result
 
@@ -224,13 +253,20 @@ class DocumentCleaner:
 
         # Step 1: Try digital text extraction
         with Timer("PDF text extraction (pdfplumber)"):
-            text, page_count = self._extract_pdf_text(file_path)
+            text, page_count, error_type = self._extract_pdf_text(file_path)
 
         if text is None:
-            # Error occurred
+            # Error occurred - provide specific error message
+            error_messages = {
+                'password': 'PDF is password-protected or encrypted. Please provide the unencrypted version.',
+                'corrupted': 'PDF file appears to be corrupted or damaged. Try opening it in a PDF reader to verify.',
+                'empty': 'PDF file contains no pages.',
+                'permission': 'Permission denied when accessing PDF file. Check file permissions.',
+                'unknown': 'Failed to open PDF. File may be corrupted or in an unsupported format.'
+            }
             return {
                 'status': 'error',
-                'error_message': 'Failed to open PDF. File may be password-protected or corrupted.',
+                'error_message': error_messages.get(error_type, error_messages['unknown']),
                 'pages': page_count
             }
 
@@ -256,12 +292,13 @@ class DocumentCleaner:
             debug("Digital text quality insufficient. Performing OCR...")
             return self._perform_ocr(file_path, page_count)
 
-    def _extract_pdf_text(self, file_path: Path) -> Tuple[Optional[str], int]:
+    def _extract_pdf_text(self, file_path: Path) -> Tuple[Optional[str], int, Optional[str]]:
         """
         Extract text from PDF using pdfplumber.
 
         Returns:
-            (text, page_count) or (None, 0) on error
+            (text, page_count, error_type) where error_type is None on success,
+            or one of: 'password', 'corrupted', 'empty', 'unknown'
         """
         try:
             text = ""
@@ -271,6 +308,10 @@ class DocumentCleaner:
                 page_count = len(pdf.pages)
                 debug(f"PDF has {page_count} pages")
 
+                if page_count == 0:
+                    error("PDF has no pages")
+                    return None, 0, 'empty'
+
                 for i, page in enumerate(pdf.pages, 1):
                     if DEBUG_MODE and i % 10 == 0:
                         debug(f"Extracting page {i}/{page_count}")
@@ -279,16 +320,24 @@ class DocumentCleaner:
                     if page_text:
                         text += page_text + "\n"
 
-            return text, page_count
+            return text, page_count, None
 
         except Exception as e:
             error_msg = str(e).lower()
+
+            # Categorize error types
             if "password" in error_msg or "encrypted" in error_msg:
-                error("PDF is password-protected")
+                error("PDF is password-protected or encrypted")
+                return None, 0, 'password'
+            elif "damaged" in error_msg or "corrupt" in error_msg or "invalid" in error_msg:
+                error("PDF file appears to be corrupted or damaged")
+                return None, 0, 'corrupted'
+            elif "permission" in error_msg:
+                error("Permission denied when accessing PDF")
+                return None, 0, 'permission'
             else:
                 error(f"Failed to extract PDF text: {str(e)}", exc_info=True)
-
-            return None, 0
+                return None, 0, 'unknown'
 
     def _calculate_dictionary_confidence(self, text: str) -> float:
         """
@@ -362,14 +411,79 @@ class DocumentCleaner:
                 'pages': page_count
             }
 
+    def _is_page_number(self, line: str) -> bool:
+        """
+        Check if a line is a page number.
+
+        Common patterns:
+        - "Page 1", "Page 1 of 10"
+        - "- 1 -", "- 2 -"
+        - Just a number: "1", "2"
+        - "P. 1", "Pg. 1"
+        """
+        line = line.strip()
+
+        # Pattern 1: "Page X" or "Page X of Y"
+        if re.match(r'^Page\s+\d+(\s+of\s+\d+)?$', line, re.IGNORECASE):
+            return True
+
+        # Pattern 2: "- X -" or "– X –"
+        if re.match(r'^[-–]\s*\d+\s*[-–]$', line):
+            return True
+
+        # Pattern 3: Just a number (but not if it's part of a list like "1.")
+        if re.match(r'^\d+$', line) and len(line) <= 4:
+            return True
+
+        # Pattern 4: "P. X" or "Pg. X" or "p. X"
+        if re.match(r'^P(g)?\.?\s*\d+$', line, re.IGNORECASE):
+            return True
+
+        # Pattern 5: "X/Y" (page X of Y)
+        if re.match(r'^\d+/\d+$', line):
+            return True
+
+        return False
+
+    def _extract_case_numbers(self, text: str) -> list:
+        """
+        Extract case numbers from text.
+
+        Common patterns:
+        - "Case No. 1:23-cv-12345"
+        - "Index No. 123456/2024"
+        - "Docket No. 2024-12345"
+        - "Case No.: 12345"
+        """
+        case_numbers = []
+
+        # Federal court pattern: "Case No. 1:23-cv-12345"
+        federal = re.findall(r'Case\s+No\.?\s*:?\s*\d+:\d+-\w+-\d+', text, re.IGNORECASE)
+        case_numbers.extend(federal)
+
+        # NY Index Number: "Index No. 123456/2024"
+        index = re.findall(r'Index\s+No\.?\s*:?\s*\d+/\d{4}', text, re.IGNORECASE)
+        case_numbers.extend(index)
+
+        # Generic docket: "Docket No. 2024-12345"
+        docket = re.findall(r'Docket\s+No\.?\s*:?\s*\d+-\d+', text, re.IGNORECASE)
+        case_numbers.extend(docket)
+
+        # Generic case number: "Case No.: 12345"
+        generic = re.findall(r'Case\s+No\.?\s*:?\s*\d+', text, re.IGNORECASE)
+        case_numbers.extend(generic)
+
+        return list(set(case_numbers))  # Remove duplicates
+
     def _clean_text(self, raw_text: str) -> str:
         """
         Apply cleaning rules to raw text.
 
         Rules:
         1. De-hyphenation (rejoin words split across lines) - FIRST to preserve content
-        2. Line filtering (remove short lines, require lowercase or legal headers)
-        3. Whitespace normalization
+        2. Page number removal
+        3. Line filtering (remove short lines, require lowercase or legal headers)
+        4. Whitespace normalization
 
         Args:
             raw_text: Raw extracted text
@@ -383,7 +497,17 @@ class DocumentCleaner:
         # Remove hyphen + newline when it's clearly a word break
         text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
 
-        # Rule 2: Line Filtering
+        # Rule 2: Page Number Removal
+        lines = text.split('\n')
+        lines_without_page_nums = []
+        for line in lines:
+            if not self._is_page_number(line):
+                lines_without_page_nums.append(line)
+            else:
+                debug(f"Removed page number: {line}")
+        text = '\n'.join(lines_without_page_nums)
+
+        # Rule 3: Line Filtering
         cleaned_lines = []
         for line in text.split('\n'):
             # Minimum length check
@@ -417,7 +541,7 @@ class DocumentCleaner:
 
         text = '\n'.join(cleaned_lines)
 
-        # Rule 3: Whitespace Normalization
+        # Rule 4: Whitespace Normalization
         # Remove excess blank lines (max 1 between paragraphs)
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
         text = text.strip()
