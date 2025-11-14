@@ -1,22 +1,34 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 IN PROGRESS (75% Complete):** AI infrastructure ready and Gemma 2 9B model downloaded and tested. Model loads successfully and generates text. Next: implement streaming worker and results display.
+**Phase 3 IN PROGRESS (85% Complete):** AI infrastructure enhanced with configurable summaries and non-blocking model loading. Major UX improvements complete. Next: implement streaming summary generation and results display.
 
-**Current Branch:** `main` (Phase 3 infrastructure merged ✅)
-**GitHub Status:** All changes pushed and synced
-**Latest Merge:** PR #10 - Phase 3 AI infrastructure and UI controls
+**Current Branch:** `phase3-enhancements` (PR ready for review)
+**GitHub Status:** PR created - Phase 3 Enhancements awaiting merge
+**Latest PR:** Phase 3 Enhancements - Configurable summaries & threaded loading
 
 **Session Accomplishments:**
-1. ✅ Gemma 2 9B model downloaded (5.4 GB) from HuggingFace
-2. ✅ Model placed in AppData/LocalScribe/models and verified
-3. ✅ Model loading tested successfully (~2-3 seconds)
-4. ✅ Text generation working with streaming inference
-5. ✅ Reviewed Gemma licensing (safe for court reporter tool)
-6. ✅ Confirmed 32GB RAM sufficient for both 9B and 27B models
+1. ✅ **Configurable Summary Length System**
+   - User-editable JSON configuration (config/prompt_parameters.json)
+   - Slider with 50-word increments (configurable)
+   - UI shows word count ranges: "200 words (180-220)"
+   - AI prompt includes target range for better results
+2. ✅ **Threaded Model Loading**
+   - Non-blocking background thread for model loading
+   - Progress dialog with real-time elapsed timer
+   - Fixed "Not Responding" freeze issue
+   - Fully responsive UI during 30-60 second load
+3. ✅ **Code Organization**
+   - Created src/ui/workers.py for all background threads
+   - Created src/ui/dialogs.py for progress dialogs
+   - Established reusable patterns for threading
+4. ✅ **Testing & Documentation**
+   - All features tested and verified
+   - Comprehensive development log entries
+   - Pull request created with detailed description
 
 **Next Session Tasks:**
-1. Test model loading in GUI
+1. Review and merge PR for Phase 3 Enhancements
 2. Create AIWorker thread for streaming summary generation
 3. Add summary results panel to display generated text
 4. Implement save summaries to files
@@ -37,10 +49,13 @@
 - **src/main.py** - Desktop GUI application entry point
 - **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
+- **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
 - **src/ai/model_manager.py** (241 lines) - AI model management with loading, text generation, and summarization
 - **src/ai/__init__.py** - AI package initialization (exports ModelManager)
-- **src/ui/main_window.py** - Main application window with menus, file selection, processing, and AI integration
-- **src/ui/widgets.py** - Custom widgets including FileReviewTable and AIControlsWidget
+- **src/ui/main_window.py** - Main application window with menus, file selection, processing, threaded model loading, and AI integration
+- **src/ui/widgets.py** - Custom widgets including FileReviewTable and AIControlsWidget (with config integration)
+- **src/ui/workers.py** - Background worker threads (ModelLoadWorker, ProcessingWorker)
+- **src/ui/dialogs.py** - Progress dialogs (ModelLoadProgressDialog with timer, SimpleProgressDialog)
 - **src/ui/__init__.py** - UI package initialization
 - **src/utils/logger.py** - Debug mode logging with performance timing using Timer context manager
 - **src/__init__.py** - Package initialization
@@ -53,6 +68,7 @@
 - **tests/output/** - Test output directory (gitignored)
 
 ### Configuration
+- **config/prompt_parameters.json** - User-editable AI settings (word count, temperature, top-p, etc.)
 - **requirements.txt** - Python dependencies including llama-cpp-python, numpy<2.0, striprtf
 - **.gitignore** - Git ignore rules (venv/, cleaned/, *.log, etc.)
 - **venv/** - Virtual environment (NOT in git, auto-created by session-start hook)
@@ -61,9 +77,13 @@
 
 ### Git Repository
 - **Repository:** https://github.com/nono638/CaseSummarizer
-- **Branch:** main
-- **Status:** Phase 2 merged
-- **Latest PRs:** Phase 2 (Desktop UI), #5 (Phase 1 enhancements), #4 (RTF support), #3 (test fixes), #2 (session-start hook)
+- **Current Branch:** phase3-enhancements (PR ready for review)
+- **Status:** PR created - awaiting merge
+- **Latest PRs:**
+  - Phase 3 Enhancements (configurable summaries & threaded loading) - OPEN
+  - #10 (Phase 3 AI infrastructure) - MERGED
+  - Phase 2 (Desktop UI) - MERGED
+  - #5 (Phase 1 enhancements) - MERGED
 
 ### Claude Code Browser Environment
 - **Session-Start Hook:** Automatically installs Tesseract OCR, creates venv, installs all dependencies, downloads NLTK data
