@@ -1,18 +1,24 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 IN PROGRESS:** AI Integration setup underway. Phase 2 complete and tested on Windows. Currently installing Visual Studio Build Tools 2026 to enable llama-cpp-python compilation for Gemma 2 model support.
+**Phase 3 IN PROGRESS (70% Complete):** AI infrastructure built and ready. Model manager, UI controls, and llama-cpp-python successfully installed. Next session: implement streaming worker and results display.
 
 **Current Branch:** `phase3-ai-integration` (feature branch)
 **Safety Checkpoint:** `checkpoint-pre-phase3` tag on main branch (rollback point)
 
-**Waiting On:** Visual Studio Build Tools 2026 installation to complete (~6-7GB download + 20-30min install)
+**Session Accomplishments:**
+1. ✅ llama-cpp-python installed (64-bit build working)
+2. ✅ ModelManager created (model loading, text generation, summaries)
+3. ✅ AI Controls UI (sidebar with model selection, summary length slider)
+4. ✅ Main window integrated with AI controls
+5. ✅ Dependencies fixed (NumPy<2.0 for PySide6 compatibility)
 
-**Next Steps After Build Tools:**
-1. Restart computer (if required)
-2. Install llama-cpp-python in venv
-3. Test model loading
-4. Begin implementing AI processing UI
+**Next Session Tasks:**
+1. Create AIWorker thread for streaming summary generation
+2. Add summary results panel to display generated text
+3. Implement save summaries to files
+4. Add progress indicators during AI processing
+5. Move model loading to background thread (prevents UI freeze)
 
 **Local Development:** Activate the virtual environment: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
 
@@ -28,9 +34,11 @@
 ### Source Code
 - **src/main.py** - Desktop GUI application entry point
 - **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
-- **src/config.py** - Centralized configuration constants (file paths, limits, settings)
-- **src/ui/main_window.py** - Main application window with menus, file selection, and processing
-- **src/ui/widgets.py** - Custom widgets including FileReviewTable
+- **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
+- **src/ai/model_manager.py** (241 lines) - AI model management with loading, text generation, and summarization
+- **src/ai/__init__.py** - AI package initialization (exports ModelManager)
+- **src/ui/main_window.py** - Main application window with menus, file selection, processing, and AI integration
+- **src/ui/widgets.py** - Custom widgets including FileReviewTable and AIControlsWidget
 - **src/ui/__init__.py** - UI package initialization
 - **src/utils/logger.py** - Debug mode logging with performance timing using Timer context manager
 - **src/__init__.py** - Package initialization
@@ -43,11 +51,11 @@
 - **tests/output/** - Test output directory (gitignored)
 
 ### Configuration
-- **requirements.txt** - Python dependencies including striprtf for RTF support
+- **requirements.txt** - Python dependencies including llama-cpp-python, numpy<2.0, striprtf
 - **.gitignore** - Git ignore rules (venv/, cleaned/, *.log, etc.)
 - **venv/** - Virtual environment (NOT in git, auto-created by session-start hook)
-- **.claude/hooks/session-start.sh** - Auto-setup script for Claude Code browser sessions
-- **.claude/settings.json** - Hook configuration
+- **.claude/hooks/session-start.sh** - Auto-setup script (browser only, skips on Windows)
+- **.claude/settings.local.json** - Local permissions configuration (not committed)
 
 ### Git Repository
 - **Repository:** https://github.com/nono638/CaseSummarizer
@@ -123,21 +131,36 @@
 ✅ Qt signals/slots for thread-safe communication
 ✅ Professional styling and responsive design
 
-## Next Steps (Phase 3 - AI Integration)
+## Phase 3 - AI Integration Status
 
-**Current Status:** Phase 2 complete and merged. GUI ready for testing on local machine.
+**Current Status:** 70% Complete - Infrastructure ready, streaming worker needed
 
-**To test locally:**
+**Completed:**
+- ✅ llama-cpp-python installed and verified (64-bit build)
+- ✅ ModelManager with load/unload/generate capabilities
+- ✅ AI Controls sidebar (model selection, summary length slider)
+- ✅ UI integration (Generate Summaries button, status indicators)
+- ✅ Dependencies fixed (NumPy<2.0)
+
+**To test GUI locally:**
 ```bash
 venv\Scripts\activate   # Activate virtual environment
 python -m src.main      # Launch GUI
 ```
 
-**Phase 3 Features (Next):**
-- Load Gemma 2 GGUF models with llama-cpp-python
-- Model selection (Standard 9B vs Pro 27B)
+**What you'll see:**
+- AI Settings sidebar on right
+- Model selection (Standard 9B / Pro 27B)
 - Summary length slider (100-500 words)
-- AI processing with streaming display
-- Case summary generation
-- Time estimates for processing
-- Summary export (TXT, copy to clipboard)
+- Status showing models not downloaded (expected)
+- Generate Summaries button (disabled until model loaded)
+
+**Remaining for Phase 3:**
+- AIWorker thread for streaming generation
+- Summary results display panel
+- Save summaries to TXT files
+- Progress indicators during AI processing
+- Background model loading (prevent UI freeze)
+
+**Note:** To test model loading, you need to download a Gemma 2 GGUF model (7-22GB) and place it in:
+`C:\Users\noahc\AppData\Roaming\LocalScribe\models\`

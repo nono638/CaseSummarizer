@@ -3,8 +3,11 @@
 # UI Framework
 PySide6>=6.6.0
 
+# NumPy (must be <2.0 for PySide6 compatibility)
+numpy<2.0
+
 # Local AI Engine
-llama-cpp-python>=0.2.20
+llama-cpp-python>=0.3.0
 
 # OCR
 pytesseract>=0.3.10
