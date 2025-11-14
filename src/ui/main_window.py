@@ -16,60 +16,10 @@ import os
 from pathlib import Path
 
 from src.ui.widgets import FileReviewTable, AIControlsWidget
+from src.ui.workers import ProcessingWorker, ModelLoadWorker
+from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
-
-
-class ProcessingWorker(QThread):
-    """
-    Background worker thread for processing documents.
-    Prevents UI freezing during long-running operations.
-    """
-    # Signals for communicating with main thread
-    progress_updated = Signal(int, str)  # (percentage, message)
-    file_processed = Signal(dict)  # result dictionary
-    finished = Signal(list)  # all results
-    error = Signal(str)  # error message
-
-    def __init__(self, file_paths, jurisdiction="ny"):
-        super().__init__()
-        self.file_paths = file_paths
-        self.jurisdiction = jurisdiction
-        self.cleaner = None
-
-    def run(self):
-        """Execute document processing in background thread."""
-        try:
-            # Initialize cleaner
-            self.cleaner = DocumentCleaner(jurisdiction=self.jurisdiction)
-
-            results = []
-            total_files = len(self.file_paths)
-
-            for idx, file_path in enumerate(self.file_paths):
-                # Update progress
-                percentage = int((idx / total_files) * 100)
-                filename = os.path.basename(file_path)
-                self.progress_updated.emit(percentage, f"Processing {filename}...")
-
-                # Process document with progress callback
-                def progress_callback(msg):
-                    self.progress_updated.emit(percentage, msg)
-
-                result = self.cleaner.process_document(
-                    file_path,
-                    progress_callback=progress_callback
-                )
-
-                results.append(result)
-                self.file_processed.emit(result)
-
-            # Complete
-            self.progress_updated.emit(100, "Processing complete")
-            self.finished.emit(results)
-
-        except Exception as e:
-            self.error.emit(str(e))
 
 
 class MainWindow(QMainWindow):
@@ -92,6 +42,8 @@ class MainWindow(QMainWindow):
         self.selected_files = []
         self.processing_results = []
         self.worker = None
+        self.model_load_worker = None
+        self.model_load_dialog = None
 
         # AI Model Manager (Phase 3)
         self.model_manager = ModelManager()
@@ -418,37 +370,81 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def load_ai_model(self, model_type):
         """
-        Load an AI model in a background thread.
+        Load an AI model in a background thread with progress dialog.
 
         Args:
             model_type: Either 'standard' or 'pro'
         """
-        self.status_bar.showMessage(f"Loading {model_type} model... This may take a few minutes.")
+        # Get model info for display name
+        models = self.model_manager.get_available_models()
+        model_info = models.get(model_type, {})
+        model_display_name = model_info.get('name', model_type.title())
+
+        # Disable the load button
         self.ai_controls.load_model_btn.setEnabled(False)
         self.ai_controls.load_model_btn.setText("Loading...")
 
-        # TODO: Create a ModelLoadWorker thread for background loading
-        # For now, load in main thread (will freeze UI temporarily)
-        success = self.model_manager.load_model(model_type)
+        # Create progress dialog
+        self.model_load_dialog = ModelLoadProgressDialog(model_display_name, self)
 
-        if success:
-            self.status_bar.showMessage(f"{model_type.title()} model loaded successfully!")
-            QMessageBox.information(
-                self,
-                "Model Loaded",
-                f"The {model_type} model has been loaded and is ready to use."
-            )
-            self.ai_controls.refresh_status()
-            self.on_selection_changed()  # Update process button state
-        else:
-            self.status_bar.showMessage(f"Failed to load {model_type} model")
-            QMessageBox.critical(
-                self,
-                "Model Load Failed",
-                f"Failed to load the {model_type} model. Please check that the model file exists "
-                f"in the models directory and try again."
-            )
-            self.ai_controls.refresh_status()
+        # Create worker thread
+        self.model_load_worker = ModelLoadWorker(self.model_manager, model_type)
+
+        # Connect signals
+        self.model_load_worker.success.connect(self._on_model_load_success)
+        self.model_load_worker.error.connect(self._on_model_load_error)
+        self.model_load_worker.finished.connect(self._on_model_load_finished)
+
+        # Start loading
+        self.status_bar.showMessage(f"Loading {model_display_name}...")
+        self.model_load_worker.start()
+        self.model_load_dialog.show()
+
+    def _on_model_load_success(self):
+        """Handle successful model loading."""
+        if self.model_load_dialog:
+            self.model_load_dialog.finish_success()
+
+        model_name = self.model_manager.current_model_name
+        self.status_bar.showMessage(f"{model_name.title()} model loaded successfully!")
+
+        # Show success message
+        QMessageBox.information(
+            self,
+            "Model Loaded",
+            f"The {model_name} model has been loaded and is ready to use."
+        )
+
+        # Update UI
+        self.ai_controls.refresh_status()
+        self.on_selection_changed()  # Update process button state
+
+    def _on_model_load_error(self, error_msg):
+        """Handle model loading error."""
+        if self.model_load_dialog:
+            self.model_load_dialog.finish_error(error_msg)
+
+        self.status_bar.showMessage(f"Failed to load model")
+
+        # Show error message
+        QMessageBox.critical(
+            self,
+            "Model Load Failed",
+            f"Failed to load the model:\n\n{error_msg}\n\n"
+            f"Please check that the model file exists in the models directory and try again."
+        )
+
+        # Update UI
+        self.ai_controls.refresh_status()
+
+    def _on_model_load_finished(self):
+        """Clean up after model loading completes (success or failure)."""
+        # Clean up worker
+        if self.model_load_worker:
+            self.model_load_worker.deleteLater()
+            self.model_load_worker = None
+
+        # Dialog will close itself via finish_success/finish_error
 
     @Slot()
     def process_with_ai(self):

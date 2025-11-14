@@ -14,6 +14,7 @@ from ..config import (
     PRO_MODEL_NAME,
     MAX_CONTEXT_TOKENS,
 )
+from ..prompt_config import get_prompt_config
 from ..utils.logger import debug
 
 
@@ -30,6 +31,7 @@ class ModelManager:
         """Initialize the model manager."""
         self.current_model: Optional[Llama] = None
         self.current_model_name: Optional[str] = None
+        self.prompt_config = get_prompt_config()
 
     def get_available_models(self) -> dict:
         """
@@ -133,8 +135,8 @@ class ModelManager:
         self,
         prompt: str,
         max_tokens: int = 500,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
+        temperature: float = None,
+        top_p: float = None,
         stream: bool = True
     ) -> Iterator[str]:
         """
@@ -159,7 +161,13 @@ class ModelManager:
         if not self.is_model_loaded():
             raise RuntimeError("No model loaded. Call load_model() first.")
 
-        debug(f"Generating text (max_tokens={max_tokens}, temp={temperature})")
+        # Use config defaults if not specified
+        if temperature is None:
+            temperature = self.prompt_config.summary_temperature
+        if top_p is None:
+            top_p = self.prompt_config.top_p
+
+        debug(f"Generating text (max_tokens={max_tokens}, temp={temperature}, top_p={top_p})")
 
         try:
             response = self.current_model(
@@ -204,12 +212,15 @@ class ModelManager:
         Returns:
             str: Complete summary (if stream=False)
         """
+        # Get word count range from config
+        min_words, max_words_range = self.prompt_config.get_word_count_range(max_words)
+
         # Construct prompt for case summarization
         # Based on specification Section 7.3
         prompt = f"""You are a legal case summarizer. Write a clear, concise summary of the following legal document.
 
 Instructions:
-- Length: Approximately {max_words} words
+- Length: Between {min_words} and {max_words_range} words (target: {max_words} words)
 - Focus on: key facts, parties involved, legal issues, and outcomes
 - Use plain language (avoid legalese when possible)
 - Be objective and factual
@@ -219,15 +230,14 @@ Document:
 
 Summary:"""
 
-        # Estimate tokens (rough: 1 word ≈ 1.3 tokens)
-        max_tokens = int(max_words * 1.5)
+        # Estimate tokens using config value
+        tokens_per_word = self.prompt_config.tokens_per_word
+        max_tokens = int(max_words_range * tokens_per_word)
 
-        # Generate summary
+        # Generate summary (temperature and top_p will use config defaults)
         return self.generate_text(
             prompt=prompt,
             max_tokens=max_tokens,
-            temperature=0.3,  # Lower temperature for more factual output
-            top_p=0.9,
             stream=stream
         )
 
