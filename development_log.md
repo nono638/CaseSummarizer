@@ -339,3 +339,139 @@ Current work is foundational setup. Once llama-cpp-python is installed, we'll pr
 - Streaming text generation
 - UI controls (model selection, summary length slider)
 - Progress indicators during AI processing
+
+---
+
+## 2025-11-13 23:30 - Phase 3 Continued: AI Infrastructure Complete
+**Feature:** Phase 3 AI Integration - Model Manager and UI Controls
+
+Successfully resolved llama-cpp-python installation issues and implemented core AI infrastructure including model management and UI controls for Phase 3.
+
+**Work Completed:**
+
+1. **llama-cpp-python Installation (Successfully Resolved)**
+   - Fixed 32-bit vs 64-bit compilation issue
+   - Problem: Initial build used 32-bit Developer Command Prompt, created incompatible DLL
+   - Solution: Used "x64 Native Tools Command Prompt for VS 2022"
+   - Cleared pip cache to force rebuild: `pip cache remove llama_cpp_python`
+   - Recompiled from source with x64 tools
+   - Final wheel size: 8.8 MB (vs 6.3 MB for broken 32-bit version)
+   - **Status: ✅ Verified working - imports successfully**
+
+2. **AI Model Manager Created (src/ai/model_manager.py - 241 lines)**
+   - **ModelManager class** with full model lifecycle:
+     - `get_available_models()`: Check which GGUF models are downloaded
+     - `load_model(model_type)`: Load Standard (9B) or Pro (27B) models
+     - `unload_model()`: Free memory
+     - `is_model_loaded()`: Check load status
+     - `generate_text()`: Stream or non-stream text generation
+     - `generate_summary()`: Case-specific summarization with custom prompts
+   - Supports both model variants from specification:
+     - Standard: gemma-2-9b-it-q4_k_m.gguf (~7GB)
+     - Pro: gemma-2-27b-it-q4_k_m.gguf (~22GB)
+   - Uses all available CPU cores (os.cpu_count())
+   - Context window: 8192 tokens (from config)
+   - Temperature: 0.3 for factual summaries, configurable for other tasks
+   - Debug logging integrated
+
+3. **AI Controls Widget Created (src/ui/widgets.py - added 150 lines)**
+   - **AIControlsWidget class** as sidebar panel:
+     - Radio buttons for model selection (Standard 9B / Pro 27B)
+     - Summary length slider (100-500 words) with live value display
+     - "Load Model" button with intelligent enable/disable
+     - Color-coded status indicators:
+       - Red: Model not downloaded
+       - Yellow: Model available, not loaded
+       - Green: Model loaded and ready
+     - Qt signals for integration: `model_changed`, `summary_length_changed`, `load_model_requested`
+   - Automatic status refresh on model selection change
+   - File size display for download planning
+
+4. **Main Window Integration (src/ui/main_window.py - modified)**
+   - Added AI sidebar layout (3:1 ratio with main content)
+   - Initialized ModelManager instance
+   - Connected AI controls to main window:
+     - `load_ai_model()`: Handle model loading with status updates
+     - `process_with_ai()`: Placeholder for summary generation (next session)
+     - `on_selection_changed()`: Enable/disable "Generate Summaries" based on model state
+   - "Process Selected Files" button renamed to "Generate Summaries"
+   - Button enables only when: (1) files selected AND (2) model loaded
+   - Tooltip updates dynamically based on state
+   - About dialog updated to reflect Phase 3 progress
+
+5. **Dependency Management**
+   - Fixed NumPy incompatibility: Downgraded to numpy<2.0 for PySide6 compatibility
+   - Updated requirements.txt with:
+     - `numpy<2.0` (explicit constraint)
+     - `llama-cpp-python>=0.3.0` (confirmed working version)
+   - All imports verified working
+
+6. **Session-Start Hook Updated**
+   - Fixed hook to exit immediately on Windows (local environment already configured)
+   - Hook now only runs in Claude Code browser (Linux environment)
+   - Prevents startup errors on local Windows development
+
+**Testing:**
+- ModelManager imports and initializes successfully
+- Detects no models downloaded (expected - models are 7-22GB)
+- UI controls display correctly (not tested visually yet - requires GUI launch)
+- All imports working without errors
+
+**Technical Details:**
+
+**File Structure:**
+```
+src/
+├── ai/
+│   ├── __init__.py         (exports ModelManager)
+│   └── model_manager.py    (241 lines - AI model management)
+├── ui/
+│   ├── main_window.py      (modified - added AI integration)
+│   └── widgets.py          (modified - added AIControlsWidget)
+└── config.py               (contains model paths and settings)
+```
+
+**Model Storage:**
+- Models stored in: `%APPDATA%/LocalScribe/models/`
+- Standard model path: `C:/Users/noahc/AppData/Roaming/LocalScribe/models/gemma-2-9b-it-q4_k_m.gguf`
+- Pro model path: `C:/Users/noahc/AppData/Roaming/LocalScribe/models/gemma-2-27b-it-q4_k_m.gguf`
+
+**UI Layout Changes:**
+- Main window now uses horizontal split layout
+- Left side (75%): File review table and controls
+- Right side (25%, max 300px): AI settings sidebar
+- Maintains minimum window size of 1000x700
+
+**Next Session Tasks:**
+To complete Phase 3, implement:
+1. **AIWorker thread** for background summary generation
+2. **Streaming display** of generated summaries
+3. **Summary results panel** to show generated text
+4. **Save summaries** to files (TXT format)
+5. **Progress indicators** during AI processing
+6. **Time estimates** based on selected files and model
+
+**Current Limitations:**
+- Model loading happens in main thread (will freeze UI briefly - should move to background thread)
+- "Generate Summaries" button shows placeholder message (AI processing not yet implemented)
+- No way to download models yet (Phase 5 - License System)
+
+**Files Added:**
+- `src/ai/__init__.py` (7 lines)
+- `src/ai/model_manager.py` (241 lines)
+
+**Files Modified:**
+- `src/ui/widgets.py` (added AIControlsWidget - 150 lines)
+- `src/ui/main_window.py` (added AI integration - ~80 lines modified/added)
+- `requirements.txt` (added numpy<2.0 constraint)
+- `.claude/hooks/session-start.sh` (fixed Windows early exit)
+- `.claude/settings.local.json` (modified - not committed)
+
+**Status:** Phase 3 infrastructure 70% complete. Core AI components ready. Remaining: streaming worker thread and results display.
+
+**Does this feature need further refinement?**
+Core infrastructure is solid. Next session should focus on:
+- Background model loading (ModelLoadWorker thread)
+- Streaming AI generation (AIWorker thread similar to ProcessingWorker)
+- Results display widget (show summaries, allow editing, save to file)
+- Better error handling for model loading failures

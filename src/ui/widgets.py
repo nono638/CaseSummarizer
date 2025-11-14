@@ -5,7 +5,8 @@ Phase 2: File Review Table and other custom widgets
 
 from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QCheckBox,
-    QWidget, QHBoxLayout, QHeaderView
+    QWidget, QHBoxLayout, QHeaderView, QVBoxLayout,
+    QGroupBox, QRadioButton, QSlider, QLabel, QPushButton
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
@@ -301,3 +302,149 @@ class StatusIndicator(QWidget):
         super().__init__()
         # TODO: Implement if needed for more complex status displays
         pass
+
+
+class AIControlsWidget(QGroupBox):
+    """
+    AI Controls panel for model selection and summary settings.
+
+    Phase 3 Features:
+    - Model selection (Standard 9B vs Pro 27B)
+    - Summary length slider (100-500 words)
+    - Model status indicator
+    - Load/unload model buttons
+    """
+
+    # Signals
+    model_changed = Signal(str)  # Emits 'standard' or 'pro'
+    summary_length_changed = Signal(int)  # Emits word count
+    load_model_requested = Signal(str)  # Emits model type to load
+
+    def __init__(self, model_manager=None):
+        super().__init__("AI Settings")
+        self.model_manager = model_manager
+        self._init_ui()
+        self._update_model_status()
+
+    def _init_ui(self):
+        """Initialize the UI components."""
+        layout = QVBoxLayout()
+
+        # Model Selection Section
+        model_label = QLabel("<b>Model Selection:</b>")
+        layout.addWidget(model_label)
+
+        # Radio buttons for model selection
+        self.standard_radio = QRadioButton("Standard (9B) - Fast, good quality")
+        self.standard_radio.setChecked(True)
+        self.standard_radio.toggled.connect(self._on_model_selection_changed)
+        layout.addWidget(self.standard_radio)
+
+        self.pro_radio = QRadioButton("Pro (27B) - Slower, best quality")
+        self.pro_radio.toggled.connect(self._on_model_selection_changed)
+        layout.addWidget(self.pro_radio)
+
+        # Model status indicator
+        self.model_status_label = QLabel()
+        self.model_status_label.setWordWrap(True)
+        layout.addWidget(self.model_status_label)
+
+        # Load model button
+        self.load_model_btn = QPushButton("Load Model")
+        self.load_model_btn.clicked.connect(self._on_load_model_clicked)
+        layout.addWidget(self.load_model_btn)
+
+        # Separator
+        layout.addSpacing(15)
+
+        # Summary Length Section
+        length_label = QLabel("<b>Summary Length:</b>")
+        layout.addWidget(length_label)
+
+        # Slider for summary length
+        slider_layout = QHBoxLayout()
+        slider_layout.addWidget(QLabel("100"))
+
+        self.length_slider = QSlider(Qt.Horizontal)
+        self.length_slider.setMinimum(100)
+        self.length_slider.setMaximum(500)
+        self.length_slider.setValue(200)  # Default 200 words
+        self.length_slider.setTickPosition(QSlider.TicksBelow)
+        self.length_slider.setTickInterval(100)
+        self.length_slider.valueChanged.connect(self._on_slider_changed)
+        slider_layout.addWidget(self.length_slider)
+
+        slider_layout.addWidget(QLabel("500"))
+        layout.addLayout(slider_layout)
+
+        # Current value label
+        self.length_value_label = QLabel("200 words")
+        self.length_value_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.length_value_label)
+
+        # Add stretch to push everything to top
+        layout.addStretch()
+
+        self.setLayout(layout)
+
+    def _on_model_selection_changed(self):
+        """Handle model selection change."""
+        model_type = 'standard' if self.standard_radio.isChecked() else 'pro'
+        self.model_changed.emit(model_type)
+        self._update_model_status()
+
+    def _on_slider_changed(self, value):
+        """Handle slider value change."""
+        self.length_value_label.setText(f"{value} words")
+        self.summary_length_changed.emit(value)
+
+    def _on_load_model_clicked(self):
+        """Handle load model button click."""
+        model_type = 'standard' if self.standard_radio.isChecked() else 'pro'
+        self.load_model_requested.emit(model_type)
+
+    def _update_model_status(self):
+        """Update the model status label based on current state."""
+        if self.model_manager is None:
+            self.model_status_label.setText("Status: No model manager")
+            return
+
+        # Get available models
+        models = self.model_manager.get_available_models()
+        current_model = 'standard' if self.standard_radio.isChecked() else 'pro'
+        model_info = models[current_model]
+
+        # Check if selected model is available
+        if not model_info['available']:
+            self.model_status_label.setText(
+                f"<font color='#d9534f'>Status: Model not downloaded "
+                f"({model_info['size_gb']} GB required)</font>"
+            )
+            self.load_model_btn.setEnabled(False)
+            self.load_model_btn.setToolTip("Model file not found. Download required.")
+        elif self.model_manager.is_model_loaded() and self.model_manager.current_model_name == current_model:
+            self.model_status_label.setText(
+                f"<font color='#5cb85c'>Status: {model_info['name']} loaded and ready</font>"
+            )
+            self.load_model_btn.setEnabled(False)
+            self.load_model_btn.setText("Model Loaded")
+        else:
+            self.model_status_label.setText(
+                f"<font color='#f0ad4e'>Status: {model_info['name']} available "
+                f"({model_info['size_gb']} GB)</font>"
+            )
+            self.load_model_btn.setEnabled(True)
+            self.load_model_btn.setText("Load Model")
+            self.load_model_btn.setToolTip(f"Load the {model_info['name']} model into memory")
+
+    def get_selected_model(self) -> str:
+        """Get the currently selected model type."""
+        return 'standard' if self.standard_radio.isChecked() else 'pro'
+
+    def get_summary_length(self) -> int:
+        """Get the current summary length setting."""
+        return self.length_slider.value()
+
+    def refresh_status(self):
+        """Refresh the model status display."""
+        self._update_model_status()

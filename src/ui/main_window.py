@@ -15,8 +15,9 @@ from PySide6.QtGui import QAction
 import os
 from pathlib import Path
 
-from src.ui.widgets import FileReviewTable
+from src.ui.widgets import FileReviewTable, AIControlsWidget
 from src.cleaner import DocumentCleaner
+from src.ai import ModelManager
 
 
 class ProcessingWorker(QThread):
@@ -92,6 +93,9 @@ class MainWindow(QMainWindow):
         self.processing_results = []
         self.worker = None
 
+        # AI Model Manager (Phase 3)
+        self.model_manager = ModelManager()
+
         # Initialize UI
         self._create_menus()
         self._create_toolbar()
@@ -159,6 +163,10 @@ class MainWindow(QMainWindow):
     def _create_central_widget(self):
         """Create central widget with file review table and controls."""
         central_widget = QWidget()
+        main_layout = QHBoxLayout()  # Horizontal layout for sidebar
+
+        # Left side: File review and controls
+        left_widget = QWidget()
         layout = QVBoxLayout()
 
         # Add toolbar
@@ -207,15 +215,25 @@ class MainWindow(QMainWindow):
 
         controls_layout.addStretch()
 
-        # Placeholder for Phase 3: Process button for AI processing
-        self.process_btn = QPushButton("Process Selected Files")
+        # Phase 3: Process button for AI processing
+        self.process_btn = QPushButton("Generate Summaries")
         self.process_btn.setEnabled(False)
-        self.process_btn.setToolTip("AI processing will be available in Phase 3")
+        self.process_btn.setToolTip("Select files and load a model to begin")
+        self.process_btn.clicked.connect(self.process_with_ai)
         controls_layout.addWidget(self.process_btn)
 
         layout.addLayout(controls_layout)
 
-        central_widget.setLayout(layout)
+        left_widget.setLayout(layout)
+        main_layout.addWidget(left_widget, stretch=3)
+
+        # Right side: AI Controls (Phase 3)
+        self.ai_controls = AIControlsWidget(self.model_manager)
+        self.ai_controls.load_model_requested.connect(self.load_ai_model)
+        self.ai_controls.setMaximumWidth(300)
+        main_layout.addWidget(self.ai_controls, stretch=1)
+
+        central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
     def _create_status_bar(self):
@@ -382,10 +400,80 @@ class MainWindow(QMainWindow):
     def on_selection_changed(self):
         """Handle changes in file table selection."""
         selected_count = self.file_table.get_selected_count()
-        # Future: Update process button with count and time estimate
-        # For now, just update status
-        if selected_count > 0:
+
+        # Update process button state based on model and selection
+        can_process = selected_count > 0 and self.model_manager.is_model_loaded()
+        self.process_btn.setEnabled(can_process)
+
+        if can_process:
+            self.process_btn.setToolTip(f"Generate summaries for {selected_count} selected file(s)")
             self.status_bar.showMessage(f"{selected_count} file(s) selected for processing")
+        elif selected_count > 0:
+            self.process_btn.setToolTip("Load a model first to generate summaries")
+            self.status_bar.showMessage(f"{selected_count} file(s) selected - Load a model to continue")
+        else:
+            self.process_btn.setToolTip("Select files and load a model to begin")
+            self.status_bar.showMessage("Ready")
+
+    @Slot(str)
+    def load_ai_model(self, model_type):
+        """
+        Load an AI model in a background thread.
+
+        Args:
+            model_type: Either 'standard' or 'pro'
+        """
+        self.status_bar.showMessage(f"Loading {model_type} model... This may take a few minutes.")
+        self.ai_controls.load_model_btn.setEnabled(False)
+        self.ai_controls.load_model_btn.setText("Loading...")
+
+        # TODO: Create a ModelLoadWorker thread for background loading
+        # For now, load in main thread (will freeze UI temporarily)
+        success = self.model_manager.load_model(model_type)
+
+        if success:
+            self.status_bar.showMessage(f"{model_type.title()} model loaded successfully!")
+            QMessageBox.information(
+                self,
+                "Model Loaded",
+                f"The {model_type} model has been loaded and is ready to use."
+            )
+            self.ai_controls.refresh_status()
+            self.on_selection_changed()  # Update process button state
+        else:
+            self.status_bar.showMessage(f"Failed to load {model_type} model")
+            QMessageBox.critical(
+                self,
+                "Model Load Failed",
+                f"Failed to load the {model_type} model. Please check that the model file exists "
+                f"in the models directory and try again."
+            )
+            self.ai_controls.refresh_status()
+
+    @Slot()
+    def process_with_ai(self):
+        """Process selected files with AI to generate summaries."""
+        selected_results = self.file_table.get_selected_files()
+
+        if not selected_results:
+            QMessageBox.warning(self, "No Files Selected", "Please select files to process.")
+            return
+
+        if not self.model_manager.is_model_loaded():
+            QMessageBox.warning(self, "No Model Loaded", "Please load a model first.")
+            return
+
+        # Get summary settings
+        summary_length = self.ai_controls.get_summary_length()
+
+        # TODO: Implement AI processing in Phase 3
+        # For now, show a placeholder message
+        QMessageBox.information(
+            self,
+            "AI Processing",
+            f"Ready to process {len(selected_results)} file(s) with {summary_length}-word summaries.\n\n"
+            f"AI processing with streaming will be implemented next."
+        )
 
     @Slot()
     def show_about(self):
@@ -397,8 +485,8 @@ class MainWindow(QMainWindow):
         ensuring complete privacy and PII/PHI protection.</p>
         <p><i>Powered by Google Gemma 2 models</i></p>
         <hr>
-        <p><b>Current Phase:</b> Phase 2 - Basic UI Shell</p>
-        <p><b>Status:</b> Pre-processing engine active</p>
+        <p><b>Current Phase:</b> Phase 3 - AI Integration (In Progress)</p>
+        <p><b>Status:</b> Pre-processing engine active, AI model loading enabled</p>
         """
 
         QMessageBox.about(self, "About LocalScribe", about_text)
