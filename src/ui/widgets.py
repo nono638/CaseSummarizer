@@ -12,6 +12,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 import os
 
+# Import prompt configuration
+from ..prompt_config import get_prompt_config
+
 
 class FileReviewTable(QTableWidget):
     """
@@ -323,6 +326,7 @@ class AIControlsWidget(QGroupBox):
     def __init__(self, model_manager=None):
         super().__init__("AI Settings")
         self.model_manager = model_manager
+        self.prompt_config = get_prompt_config()
         self._init_ui()
         self._update_model_status()
 
@@ -358,28 +362,43 @@ class AIControlsWidget(QGroupBox):
         layout.addSpacing(15)
 
         # Summary Length Section
-        length_label = QLabel("<b>Summary Length:</b>")
+        length_label = QLabel("<b>Summary Length (Approximate):</b>")
         layout.addWidget(length_label)
+
+        # Get configuration values
+        min_words = self.prompt_config.min_summary_words
+        max_words = self.prompt_config.max_summary_words
+        default_words = self.prompt_config.default_summary_words
+        increment = self.prompt_config.slider_increment
 
         # Slider for summary length
         slider_layout = QHBoxLayout()
-        slider_layout.addWidget(QLabel("100"))
+        slider_layout.addWidget(QLabel(str(min_words)))
 
         self.length_slider = QSlider(Qt.Horizontal)
-        self.length_slider.setMinimum(100)
-        self.length_slider.setMaximum(500)
-        self.length_slider.setValue(200)  # Default 200 words
+        self.length_slider.setMinimum(min_words)
+        self.length_slider.setMaximum(max_words)
+        self.length_slider.setValue(default_words)
         self.length_slider.setTickPosition(QSlider.TicksBelow)
-        self.length_slider.setTickInterval(100)
+        self.length_slider.setTickInterval(increment)
+        self.length_slider.setSingleStep(increment)  # Arrow keys move by increment
+        self.length_slider.setPageStep(increment)    # Page up/down move by increment
         self.length_slider.valueChanged.connect(self._on_slider_changed)
         slider_layout.addWidget(self.length_slider)
 
-        slider_layout.addWidget(QLabel("500"))
+        slider_layout.addWidget(QLabel(str(max_words)))
         layout.addLayout(slider_layout)
 
-        # Current value label
-        self.length_value_label = QLabel("200 words")
+        # Current value label with range indication
+        tolerance = self.prompt_config.word_count_tolerance
+        min_range = default_words - tolerance
+        max_range = default_words + tolerance
+        self.length_value_label = QLabel(f"{default_words} words ({min_range}-{max_range})")
         self.length_value_label.setAlignment(Qt.AlignCenter)
+        self.length_value_label.setToolTip(
+            f"Target: {default_words} words. Model will generate between "
+            f"{min_range} and {max_range} words."
+        )
         layout.addWidget(self.length_value_label)
 
         # Add stretch to push everything to top
@@ -394,8 +413,30 @@ class AIControlsWidget(QGroupBox):
         self._update_model_status()
 
     def _on_slider_changed(self, value):
-        """Handle slider value change."""
-        self.length_value_label.setText(f"{value} words")
+        """Handle slider value change and snap to increment."""
+        increment = self.prompt_config.slider_increment
+
+        # Snap to nearest increment
+        snapped_value = round(value / increment) * increment
+
+        # Update slider if value was adjusted (prevents infinite loop by checking if different)
+        if snapped_value != value:
+            self.length_slider.blockSignals(True)
+            self.length_slider.setValue(snapped_value)
+            self.length_slider.blockSignals(False)
+            value = snapped_value
+
+        # Calculate and display range
+        tolerance = self.prompt_config.word_count_tolerance
+        min_range = value - tolerance
+        max_range = value + tolerance
+
+        self.length_value_label.setText(f"{value} words ({min_range}-{max_range})")
+        self.length_value_label.setToolTip(
+            f"Target: {value} words. Model will generate between "
+            f"{min_range} and {max_range} words."
+        )
+
         self.summary_length_changed.emit(value)
 
     def _on_load_model_clicked(self):
