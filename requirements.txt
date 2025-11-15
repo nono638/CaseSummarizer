@@ -7,6 +7,10 @@ PySide6>=6.6.0
 numpy<2.0
 
 # Local AI Engine
+# ONNX Runtime with DirectML - Optimized for Windows with GPU acceleration
+onnxruntime-genai-directml>=0.10.0
+huggingface-hub>=0.20.0  # For downloading ONNX models
+# Legacy fallback (can be removed after confirming ONNX works on all systems)
 llama-cpp-python>=0.3.0
 
 # OCR

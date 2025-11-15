@@ -16,6 +16,7 @@ from ..config import (
 )
 from ..prompt_config import get_prompt_config
 from ..utils.logger import debug
+from ..debug_logger import debug_log
 
 
 class ModelManager:
@@ -46,20 +47,20 @@ class ModelManager:
         """
         models = {
             'standard': {
-                'name': 'Standard (9B)',
+                'name': 'Standard (Phi-3 3.8B)',
                 'filename': STANDARD_MODEL_NAME,
                 'path': MODELS_DIR / STANDARD_MODEL_NAME,
-                'size_gb': 7,
+                'size_gb': 2.3,
                 'available': False,
-                'description': 'Fast, good quality'
+                'description': 'CPU-optimized, fast (30-90 sec)'
             },
             'pro': {
-                'name': 'Pro (27B)',
+                'name': 'Pro (Gemma 2 9B)',
                 'filename': PRO_MODEL_NAME,
                 'path': MODELS_DIR / PRO_MODEL_NAME,
-                'size_gb': 22,
+                'size_gb': 5.4,
                 'available': False,
-                'description': 'Slower, best quality'
+                'description': 'Best quality (GPU recommended)'
             }
         }
 
@@ -109,11 +110,26 @@ class ModelManager:
         try:
             debug(f"Loading model: {model_info['name']} from {model_info['path']}")
 
-            # Load model with llama-cpp-python
+            # Determine optimal thread count for CPU inference
+            # Research shows: n_threads should be physical cores, n_threads_batch can be logical cores
+            # This prevents thread doubling and lockstep synchronization issues
+            logical_cores = os.cpu_count() or 4
+
+            # Estimate physical cores for hardware-agnostic compatibility
+            # Most modern CPUs use 2-way SMT (Intel HT, AMD SMT)
+            # Single-threaded CPUs: physical_cores = logical_cores (safe)
+            # Hyperthreaded CPUs: physical_cores ≈ logical_cores / 2 (optimal)
+            physical_cores = max(1, logical_cores // 2)
+
+            debug(f"Thread config: {physical_cores} threads (prompt), {logical_cores} threads (batch)")
+
+            # Load model with llama-cpp-python with optimized CPU settings
             self.current_model = Llama(
                 model_path=str(model_info['path']),
                 n_ctx=MAX_CONTEXT_TOKENS,
-                n_threads=os.cpu_count() or 4,  # Use all available CPU cores
+                n_threads=physical_cores,      # Physical cores for prompt processing
+                n_threads_batch=logical_cores,  # All cores for token generation
+                n_batch=512,                    # Batch size for better throughput
                 verbose=verbose
             )
 
@@ -168,8 +184,14 @@ class ModelManager:
             top_p = self.prompt_config.top_p
 
         debug(f"Generating text (max_tokens={max_tokens}, temp={temperature}, top_p={top_p})")
+        debug_log("\n[MODEL] Starting generation...")
+        debug_log(f"[MODEL] Stream mode: {stream}")
+        debug_log(f"[MODEL] Max tokens: {max_tokens}")
+        debug_log(f"[MODEL] Prompt length: {len(prompt)} chars")
+        debug_log(f"[MODEL] First 200 chars of prompt:\n{prompt[:200]}")
 
         try:
+            debug_log("[MODEL] Calling llama.cpp model... (this may take 2-3 minutes for first token)")
             response = self.current_model(
                 prompt,
                 max_tokens=max_tokens,
@@ -178,12 +200,18 @@ class ModelManager:
                 stream=stream,
                 stop=["</s>", "\n\n\n"]  # Stop sequences
             )
+            debug_log("[MODEL] Model call returned, starting to iterate response...")
 
             if stream:
                 # Stream mode: yield tokens as they're generated
+                token_num = 0
                 for output in response:
                     token = output['choices'][0]['text']
+                    token_num += 1
+                    if token_num <= 5 or token_num % 20 == 0:
+                        debug_log(f"[MODEL] Yielding token #{token_num}: '{token}'")
                     yield token
+                debug_log(f"[MODEL] Finished generating {token_num} tokens")
             else:
                 # Non-stream mode: return complete text
                 return response['choices'][0]['text']

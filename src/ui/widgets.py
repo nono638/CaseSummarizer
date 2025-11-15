@@ -6,9 +6,10 @@ Phase 2: File Review Table and other custom widgets
 from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QCheckBox,
     QWidget, QHBoxLayout, QHeaderView, QVBoxLayout,
-    QGroupBox, QRadioButton, QSlider, QLabel, QPushButton
+    QGroupBox, QRadioButton, QSlider, QLabel, QPushButton,
+    QTextEdit, QProgressBar
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QColor
 import os
 
@@ -339,12 +340,20 @@ class AIControlsWidget(QGroupBox):
         layout.addWidget(model_label)
 
         # Radio buttons for model selection
-        self.standard_radio = QRadioButton("Standard (9B) - Fast, good quality")
+        self.standard_radio = QRadioButton("Standard (Phi-3 3.8B) - CPU-optimized")
         self.standard_radio.setChecked(True)
+        self.standard_radio.setToolTip(
+            "Phi-3 Mini 3.8B: Fast on CPU (30-90 sec), good quality\n"
+            "Recommended for most users"
+        )
         self.standard_radio.toggled.connect(self._on_model_selection_changed)
         layout.addWidget(self.standard_radio)
 
-        self.pro_radio = QRadioButton("Pro (27B) - Slower, best quality")
+        self.pro_radio = QRadioButton("Pro (Gemma 2 9B) - GPU recommended")
+        self.pro_radio.setToolTip(
+            "Gemma 2 9B: Best quality but slow on CPU (5-10 min)\n"
+            "Recommended only for GPU users"
+        )
         self.pro_radio.toggled.connect(self._on_model_selection_changed)
         layout.addWidget(self.pro_radio)
 
@@ -489,3 +498,330 @@ class AIControlsWidget(QGroupBox):
     def refresh_status(self):
         """Refresh the model status display."""
         self._update_model_status()
+
+
+class SummaryResultsWidget(QGroupBox):
+    """
+    Widget to display AI-generated summary with streaming support.
+
+    Features:
+    - Real-time streaming text display
+    - Word count and timing statistics
+    - Save to file functionality
+    - Copy to clipboard
+    - Editable text area for post-generation refinement
+    """
+
+    # Signals
+    save_requested = Signal(str)  # Summary text to save
+    cancel_requested = Signal()  # User wants to cancel generation
+
+    def __init__(self, parent=None):
+        super().__init__("Case Summary", parent)
+        self._generation_start_time = None
+        self._timer = None
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Initialize UI components."""
+        layout = QVBoxLayout()
+
+        # Statistics bar
+        stats_layout = QHBoxLayout()
+
+        self.word_count_label = QLabel("Words: 0")
+        self.word_count_label.setStyleSheet("color: #666; font-size: 11px;")
+
+        self.gen_time_label = QLabel("Generation time: --")
+        self.gen_time_label.setStyleSheet("color: #666; font-size: 11px;")
+
+        stats_layout.addWidget(self.word_count_label)
+        stats_layout.addStretch()
+        stats_layout.addWidget(self.gen_time_label)
+
+        layout.addLayout(stats_layout)
+
+        # Progress section (hidden by default)
+        self.progress_widget = QWidget()
+        progress_layout = QVBoxLayout()
+        progress_layout.setContentsMargins(0, 5, 0, 5)
+
+        # Top row: Status message and cancel button
+        progress_top_layout = QHBoxLayout()
+
+        # Status message with timer
+        self.progress_status = QLabel("Generating 200-word summary...")
+        self.progress_status.setStyleSheet("color: #2563eb; font-size: 12px; font-weight: bold;")
+
+        # Cancel button
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setMaximumWidth(80)
+        self.cancel_btn.clicked.connect(self._on_cancel_clicked)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc2626;
+                color: white;
+                border: none;
+                padding: 4px 8px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #b91c1c;
+            }
+        """)
+
+        progress_top_layout.addWidget(self.progress_status)
+        progress_top_layout.addStretch()
+        progress_top_layout.addWidget(self.cancel_btn)
+
+        # Progress bar (indeterminate/pulsing)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(0)  # Indeterminate mode
+        self.progress_bar.setMaximumHeight(8)
+        self.progress_bar.setTextVisible(False)
+
+        progress_layout.addLayout(progress_top_layout)
+        progress_layout.addWidget(self.progress_bar)
+        self.progress_widget.setLayout(progress_layout)
+        self.progress_widget.hide()  # Hidden by default
+
+        layout.addWidget(self.progress_widget)
+
+        # Summary text area (editable)
+        self.summary_text = QTextEdit()
+        self.summary_text.setPlaceholderText(
+            "Generated summary will appear here...\n\n"
+            "Select files, load a model, and click 'Generate Summaries' to begin."
+        )
+        self.summary_text.setMinimumHeight(200)
+
+        # Set a readable font
+        from PySide6.QtGui import QFont
+        font = QFont("Segoe UI", 10)
+        self.summary_text.setFont(font)
+
+        layout.addWidget(self.summary_text)
+
+        # Action buttons
+        button_layout = QHBoxLayout()
+
+        self.copy_btn = QPushButton("Copy to Clipboard")
+        self.copy_btn.clicked.connect(self._copy_to_clipboard)
+        self.copy_btn.setEnabled(False)
+
+        self.save_btn = QPushButton("Save to File...")
+        self.save_btn.clicked.connect(self._save_to_file)
+        self.save_btn.setEnabled(False)
+
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.clicked.connect(self.clear_summary)
+        self.clear_btn.setEnabled(False)
+
+        button_layout.addWidget(self.copy_btn)
+        button_layout.addWidget(self.save_btn)
+        button_layout.addStretch()
+        button_layout.addWidget(self.clear_btn)
+
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+
+    def append_token(self, token: str):
+        """
+        Append a token to the summary (for streaming display).
+
+        Args:
+            token: Text token from the AI model
+        """
+        from src.debug_logger import debug_log
+
+        # Debug: Log first few tokens to verify method is being called
+        current_text = self.summary_text.toPlainText()
+        if len(current_text) < 100:
+            debug_log(f"[GUI append_token] Token received: '{token}' (current length: {len(current_text)})")
+
+        # Insert the token at the end
+        # Note: We use insertPlainText instead of cursor manipulation
+        # because it's more reliable in Qt for streaming text
+        self.summary_text.moveCursor(QTextCursor.MoveOperation.End)
+        self.summary_text.insertPlainText(token)
+
+        # Update word count
+        self._update_word_count()
+
+        # Auto-scroll to show new content
+        self.summary_text.ensureCursorVisible()
+
+    def set_summary(self, summary: str):
+        """
+        Set the complete summary text (for non-streaming display).
+
+        Args:
+            summary: Complete summary text
+        """
+        self.summary_text.setPlainText(summary)
+        self._update_word_count()
+        self._enable_buttons()
+
+    def clear_summary(self):
+        """Clear the summary text area."""
+        self.summary_text.clear()
+        self.word_count_label.setText("Words: 0")
+        self.gen_time_label.setText("Generation time: --")
+        self._disable_buttons()
+        self.hide_progress()
+
+    def start_generation(self, target_words: int):
+        """
+        Start showing generation progress.
+
+        Args:
+            target_words: Target summary length in words
+        """
+        import time
+        self._generation_start_time = time.time()
+
+        # Update status message
+        self.progress_status.setText(f"Generating {target_words}-word summary... (0:00)")
+
+        # Show progress widget
+        self.progress_widget.show()
+
+        # Start timer to update elapsed time
+        if self._timer is None:
+            self._timer = QTimer()
+            self._timer.timeout.connect(self._update_progress_timer)
+
+        self._timer.start(100)  # Update every 100ms
+
+    def hide_progress(self):
+        """Hide the progress indicator."""
+        if self._timer:
+            self._timer.stop()
+
+        self.progress_widget.hide()
+        self._generation_start_time = None
+
+    def _update_progress_timer(self):
+        """Update the elapsed time display in the progress status."""
+        if self._generation_start_time is None:
+            return
+
+        import time
+        elapsed = time.time() - self._generation_start_time
+
+        # Format time as M:SS or H:MM:SS
+        if elapsed < 60:
+            time_str = f"0:{int(elapsed):02d}"
+        elif elapsed < 3600:
+            minutes = int(elapsed // 60)
+            seconds = int(elapsed % 60)
+            time_str = f"{minutes}:{seconds:02d}"
+        else:
+            hours = int(elapsed // 3600)
+            minutes = int((elapsed % 3600) // 60)
+            seconds = int(elapsed % 60)
+            time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+
+        # Get current word count
+        word_count = len(self.summary_text.toPlainText().split())
+
+        # Update status with timer and word count
+        # Extract target words from current status (if it exists)
+        current_status = self.progress_status.text()
+        if "Generating" in current_status and "-word" in current_status:
+            # Extract target number
+            import re
+            match = re.search(r'(\d+)-word', current_status)
+            if match:
+                target = match.group(1)
+                self.progress_status.setText(
+                    f"Generating {target}-word summary... ({time_str} elapsed, {word_count} words so far)"
+                )
+        else:
+            self.progress_status.setText(
+                f"Generating summary... ({time_str} elapsed, {word_count} words so far)"
+            )
+
+    def set_generation_time(self, seconds: float):
+        """
+        Display the summary generation time.
+
+        Args:
+            seconds: Generation time in seconds
+        """
+        if seconds < 60:
+            time_str = f"{seconds:.1f} seconds"
+        else:
+            minutes = int(seconds // 60)
+            remaining_seconds = seconds % 60
+            time_str = f"{minutes}m {remaining_seconds:.0f}s"
+
+        self.gen_time_label.setText(f"Generation time: {time_str}")
+
+    def get_summary(self) -> str:
+        """Get the current summary text."""
+        return self.summary_text.toPlainText()
+
+    def _update_word_count(self):
+        """Update the word count display."""
+        text = self.summary_text.toPlainText()
+        word_count = len(text.split()) if text.strip() else 0
+        self.word_count_label.setText(f"Words: {word_count}")
+
+        # Enable buttons if there's content
+        if word_count > 0:
+            self._enable_buttons()
+
+    def _enable_buttons(self):
+        """Enable action buttons."""
+        self.copy_btn.setEnabled(True)
+        self.save_btn.setEnabled(True)
+        self.clear_btn.setEnabled(True)
+
+    def _disable_buttons(self):
+        """Disable action buttons."""
+        self.copy_btn.setEnabled(False)
+        self.save_btn.setEnabled(False)
+        self.clear_btn.setEnabled(False)
+
+    def _copy_to_clipboard(self):
+        """Copy summary to system clipboard."""
+        from PySide6.QtWidgets import QApplication
+
+        summary = self.get_summary()
+        if summary:
+            clipboard = QApplication.clipboard()
+            clipboard.setText(summary)
+
+            # Show brief confirmation in status (parent should connect to this)
+            # For now, just enable the button feedback
+            original_text = self.copy_btn.text()
+            self.copy_btn.setText("Copied!")
+            self.copy_btn.setEnabled(False)
+
+            # Reset button after 1 second
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(1000, lambda: self._reset_copy_button(original_text))
+
+    def _reset_copy_button(self, original_text: str):
+        """Reset the copy button text."""
+        self.copy_btn.setText(original_text)
+        self.copy_btn.setEnabled(True)
+
+    def _save_to_file(self):
+        """Emit signal to save summary to file."""
+        summary = self.get_summary()
+        if summary:
+            self.save_requested.emit(summary)
+
+    def _on_cancel_clicked(self):
+        """Handle cancel button click."""
+        # Emit signal to parent to stop generation
+        self.cancel_requested.emit()
+
+        # Disable cancel button to prevent multiple clicks
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setText("Cancelling...")
+        self.progress_status.setText("Cancelling generation...")

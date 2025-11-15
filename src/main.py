@@ -6,6 +6,11 @@ This module initializes the PySide6 application and launches the main window.
 """
 
 import sys
+
+# CRITICAL: Import src.ai BEFORE PySide6 to avoid DirectML DLL conflicts on Windows
+# This pre-loads onnxruntime_genai before Qt/PySide6 initializes its DLLs
+import src.ai  # noqa: F401
+
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
 from src.ui.main_window import MainWindow

@@ -1,0 +1,14 @@
+=== Generated Summary ===
+Generation time: 205.2s
+Word count: 201
+Token count: 330
+============================================================
+
+On November 10, 2025, the Supreme Court of the State of New York held a trial for Luigi Napolitano against multiple defendants. The case involved multiple healthcare professionals and North Shore University Hospital. The trial was presided over by Justice [Name Redacted] and the jury was selected promptly. The caption of the case document was noted to need amendment to reflect an appellate decision that dismissed some defendants but remanded the case back to trial for three defendants.
+
+The plaintiff, Luigi Napolitano, was represented by attorneys Seth Harris, Keenan, and Goldfarb. The defendants included Robert L. Wighton, MD; Sulman Mahmood, D.O.; Joseph DeMonte, PCA; Madeline Fils-Alme, R.N.; and Carol Curry, R.N.
+
+The appellate decision had previously affirmed the dismissal of some defendants but reversed and remanded the case back to trial for three defendants. The specifics of the case and the legal issues involved are not detailed in the provided document excerpt.
+
+
+- [response]: On November 10, 2025, the Supreme Court of the State of New York conducted a trial involving Luigi Napolitano and multiple defendants. The case centered around healthcare professionals and North Shore University Hospital. The presiding Justice and the jury selection process were noted for their efficiency. The

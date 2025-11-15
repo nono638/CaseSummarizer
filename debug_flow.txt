@@ -1,0 +1,130 @@
+=== LocalScribe Debug Log ===
+Started: 2025-11-15T10:25:07.257838
+============================================================
+
+[10:25:14.168] 
+[ONNX MODEL LOAD] Starting load_model(model_type='standard', verbose=False)
+[10:26:25.157] 
+=== DEBUG: Text being sent to model ===
+[10:26:25.157] Word count: 309
+[10:26:25.157] Character count: 1854
+[10:26:25.157] First 500 chars:
+--- Document: Transcript 11-10-2025 700321-2022 Napolitano_F.pdf --- In The Matter Of: November 10, 2025 Queens Supreme Court, Cvil Division Original File Transcript 11-10-2025 700321-2022 Napolitano.txt Min-U-Script® with Word Index 1 SUPREME COURT OF THE STATE OF NEW YORK Supreme Courthouse 10 88-11 Sutphin Boulevard Jamaica, New York 11435 14 Justice of the Supreme Court 17 Attorneys for the Plaintiff 233 Broadway, 9th Floor 18 New York, New York 10279 21 Attorneys for the Defendants 227 Mine
+[10:26:25.157] Last 200 chars:
+ich affirmed dismissal with regard to some of the 25 defendants, but reversed and remanded this back for trial 1 for three of the defendants.
+
+[Note: Document text was truncated to fit context window]
+[10:26:25.157] === END DEBUG ===
+
+[10:26:25.157] 
+[WORKER] About to call generate_summary()...
+[10:26:25.157] [WORKER] Parameters: max_words=200, stream=True
+[10:26:25.157] 
+[ONNX MODEL] Starting generation...
+[10:26:25.157] [ONNX MODEL] Stream mode: True
+[10:26:25.157] [ONNX MODEL] Max tokens: 330
+[10:26:25.157] [ONNX MODEL] Prompt length: 2190 chars
+[10:26:25.157] [ONNX MODEL] First 200 chars of prompt:
+You are a legal case summarizer. Write a clear, concise summary of the following legal document.
+
+Instructions:
+- Length: Between 180 and 220 words (target: 200 words)
+- Focus on: key facts, parties i
+[10:26:25.324] [ONNX MODEL] Prompt tokenized: 775 tokens
+[10:26:25.324] [ONNX MODEL] Creating generator...
+[10:26:25.324] [ONNX MODEL] Input tokens: 775, Max output tokens: 330
+[10:26:25.764] [ONNX MODEL] Generator created, appending tokens...
+[10:27:51.052] [ONNX MODEL] Tokens appended successfully
+[10:27:51.052] [ONNX MODEL] Starting token generation...
+[10:27:51.055] [ONNX MODEL] Token #1: '
+'
+[10:27:51.055] [WORKER] *** FIRST TOKEN RECEIVED! *** Token: '
+'
+[10:27:51.055] [WORKER] Token #0: '
+'
+[10:27:51.894] [ONNX MODEL] Token #2: '
+'
+[10:27:51.896] [WORKER] Token #1: '
+'
+[10:27:52.297] [ONNX MODEL] Token #3: 'On'
+[10:27:52.297] [WORKER] Token #2: 'On'
+[10:27:52.719] [ONNX MODEL] Token #4: ' November'
+[10:27:52.719] [WORKER] Token #3: ' November'
+[10:27:53.116] [ONNX MODEL] Token #5: ' '
+[10:27:53.116] [WORKER] Token #4: ' '
+[10:27:53.526] [WORKER] Token #5: '1'
+[10:27:53.928] [WORKER] Token #6: '0'
+[10:27:54.344] [WORKER] Token #7: ','
+[10:27:54.753] [WORKER] Token #8: ' '
+[10:27:55.147] [WORKER] Token #9: '2'
+[10:27:55.147] [WORKER] Progress update: 4 words, 10 tokens
+[10:27:59.181] [ONNX MODEL] Token #20: ' State'
+[10:27:59.182] [WORKER] Progress update: 10 words, 20 tokens
+[10:27:59.590] [WORKER] Token #20: ' of'
+[10:28:03.196] [WORKER] Progress update: 19 words, 30 tokens
+[10:28:07.179] [ONNX MODEL] Token #40: ' multiple'
+[10:28:07.179] [WORKER] Progress update: 26 words, 40 tokens
+[10:28:07.558] [WORKER] Token #40: ' health'
+[10:28:10.922] [WORKER] Progress update: 33 words, 50 tokens
+[10:28:14.640] [ONNX MODEL] Token #60: ' ['
+[10:28:14.640] [WORKER] Progress update: 41 words, 60 tokens
+[10:28:15.038] [WORKER] Token #60: 'Name'
+[10:28:18.465] [WORKER] Progress update: 46 words, 70 tokens
+[10:28:22.223] [ONNX MODEL] Token #80: ' case'
+[10:28:22.223] [WORKER] Progress update: 53 words, 80 tokens
+[10:28:22.586] [WORKER] Token #80: ' document'
+[10:28:25.904] [WORKER] Progress update: 61 words, 90 tokens
+[10:28:29.551] [ONNX MODEL] Token #100: ' defend'
+[10:28:29.551] [WORKER] Progress update: 68 words, 100 tokens
+[10:28:29.902] [WORKER] Token #100: 'ants'
+[10:28:33.089] [WORKER] Progress update: 75 words, 110 tokens
+[10:28:36.624] [ONNX MODEL] Token #120: 'int'
+[10:28:36.624] [WORKER] Progress update: 80 words, 120 tokens
+[10:28:36.976] [WORKER] Token #120: 'iff'
+[10:28:40.178] [WORKER] Progress update: 85 words, 130 tokens
+[10:28:43.756] [ONNX MODEL] Token #140: 'en'
+[10:28:43.757] [WORKER] Progress update: 89 words, 140 tokens
+[10:28:44.102] [WORKER] Token #140: 'an'
+[10:28:47.255] [WORKER] Progress update: 93 words, 150 tokens
+[10:28:50.573] [ONNX MODEL] Token #160: ';'
+[10:28:50.574] [WORKER] Progress update: 98 words, 160 tokens
+[10:28:50.897] [WORKER] Token #160: ' Sul'
+[10:28:53.870] [WORKER] Progress update: 101 words, 170 tokens
+[10:28:57.189] [ONNX MODEL] Token #180: 'eline'
+[10:28:57.190] [WORKER] Progress update: 105 words, 180 tokens
+[10:28:57.523] [WORKER] Token #180: ' Fil'
+[10:29:00.512] [WORKER] Progress update: 107 words, 190 tokens
+[10:29:03.840] [ONNX MODEL] Token #200: '
+'
+[10:29:03.841] [WORKER] Progress update: 111 words, 200 tokens
+[10:29:04.169] [WORKER] Token #200: '
+'
+[10:29:07.254] [WORKER] Progress update: 117 words, 210 tokens
+[10:29:10.774] [ONNX MODEL] Token #220: ' revers'
+[10:29:10.774] [WORKER] Progress update: 124 words, 220 tokens
+[10:29:11.136] [WORKER] Token #220: 'ed'
+[10:29:14.410] [WORKER] Progress update: 131 words, 230 tokens
+[10:29:18.082] [ONNX MODEL] Token #240: ' the'
+[10:29:18.082] [WORKER] Progress update: 138 words, 240 tokens
+[10:29:18.422] [WORKER] Token #240: ' case'
+[10:29:21.464] [WORKER] Progress update: 148 words, 250 tokens
+[10:29:24.828] [ONNX MODEL] Token #260: '
+'
+[10:29:24.828] [WORKER] Progress update: 152 words, 260 tokens
+[10:29:25.167] [WORKER] Token #260: '-'
+[10:29:28.314] [WORKER] Progress update: 157 words, 270 tokens
+[10:29:31.795] [ONNX MODEL] Token #280: ' of'
+[10:29:31.796] [WORKER] Progress update: 162 words, 280 tokens
+[10:29:32.142] [WORKER] Token #280: ' the'
+[10:29:35.335] [WORKER] Progress update: 172 words, 290 tokens
+[10:29:39.126] [ONNX MODEL] Token #300: ' case'
+[10:29:39.127] [WORKER] Progress update: 178 words, 300 tokens
+[10:29:39.513] [WORKER] Token #300: ' centered'
+[10:29:42.930] [WORKER] Progress update: 185 words, 310 tokens
+[10:29:46.697] [ONNX MODEL] Token #320: ' j'
+[10:29:46.697] [WORKER] Progress update: 193 words, 320 tokens
+[10:29:47.108] [WORKER] Token #320: 'ury'
+[10:29:50.305] [WORKER] Progress update: 201 words, 330 tokens
+[10:29:50.306] [ONNX MODEL] Generation complete: 330 tokens
+[10:29:50.325] 
+[WORKER] Summary written to: C:\Users\noahc\Dropbox\Not Work\Data Science\CaseSummarizer\generated_summary.txt

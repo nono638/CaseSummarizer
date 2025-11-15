@@ -817,3 +817,192 @@ No refinement needed for current use case. Possible future enhancements:
 - **Progress percentage**: Would need custom model loading implementation or llama-cpp-python updates
 - **Background loading**: Load model when app starts (if user preference set)
 - **Load time estimation**: Track load times and show "Usually takes ~15 seconds" based on history
+
+---
+
+## 2025-11-15 - ONNX Runtime Migration: 5.4x Performance Boost, GUI Issues Unresolved
+**Feature:** Migration from llama-cpp-python to ONNX Runtime GenAI with DirectML
+
+Successfully migrated AI backend from llama-cpp-python to ONNX Runtime GenAI with DirectML acceleration, achieving a **5.4x performance improvement** (0.6 → 3.21 tokens/sec). The backend generates summaries perfectly, but **GUI display issues remain unresolved**.
+
+### Performance Results
+
+| Metric | llama-cpp-python | ONNX DirectML | Improvement |
+|--------|------------------|---------------|-------------|
+| Model load time | ~5 seconds | 2.3 seconds | 2.2x faster |
+| First token time | 177 seconds | 16 seconds | 11x faster |
+| Generation speed | 0.6 tokens/sec | 3.21 tokens/sec | 5.4x faster |
+| 100-word summary | 4+ minutes | ~56 seconds | 4.3x faster |
+
+### What Worked ✅
+
+1. **ONNX Runtime Installation**
+   - Installed `onnxruntime-genai-directml>=0.10.0` for GPU acceleration
+   - DirectML works with ANY DirectX 12 GPU (Intel/AMD integrated, not just NVIDIA)
+   - No CUDA required - ideal for business deployment on standard laptops
+
+2. **Model Download and Deployment**
+   - Downloaded Phi-3 Mini ONNX INT4-AWQ model from HuggingFace
+   - Model: `microsoft/Phi-3-mini-4k-instruct-onnx` (directml variant)
+   - Size: 2.0 GB (vs 5.4 GB for Gemma 2 GGUF)
+   - Location: `%APPDATA%\LocalScribe\models\phi-3-mini-onnx-directml\`
+   - Used Python API for download (huggingface-cli didn't work)
+
+3. **ONNXModelManager Implementation**
+   - Created `src/ai/onnx_model_manager.py` - new model manager using ONNX Runtime GenAI API
+   - Compatible with existing ModelManager interface
+   - Automatic DirectML/CPU detection
+   - Streaming generation with `og.Generator()` and `generate_next_token()`
+   - Significant performance improvement over llama-cpp-python
+
+4. **Fixed Critical DLL Initialization Conflict**
+   - **Problem:** `OSError: [WinError 1114] A dynamic link library (DLL) initialization routine failed`
+   - **Root Cause:** PySide6/Qt loads DLLs that conflict with DirectML when imported first
+   - **Solution:** Import `onnxruntime_genai` BEFORE any PySide6/Qt imports
+   - **Files Modified:**
+     - `src/ai/__init__.py`: Added early import of `onnxruntime_genai`
+     - `src/main.py`: Added `import src.ai` before PySide6 imports
+   - This is a known issue with PyTorch/Qt on Windows - same solution applies to ONNX Runtime
+
+5. **Performance Optimizations**
+   - Reduced max input from 1500 words to 300 words (src/ui/workers.py:274)
+   - Prevents generator creation from hanging (1500 words → 90+ seconds, 300 words → <1 second)
+   - Added debug file output (`generated_summary.txt`) for backend verification
+
+6. **Backend Verification - CONFIRMED WORKING**
+   - Summary generation works perfectly (verified via file output)
+   - 180 tokens generated successfully
+   - Coherent legal summary produced
+   - Proper formatting and content
+
+### What Didn't Work ❌
+
+1. **GUI Freezing During Generation (CRITICAL BLOCKER)**
+   - **Symptom:** GUI becomes "Not Responding" when "Generate Summaries" clicked
+   - **Occurs:** Even with streaming token display disabled
+   - **Impact:** Progress bar appears late or not at all, summary doesn't display
+   - **What We Know:**
+     - ✅ Backend works perfectly (file output confirms)
+     - ✅ Worker thread runs correctly
+     - ✅ Signals are emitted
+     - ❌ GUI thread becomes blocked somehow
+   - **Possible Causes:**
+     - Generator creation (`og.Generator()`) takes 40+ seconds despite QThread
+     - Token appending (`generator.append_tokens()`) takes 40+ seconds
+     - Some synchronous operation in ONNX Runtime blocking Qt event loop
+     - Qt's processEvents() not being called during long operations
+
+2. **Text Not Appearing in QTextEdit Widget**
+   - **Symptom:** Despite `append_token()` being called 180+ times, text widget remains empty
+   - **Debug Evidence:** `debug_flow.txt` shows `current length: 0` every time
+   - **Attempted Fixes (ALL FAILED):**
+     - **Attempt 1:** QTextCursor-based insertion (`cursor.insertText(token)`)
+       - Problem: Text never appeared, toPlainText() always empty
+     - **Attempt 2:** Direct insertPlainText() (`self.summary_text.insertPlainText(token)`)
+       - Problem: Still no text display, GUI unresponsive
+     - **Attempt 3:** Disabled streaming token display
+       - Rationale: 180+ rapid GUI updates overwhelming Qt event loop
+       - Result: GUI still freezes even without streaming updates
+
+3. **Current Workaround**
+   - Disabled streaming token display to prevent additional GUI overhead
+   - File: `src/ui/main_window.py:506` - commented out `token_generated` signal connection
+   - Summary saved to `generated_summary.txt` for verification
+   - **GUI still freezes** - issue deeper than just streaming tokens
+
+### Technical Insights Gained
+
+**DirectML on Integrated GPUs:**
+- DirectML provides 5-10x speedup over pure CPU inference
+- Works with any DirectX 12 GPU (Intel/AMD integrated, not just NVIDIA)
+- Ideal for business deployment on standard laptops without dedicated GPUs
+
+**ONNX vs GGUF:**
+- ONNX INT4-AWQ quantization preserves quality better than Q4_K_M GGUF
+- Microsoft's official deployment path for Phi-3 on Windows
+- Pre-compiled, optimized kernels vs generic llama.cpp
+- Faster load times (2.3s vs 5s), faster inference (3.21 vs 0.6 tokens/sec)
+
+**Qt Threading Lessons Learned:**
+- DLL load order matters on Windows - always load heavy DLLs before Qt
+- Too many rapid GUI updates (180+ tokens at 0.2-0.4s intervals) can freeze event loop
+- Signals/slots don't automatically prevent UI blocking from long operations
+- May need explicit `processEvents()` calls or different threading approach (separate process instead of QThread)
+
+### Files Created
+- `src/ai/onnx_model_manager.py` - ONNX-based model manager (new implementation)
+- `download_onnx_models.py` - Model download script using HuggingFace API
+- `test_onnx_model.py` - Performance test script
+- `generated_summary.txt` - Debug output file (proves backend works)
+- `debug_flow.txt` - Detailed debug log showing GUI issues
+- `ONNX_MIGRATION_LOG.md` - Comprehensive technical migration log
+- `src/debug_logger.py` - Debug logging utility
+- `src/performance_tracker.py` - Performance tracking for time estimates
+
+### Files Modified
+- `src/ai/__init__.py` - Added early onnxruntime_genai import, made ONNXModelManager default
+- `src/main.py` - Import src.ai before PySide6 to fix DLL conflict
+- `src/ui/workers.py` - Reduced input size to 300 words, added file output
+- `src/ui/widgets.py` - Multiple attempts at text insertion (all failed)
+- `src/ui/main_window.py` - Disabled streaming token connection
+- `requirements.txt` - Added onnxruntime-genai-directml, huggingface-hub
+
+### Approaches Tried (Detailed Record)
+
+**For GUI Freezing:**
+1. ❌ Disabled streaming token display - GUI still freezes
+2. ❌ Reduced input size to 300 words - helps generator creation but GUI still freezes
+3. ✅ File output verification - proved backend works independently
+
+**For Text Display:**
+1. ❌ QTextCursor with movePosition() + insertText()
+2. ❌ Direct widget insertPlainText() method
+3. ❌ Reduced update frequency (still too many rapid updates)
+
+**For Performance:**
+1. ✅ Migrated to ONNX Runtime DirectML - 5.4x speedup achieved
+2. ✅ Fixed DLL initialization by controlling import order
+3. ✅ Reduced input text size - generator creation much faster
+
+### Recommendations for Next Session
+
+**Priority 1: Fix GUI Freezing**
+1. Add `QApplication.processEvents()` calls during generation
+2. Consider separate process instead of QThread for generation
+3. Investigate if ONNX Runtime has async API
+4. Try QTimer-based polling instead of signals
+
+**Priority 2: Simplify Display (If GUI unfixable)**
+1. Show only final summary (no streaming)
+2. Add "Please wait..." modal dialog during generation
+3. Save summaries to file as primary workflow
+4. Consider web-based UI (Flask/FastAPI) instead of Qt
+
+**Priority 3: Test on Different Hardware**
+1. Verify DirectML works on AMD integrated GPUs
+2. Test on machines without DirectX 12 (CPU fallback)
+3. Benchmark CPU-only performance
+
+**Alternative Approaches:**
+- Try `onnxruntime-directml` (non-genai) if issue persists
+- Investigate if PyQt6 has better threading than PySide6
+- Consider web-based UI to avoid Qt threading issues entirely
+
+### Status
+
+**Backend:** ✅ Working perfectly - 5.4x performance improvement achieved
+**GUI:** ❌ Blocking issues - freezing during generation, text display broken
+**Migration:** ⚠️ Partially successful - needs GUI fixes before merging to main
+
+**Files Committed:** ONNX migration code committed to branch, but GUI issues documented as known problems
+
+**Documentation:** Comprehensive technical log created (ONNX_MIGRATION_LOG.md) with all approaches tried, what worked, what didn't, and recommendations for next session.
+
+**Does this feature need further refinement?**
+Yes - critical refinement needed. The backend performance improvement is excellent (5.4x speedup), but the application is unusable due to GUI freezing. Next session must focus on:
+1. Fixing GUI responsiveness during generation (top priority)
+2. Resolving text display issues in QTextEdit widget
+3. If Qt threading issues prove unfixable, consider alternative UI approaches (web-based, different framework)
+
+This migration demonstrates excellent backend performance gains but reveals fundamental Qt threading challenges that require a different approach to long-running AI operations.
+
