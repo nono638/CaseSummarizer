@@ -32,10 +32,12 @@ OCR_DPI = 300
 OCR_CONFIDENCE_THRESHOLD = 70  # Files below this are pre-unchecked
 
 # AI Model Configuration
-STANDARD_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"
-PRO_MODEL_NAME = "gemma-2-27b-it-q4_k_m.gguf"
-MAX_CONTEXT_TOKENS = 8192
-SAFE_PROCESSING_TOKENS = 6000
+# Standard: Phi-3 Mini 3.8B (CPU-optimized, fast, good quality)
+# Pro: Gemma 2 9B (Requires GPU for reasonable performance)
+STANDARD_MODEL_NAME = "Phi-3-mini-4k-instruct-q4.gguf"
+PRO_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"
+MAX_CONTEXT_TOKENS = 4096  # Phi-3 Mini context window
+SAFE_PROCESSING_TOKENS = 3000  # Conservative for CPU performance
 
 # Default Processing Settings
 DEFAULT_SUMMARY_WORDS = 200

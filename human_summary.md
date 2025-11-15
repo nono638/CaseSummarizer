@@ -1,38 +1,34 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 IN PROGRESS (85% Complete):** AI infrastructure enhanced with configurable summaries and non-blocking model loading. Major UX improvements complete. Next: implement streaming summary generation and results display.
+**Phase 3 - ONNX Migration Attempt (Backend Working, GUI Broken):** Successfully migrated to ONNX Runtime with 5.4x performance improvement, but GUI has critical freezing issues that prevent user interaction. Backend generates summaries perfectly (verified via file output).
 
-**Current Branch:** `phase3-enhancements` (PR ready for review)
-**GitHub Status:** PR created - Phase 3 Enhancements awaiting merge
-**Latest PR:** Phase 3 Enhancements - Configurable summaries & threaded loading
+**Current Branch:** `phase3-enhancements`
+**Status:** ⚠️ **CRITICAL GUI ISSUES** - Application functional for backend testing only
 
-**Session Accomplishments:**
-1. ✅ **Configurable Summary Length System**
-   - User-editable JSON configuration (config/prompt_parameters.json)
-   - Slider with 50-word increments (configurable)
-   - UI shows word count ranges: "200 words (180-220)"
-   - AI prompt includes target range for better results
-2. ✅ **Threaded Model Loading**
-   - Non-blocking background thread for model loading
-   - Progress dialog with real-time elapsed timer
-   - Fixed "Not Responding" freeze issue
-   - Fully responsive UI during 30-60 second load
-3. ✅ **Code Organization**
-   - Created src/ui/workers.py for all background threads
-   - Created src/ui/dialogs.py for progress dialogs
-   - Established reusable patterns for threading
-4. ✅ **Testing & Documentation**
-   - All features tested and verified
-   - Comprehensive development log entries
-   - Pull request created with detailed description
+**Latest Session (2025-11-15):**
+Attempted migration from llama-cpp-python to ONNX Runtime GenAI with DirectML for Windows GPU acceleration. **Results: Mixed success** - backend performance improved dramatically, but GUI became unusable.
 
-**Next Session Tasks:**
-1. Review and merge PR for Phase 3 Enhancements
-2. Create AIWorker thread for streaming summary generation
-3. Add summary results panel to display generated text
-4. Implement save summaries to files
-5. Add progress indicators during AI processing
+**What Works ✅:**
+- ✅ Backend AI generation (5.4x faster: 0.6 → 3.21 tokens/sec)
+- ✅ ONNX model loading (Phi-3 Mini with DirectML)
+- ✅ Summary generation confirmed via file output
+- ✅ DLL initialization conflict resolved (import order fix)
+
+**What's Broken ❌:**
+- ❌ **GUI freezes** when "Generate Summaries" clicked ("Not Responding")
+- ❌ **Text display broken** - summaries don't appear in GUI despite backend working
+- ❌ **Streaming disabled** due to Qt event loop being overwhelmed
+- ❌ Application unusable for end users
+
+**Root Cause Analysis:**
+The ONNX Runtime operations (`generator.append_tokens()`, `generate_next_token()`) appear to block the Qt event loop despite running in a QThread. Multiple attempted fixes failed (streaming disabled, text insertion methods changed, input size reduced). Backend works perfectly when output is written to file instead of GUI.
+
+**Recommendations for Next Session:**
+1. **Priority 1:** Try `QApplication.processEvents()` during generation
+2. **Priority 2:** Move generation to separate process (not thread)
+3. **Alternative:** Simplify to non-streaming display with modal progress dialog
+4. **Last resort:** Consider web-based UI instead of Qt
 
 **Local Development:** Activate the virtual environment: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
 
@@ -40,24 +36,28 @@
 
 ### Documentation Files
 - **Project_Specification_LocalScribe_v2.0_FINAL.md** - Complete technical specification for LocalScribe (PRIMARY SOURCE OF TRUTH, 1148 lines)
-- **development_log.md** - Timestamped log of all code changes and features (updated with Phase 1 completion and documentation cleanup)
+- **development_log.md** - Timestamped log of all code changes and features (updated with ONNX migration session)
 - **human_summary.md** - This file; high-level status report for human consumption
 - **scratchpad.md** - Brainstorming document for future ideas and potential enhancements
 - **README.md** - Project overview with installation and usage instructions
+- **ONNX_MIGRATION_LOG.md** - Comprehensive technical log of ONNX Runtime migration (what worked, what didn't, recommendations)
 
 ### Source Code
-- **src/main.py** - Desktop GUI application entry point
+- **src/main.py** - Desktop GUI application entry point (modified: imports src.ai before PySide6 for DLL fix)
 - **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
-- **src/ai/model_manager.py** (241 lines) - AI model management with loading, text generation, and summarization
-- **src/ai/__init__.py** - AI package initialization (exports ModelManager)
-- **src/ui/main_window.py** - Main application window with menus, file selection, processing, threaded model loading, and AI integration
-- **src/ui/widgets.py** - Custom widgets including FileReviewTable and AIControlsWidget (with config integration)
-- **src/ui/workers.py** - Background worker threads (ModelLoadWorker, ProcessingWorker)
+- **src/ai/model_manager.py** (241 lines) - LEGACY: llama-cpp-python model manager (kept for reference)
+- **src/ai/onnx_model_manager.py** - NEW: ONNX Runtime GenAI model manager with DirectML (5.4x faster, default)
+- **src/ai/__init__.py** - AI package initialization (modified: early onnxruntime_genai import, exports ONNXModelManager)
+- **src/ui/main_window.py** - Main application window (modified: streaming disabled due to GUI issues)
+- **src/ui/widgets.py** - Custom widgets including FileReviewTable and AIControlsWidget (modified: failed text display attempts)
+- **src/ui/workers.py** - Background worker threads (modified: reduced input to 300 words, added file output)
 - **src/ui/dialogs.py** - Progress dialogs (ModelLoadProgressDialog with timer, SimpleProgressDialog)
 - **src/ui/__init__.py** - UI package initialization
 - **src/utils/logger.py** - Debug mode logging with performance timing using Timer context manager
+- **src/debug_logger.py** - NEW: Debug logging utility for troubleshooting
+- **src/performance_tracker.py** - NEW: Performance tracking for time estimates
 - **src/__init__.py** - Package initialization
 - **src/utils/__init__.py** - Utils package initialization
 

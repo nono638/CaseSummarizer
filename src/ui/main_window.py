@@ -15,8 +15,8 @@ from PySide6.QtGui import QAction
 import os
 from pathlib import Path
 
-from src.ui.widgets import FileReviewTable, AIControlsWidget
-from src.ui.workers import ProcessingWorker, ModelLoadWorker
+from src.ui.widgets import FileReviewTable, AIControlsWidget, SummaryResultsWidget
+from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker
 from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.model_load_worker = None
         self.model_load_dialog = None
+        self.ai_worker = None
 
         # AI Model Manager (Phase 3)
         self.model_manager = ModelManager()
@@ -140,7 +141,13 @@ class MainWindow(QMainWindow):
         # File Review Table
         self.file_table = FileReviewTable()
         self.file_table.selection_changed.connect(self.on_selection_changed)
-        layout.addWidget(self.file_table)
+        layout.addWidget(self.file_table, stretch=2)
+
+        # Summary Results Widget (Phase 3)
+        self.summary_results = SummaryResultsWidget()
+        self.summary_results.save_requested.connect(self.save_summary)
+        self.summary_results.cancel_requested.connect(self.cancel_ai_generation)
+        layout.addWidget(self.summary_results, stretch=1)
 
         # Progress bar (initially hidden)
         self.progress_bar = QProgressBar()
@@ -406,16 +413,9 @@ class MainWindow(QMainWindow):
             self.model_load_dialog.finish_success()
 
         model_name = self.model_manager.current_model_name
-        self.status_bar.showMessage(f"{model_name.title()} model loaded successfully!")
+        self.status_bar.showMessage(f"{model_name.title()} model loaded successfully!", 5000)
 
-        # Show success message
-        QMessageBox.information(
-            self,
-            "Model Loaded",
-            f"The {model_name} model has been loaded and is ready to use."
-        )
-
-        # Update UI
+        # Update UI - green status indicator shows model is ready
         self.ai_controls.refresh_status()
         self.on_selection_changed()  # Update process button state
 
@@ -449,9 +449,12 @@ class MainWindow(QMainWindow):
     @Slot()
     def process_with_ai(self):
         """Process selected files with AI to generate summaries."""
-        selected_results = self.file_table.get_selected_files()
+        import time
 
-        if not selected_results:
+        # Get selected file paths
+        selected_paths = self.file_table.get_selected_files()
+
+        if not selected_paths:
             QMessageBox.warning(self, "No Files Selected", "Please select files to process.")
             return
 
@@ -459,17 +462,163 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Model Loaded", "Please load a model first.")
             return
 
+        # Filter processing_results to only include selected files
+        # Match by file path
+        selected_results = []
+        for result in self.processing_results:
+            if result.get('file_path') in selected_paths:
+                selected_results.append(result)
+
+        if not selected_results:
+            QMessageBox.warning(
+                self,
+                "No Processed Files",
+                "The selected files have not been processed yet."
+            )
+            return
+
         # Get summary settings
         summary_length = self.ai_controls.get_summary_length()
 
-        # TODO: Implement AI processing in Phase 3
-        # For now, show a placeholder message
-        QMessageBox.information(
-            self,
-            "AI Processing",
-            f"Ready to process {len(selected_results)} file(s) with {summary_length}-word summaries.\n\n"
-            f"AI processing with streaming will be implemented next."
+        # Clear previous summary
+        self.summary_results.clear_summary()
+
+        # Start progress display in summary widget
+        self.summary_results.start_generation(summary_length)
+
+        # Update UI
+        self.process_btn.setEnabled(False)
+        self.status_bar.showMessage(f"Generating {summary_length}-word summary from {len(selected_results)} file(s)...")
+
+        # Create and configure AI worker
+        self.ai_worker = AIWorker(
+            model_manager=self.model_manager,
+            processing_results=selected_results,
+            summary_length=summary_length
         )
+
+        # Store start time for timing
+        self._ai_start_time = time.time()
+
+        # Connect signals
+        self.ai_worker.progress_updated.connect(self._on_ai_progress)
+        # NOTE: Disabled streaming token display to prevent GUI freezing
+        # self.ai_worker.token_generated.connect(self._on_token_generated)
+        self.ai_worker.summary_complete.connect(self._on_summary_complete)
+        self.ai_worker.error.connect(self._on_ai_error)
+        self.ai_worker.finished.connect(self._on_ai_finished)
+
+        # Start worker
+        self.ai_worker.start()
+
+    @Slot(str)
+    def _on_ai_progress(self, message: str):
+        """Handle progress updates from AI worker."""
+        self.status_bar.showMessage(message)
+
+    @Slot(str)
+    def _on_token_generated(self, token: str):
+        """Handle streaming tokens from AI worker."""
+        self.summary_results.append_token(token)
+
+    @Slot(str)
+    def _on_summary_complete(self, summary: str):
+        """Handle completed summary from AI worker."""
+        import time
+
+        # Hide progress indicator
+        self.summary_results.hide_progress()
+
+        # Calculate generation time
+        if hasattr(self, '_ai_start_time'):
+            elapsed = time.time() - self._ai_start_time
+            self.summary_results.set_generation_time(elapsed)
+
+        # Update status
+        word_count = len(summary.split())
+        self.status_bar.showMessage(
+            f"Summary complete! Generated {word_count} words.", 5000
+        )
+
+    @Slot(str)
+    def _on_ai_error(self, error_message: str):
+        """Handle errors from AI worker."""
+        # Hide progress indicator
+        self.summary_results.hide_progress()
+
+        QMessageBox.critical(
+            self,
+            "Summary Generation Error",
+            f"An error occurred while generating the summary:\n\n{error_message}"
+        )
+        self.status_bar.showMessage("Summary generation failed")
+
+    @Slot()
+    def _on_ai_finished(self):
+        """Clean up after AI worker finishes."""
+        # Re-enable process button
+        self.process_btn.setEnabled(True)
+
+        # Clean up worker
+        if self.ai_worker:
+            self.ai_worker.deleteLater()
+            self.ai_worker = None
+
+    @Slot()
+    def cancel_ai_generation(self):
+        """Cancel the current AI generation."""
+        if self.ai_worker and self.ai_worker.isRunning():
+            # Stop the worker
+            self.ai_worker.stop()
+
+            # Update UI
+            self.status_bar.showMessage("Summary generation cancelled by user", 3000)
+
+            # Note: The worker will emit finished signal when it stops,
+            # which will trigger _on_ai_finished() to clean up
+
+    @Slot(str)
+    def save_summary(self, summary_text: str):
+        """
+        Save summary to a text file.
+
+        Args:
+            summary_text: The summary text to save
+        """
+        from datetime import datetime
+
+        # Generate default filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"case_summary_{timestamp}.txt"
+
+        # Show save dialog
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Summary",
+            default_filename,
+            "Text Files (*.txt);;All Files (*.*)"
+        )
+
+        if file_path:
+            try:
+                # Write summary to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(summary_text)
+
+                self.status_bar.showMessage(f"Summary saved to {os.path.basename(file_path)}", 3000)
+
+                QMessageBox.information(
+                    self,
+                    "Summary Saved",
+                    f"Summary successfully saved to:\n{file_path}"
+                )
+
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Save Error",
+                    f"Failed to save summary:\n{str(e)}"
+                )
 
     @Slot()
     def show_about(self):
