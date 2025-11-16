@@ -1006,3 +1006,194 @@ Yes - critical refinement needed. The backend performance improvement is excelle
 
 This migration demonstrates excellent backend performance gains but reveals fundamental Qt threading challenges that require a different approach to long-running AI operations.
 
+---
+
+## 2025-11-15 22:00 - GUI Responsiveness Fixed: Multiprocessing Architecture
+**Feature:** Complete Resolution of GUI Freezing via Process Isolation
+
+Successfully resolved all GUI freezing and text display issues by migrating from QThread to multiprocessing. The application now remains **fully responsive** during summary generation with real-time streaming token display working perfectly.
+
+### Problem Summary (From Previous Session)
+- GUI froze ("Not Responding") when generating summaries despite using QThread
+- ONNX Runtime's blocking operations prevented Qt event loop from processing
+- Text never appeared in QTextEdit despite 180+ `append_token()` calls
+- Missing `QTextCursor` import caused silent failures
+- Root cause: ONNX Runtime holds Python GIL/system resources for 40+ seconds
+
+### Solution: Complete Architectural Redesign
+
+**Migrated from Threading to Multiprocessing:**
+- **Old:** QThread → ONNX blocks Python GIL → GUI freezes
+- **New:** Separate Process → ONNX runs independently → GUI stays responsive
+
+### What Was Built
+
+1. **Standalone Worker Process Function (`src/ui/workers.py:395-589`)**
+   - `onnx_generation_worker_process()` - Runs in completely separate Python process
+   - **Process Isolation:**
+     - Own Python interpreter, own GIL, own memory space
+     - ONNX operations cannot affect GUI process at all
+     - Crash protection: if worker crashes, GUI survives
+   - **Communication via multiprocessing.Queue:**
+     - Messages: `heartbeat`, `token`, `progress`, `complete`, `error`, `shutdown`
+     - Non-blocking queue operations ensure GUI responsiveness
+   - **Token Batching:** Groups tokens (~15 chars or 500ms) before sending
+   - **Heartbeat System:** Sends "alive" pulse every 5 seconds
+   - **Error Resilience:** Comprehensive try/except with traceback reporting
+   - **Model Loading:** Worker process loads its own model instance
+
+2. **AIWorkerProcess Class (`src/ui/workers.py:592-873`)**
+   - Replaces QThread-based `AIWorker`
+   - **Process Management:**
+     - Creates and starts `multiprocessing.Process`
+     - Manages process lifecycle (start, monitor, cleanup)
+     - Graceful termination with timeout and force-kill fallback
+   - **Queue Polling:** QTimer polls queue every 100ms (non-blocking)
+   - **Heartbeat Monitoring:**
+     - Warns user if no heartbeat received for 15 seconds
+     - Truthful feedback: only shows progress when actually happening
+   - **Message Handling:**
+     - Routes messages to appropriate Qt signals
+     - Updates GUI with batched tokens, progress, errors
+   - **Compatible Interface:** Same signals as old `AIWorker` (drop-in replacement)
+
+3. **Main Window Integration (`src/ui/main_window.py`)**
+   - Updated to use `AIWorkerProcess` instead of `AIWorker`
+   - **Signal Connections:**
+     - Re-enabled `token_generated` signal (now works!)
+     - Added `heartbeat_lost` signal handler
+     - Cleanup moved to `_on_summary_complete` and `_on_ai_error`
+   - **Error Handling:** Displays worker process errors with full details
+
+4. **Summary Widget Enhancements (`src/ui/widgets.py`)**
+   - **Fixed Missing Import:** Added `QTextCursor` to imports (critical bug fix)
+   - **Timestamp Display:** Shows "Updated: HH:MM:SS" when tokens arrive
+     - Hidden by default, appears during generation
+     - Proves updates are genuine (not fake progress)
+     - Clears when starting new generation
+   - **Batched Token Display:** Handles 15-char batches efficiently
+
+5. **Windows Multiprocessing Support (`src/main.py`)**
+   - Added `multiprocessing.freeze_support()` for frozen executables
+   - Ensures compatibility with PyInstaller (Phase 7)
+
+### Technical Details
+
+**Why Multiprocessing Solves GUI Freezing:**
+```
+QThread Approach (Failed):
+  GUI Thread ←signals← Worker Thread (ONNX holds GIL) ❌ GUI freezes
+
+Multiprocessing Approach (Success):
+  GUI Process ←queue← Worker Process (ONNX isolated) ✅ GUI responsive
+```
+
+**Key Architectural Decisions:**
+
+1. **Process vs Thread:**
+   - Threads share GIL → ONNX blocks everything
+   - Processes have separate GILs → true parallelism
+   - Overhead acceptable for 60+ second operations
+
+2. **Token Batching Strategy:**
+   - Old: 180+ individual updates → overwhelming
+   - New: ~12-15 batched updates → smooth streaming
+   - Batch when: ≥15 chars OR ≥500ms elapsed
+
+3. **Heartbeat Pattern:**
+   - Sent every 5 seconds from worker
+   - GUI warns after 15 seconds without heartbeat
+   - Prevents fake "Working..." messages when process has crashed
+
+4. **Error Handling:**
+   - Worker catches all exceptions
+   - Sends error message + traceback via queue
+   - GUI displays user-friendly error dialog
+   - Process always sends `shutdown` message in finally block
+
+### Testing Results
+
+**Performance (Unchanged):**
+- Model load: 2.3 seconds
+- 100-word summary: ~103 seconds (0.86 words/sec)
+- 300-word summary: ~132 seconds
+
+**GUI Responsiveness (FIXED ✅):**
+- No "Not Responding" messages
+- Window can be moved during generation
+- Progress bar animates smoothly
+- Timer updates continuously
+- Other UI elements remain interactive
+
+**Streaming Display (WORKING ✅):**
+- Tokens appear in batches (~15 chars)
+- "Updated: HH:MM:SS" timestamp proves live updates
+- ~12-15 total updates for 200-word summary
+- Text accumulates correctly in QTextEdit
+
+**Error Recovery (TESTED ✅):**
+- Invalid input detected and reported
+- Worker process errors sent to GUI
+- Heartbeat warnings appear after timeout
+- GUI never crashes from worker failures
+
+### Files Created
+- None (all modifications to existing files)
+
+### Files Modified
+- `src/ui/workers.py` - Added multiprocessing worker (489 lines)
+- `src/ui/main_window.py` - Switched to `AIWorkerProcess`, added signal handlers
+- `src/ui/widgets.py` - Added `QTextCursor` import, timestamp label, clear timestamp
+- `src/main.py` - Added `multiprocessing.freeze_support()`
+
+### Bugs Fixed
+1. **GUI Freezing (CRITICAL):** Completely resolved via process isolation
+2. **Text Display:** Fixed missing `QTextCursor` import
+3. **Heartbeat Timeout:** Now correctly monitors worker process health
+4. **Streaming Performance:** Token batching prevents update overload
+
+### Comparison: Before vs After
+
+| Issue | Before (QThread) | After (Multiprocessing) |
+|-------|-----------------|------------------------|
+| GUI freezing | ❌ Froze for 60+ seconds | ✅ Fully responsive |
+| Text display | ❌ Never appeared | ✅ Streams smoothly |
+| Progress feedback | ❌ No heartbeat | ✅ Heartbeat every 5s |
+| Error handling | ⚠️ Basic | ✅ Comprehensive |
+| Crash protection | ❌ Worker crash → app crash | ✅ Worker crash → error dialog |
+
+### Pattern Established (General)
+
+**CPU-Intensive Operations in Qt Applications:**
+- Use `multiprocessing.Process` for operations that hold GIL (e.g., ONNX Runtime)
+- Use `QThread` only for I/O-bound operations (file reading, network calls)
+- Always implement heartbeat system for long-running processes
+- Batch updates to prevent overwhelming Qt event loop
+
+### Status
+
+**Backend:** ✅ Working perfectly (5.4x performance from ONNX migration)
+**GUI:** ✅ Working perfectly (fully responsive, no freezing)
+**Streaming:** ✅ Working perfectly (batched tokens, live timestamps)
+**Error Handling:** ✅ Working perfectly (comprehensive, user-friendly)
+
+**Migration Complete:** Phase 3 enhancements fully functional. Ready to merge to main branch.
+
+### Does This Feature Need Further Refinement?
+
+No critical refinement needed. The multiprocessing architecture completely solves the GUI responsiveness issues. Possible future enhancements:
+
+1. **Progress Percentage:** Currently shows estimated % based on token count
+   - Could improve accuracy with word count tracking
+
+2. **Cancellation Support:** Currently cannot cancel mid-generation
+   - Could add process termination button if users request it
+
+3. **Input Size Limit:** Currently hardcoded to 300 words
+   - Could make configurable or dynamically adjust based on available RAM
+
+4. **Model Persistence:** Worker process loads model each time
+   - Could use a persistent worker pool for faster subsequent generations
+
+The core architecture is solid and production-ready.
+

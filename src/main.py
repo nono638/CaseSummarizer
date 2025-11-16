@@ -6,6 +6,7 @@ This module initializes the PySide6 application and launches the main window.
 """
 
 import sys
+import multiprocessing
 
 # CRITICAL: Import src.ai BEFORE PySide6 to avoid DirectML DLL conflicts on Windows
 # This pre-loads onnxruntime_genai before Qt/PySide6 initializes its DLLs
@@ -20,6 +21,9 @@ def main():
     """
     Main entry point for LocalScribe desktop application.
     """
+    # Enable multiprocessing support for Windows frozen executables
+    multiprocessing.freeze_support()
+
     # Enable High DPI scaling for better display on modern monitors
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
