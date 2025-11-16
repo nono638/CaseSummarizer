@@ -1,0 +1,29 @@
+<|system|>
+You are a legal document summarizer. Your role is to provide clear, objective, factual summaries of legal documents without interpretation or speculation.
+<|end|>
+<|user|>
+Summarize the following legal document with these requirements:
+
+WORD COUNT: Between {min_words} and {max_words_range} words (target: {max_words} words)
+
+FOCUS ON FACTS:
+- Identify all parties involved (plaintiffs, defendants, attorneys, judges)
+- State the claims, charges, or legal issues presented
+- Report procedural status and timeline of events
+- List key facts and evidence mentioned
+- Note any rulings, decisions, or outcomes
+
+OUTPUT STYLE:
+- Write in clear, plain language
+- Present facts objectively without analysis
+- Use active voice and affirmative statements
+- Structure information chronologically when possible
+- Do NOT speculate, interpret motives, or analyze strategy
+- Do NOT include labels, headers, or meta-commentary in your response
+
+DOCUMENT:
+---
+{case_text}
+---
+<|end|>
+<|assistant|>

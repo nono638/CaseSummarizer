@@ -397,6 +397,7 @@ def onnx_generation_worker_process(
     combined_text: str,
     summary_length: int,
     output_queue,
+    preset_id: str = "factual-summary",
     heartbeat_interval: float = 5.0,
     batch_size: int = 15,
     batch_timeout: float = 0.5
@@ -412,6 +413,7 @@ def onnx_generation_worker_process(
         combined_text: The text to summarize
         summary_length: Target summary length in words
         output_queue: multiprocessing.Queue for sending messages back to GUI
+        preset_id: Prompt template preset to use (default: 'factual-summary')
         heartbeat_interval: Seconds between heartbeat messages (default: 5.0)
         batch_size: Number of characters to batch before sending (default: 15)
         batch_timeout: Max seconds to wait before sending batch (default: 0.5)
@@ -496,6 +498,7 @@ def onnx_generation_worker_process(
         for token in model_manager.generate_summary(
             case_text=combined_text,
             max_words=summary_length,
+            preset_id=preset_id,
             stream=True
         ):
             token_count += 1
@@ -610,7 +613,7 @@ class AIWorkerProcess(QObject):
     error = Signal(str)
     heartbeat_lost = Signal()
 
-    def __init__(self, model_manager, processing_results, summary_length):
+    def __init__(self, model_manager, processing_results, summary_length, preset_id="factual-summary"):
         """
         Initialize the multiprocessing AI worker.
 
@@ -618,11 +621,13 @@ class AIWorkerProcess(QObject):
             model_manager: The ModelManager instance (used to get model info)
             processing_results: List of processing result dicts from DocumentCleaner
             summary_length: Target summary length in words (from slider)
+            preset_id: Prompt template preset to use (default: 'factual-summary')
         """
         super().__init__()
         self.model_manager = model_manager
         self.processing_results = processing_results
         self.summary_length = summary_length
+        self.preset_id = preset_id
 
         # Multiprocessing components
         self.process = None
@@ -686,7 +691,8 @@ class AIWorkerProcess(QObject):
                     model_name,
                     combined_text,
                     self.summary_length,
-                    self.queue
+                    self.queue,
+                    self.preset_id  # Pass the preset_id for prompt selection
                 ),
                 daemon=True  # Process will terminate when main program exits
             )

@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Optional, Iterator
 import time
 
-from ..config import MODELS_DIR, MAX_CONTEXT_TOKENS
+from ..config import MODELS_DIR, MAX_CONTEXT_TOKENS, PROMPTS_DIR
 from ..prompt_config import get_prompt_config
+from ..prompt_template_manager import PromptTemplateManager
 from ..utils.logger import debug
 from ..debug_logger import debug_log
 
@@ -32,6 +33,7 @@ class ONNXModelManager:
         self.current_model = None
         self.current_model_name: Optional[str] = None
         self.prompt_config = get_prompt_config()
+        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR)
 
         # Lazy import to avoid startup overhead
         self._onnxruntime_genai = None
@@ -289,6 +291,7 @@ class ONNXModelManager:
         self,
         case_text: str,
         max_words: int = 200,
+        preset_id: str = "factual-summary",
         stream: bool = True
     ) -> Iterator[str]:
         """
@@ -297,6 +300,7 @@ class ONNXModelManager:
         Args:
             case_text: The cleaned case document text
             max_words: Target summary length in words (100-500)
+            preset_id: Template preset to use (e.g., 'factual-summary', 'strategic-analysis')
             stream: Whether to stream output
 
         Yields:
@@ -308,23 +312,35 @@ class ONNXModelManager:
         # Get word count range from config
         min_words, max_words_range = self.prompt_config.get_word_count_range(max_words)
 
-        # Construct prompt for case summarization
-        prompt = f"""You are a legal case summarizer. Write a clear, concise summary of the following legal document.
+        # Load and format prompt template using PromptTemplateManager
+        # Model identifier is 'phi-3-mini' (hardcoded for now, can be made configurable later)
+        model_id = "phi-3-mini"
 
-Instructions:
-- Length: Between {min_words} and {max_words_range} words (target: {max_words} words)
-- Focus on: key facts, parties involved, legal issues, and outcomes
-- Use plain language (avoid legalese when possible)
-- Be objective and factual
+        try:
+            template = self.prompt_template_manager.load_template(model_id, preset_id)
+            prompt = self.prompt_template_manager.format_template(
+                template=template,
+                min_words=min_words,
+                max_words=max_words,
+                max_words_range=max_words_range,
+                case_text=case_text
+            )
+        except FileNotFoundError as e:
+            debug(f"Template not found: {e}. Falling back to default.")
+            # Fallback to factual-summary if requested preset doesn't exist
+            template = self.prompt_template_manager.load_template(model_id, "factual-summary")
+            prompt = self.prompt_template_manager.format_template(
+                template=template,
+                min_words=min_words,
+                max_words=max_words,
+                max_words_range=max_words_range,
+                case_text=case_text
+            )
 
-Document:
-{case_text}
-
-Summary:"""
-
-        # Estimate tokens using config value
+        # Estimate tokens using config values with buffer to prevent mid-sentence cutoffs
         tokens_per_word = self.prompt_config.tokens_per_word
-        max_tokens = int(max_words_range * tokens_per_word)
+        buffer_multiplier = self.prompt_config.token_buffer_multiplier
+        max_tokens = int(max_words_range * tokens_per_word * buffer_multiplier)
 
         # Generate summary (temperature and top_p will use config defaults)
         return self.generate_text(

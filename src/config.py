@@ -48,6 +48,10 @@ MAX_SUMMARY_WORDS = 500
 GOOGLE_FREQ_LIST = Path(__file__).parent.parent / "data" / "frequency" / "google_word_freq.txt"
 LEGAL_KEYWORDS_NY = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_ny.txt"
 LEGAL_KEYWORDS_CA = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_ca.txt"
+
+# AI Prompt Templates
+PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
+SUMMARY_PROMPT_TEMPLATE = Path(__file__).parent.parent / "config" / "summary_prompt_template.txt"  # Legacy, deprecated
 LEGAL_KEYWORDS_FEDERAL = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_federal.txt"
 
 # License Configuration

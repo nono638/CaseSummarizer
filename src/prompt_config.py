@@ -31,7 +31,8 @@ class PromptConfig:
         },
         "generation": {
             "top_p": 0.9,
-            "tokens_per_word_estimate": 1.5
+            "tokens_per_word_estimate": 1.5,
+            "token_buffer_multiplier": 1.3
         }
     }
 
@@ -151,6 +152,11 @@ class PromptConfig:
     def tokens_per_word(self) -> float:
         """Get tokens per word estimate."""
         return self.get('generation', 'tokens_per_word_estimate', default=1.5)
+
+    @property
+    def token_buffer_multiplier(self) -> float:
+        """Get token buffer multiplier to prevent mid-sentence cutoffs."""
+        return self.get('generation', 'token_buffer_multiplier', default=1.3)
 
     def get_word_count_range(self, target_words: int) -> tuple:
         """
