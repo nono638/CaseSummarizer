@@ -15,86 +15,18 @@ from src.debug_logger import debug_log
 
 class ModelLoadWorker(QThread):
     """
-    Background worker thread for loading AI models.
+    Background worker thread for loading AI models with periodic progress updates.
 
-    Since llama-cpp-python doesn't provide loading progress callbacks,
-    this worker simply runs the load operation off the main thread
-    and emits signals when complete.
+    This worker runs the model loading in a background thread and emits
+    progress signals every 100ms so the UI can show responsive feedback
+    (elapsed time and animated progress bar) even though the actual
+    model loading is a blocking operation.
 
-    Signals:
-        progress: Emitted periodically with elapsed time (for timer display)
-        success: Emitted when model loads successfully
-        error: Emitted with error message if loading fails
-    """
-
-    # Signals
-    progress = Signal(float)  # Elapsed time in seconds
-    success = Signal()
-    error = Signal(str)
-
-    def __init__(self, model_manager, model_type):
-        """
-        Initialize the worker.
-
-        Args:
-            model_manager: The ModelManager instance
-            model_type: Either 'standard' or 'pro'
-        """
-        super().__init__()
-        self.model_manager = model_manager
-        self.model_type = model_type
-        self._is_running = True
-
-    def run(self):
-        """Execute model loading in background thread."""
-        start_time = time.time()
-
-        try:
-            # Start a timer to emit progress updates every 0.5 seconds
-            # This allows the UI to display elapsed time
-            last_update = start_time
-
-            # We need to run load_model() while also emitting progress
-            # Since load_model() is blocking, we'll run it in a way that
-            # the progress signal gets emitted
-
-            # Start the actual loading (this is the blocking operation)
-            # Note: We can't emit progress during load_model itself,
-            # but we'll emit final time when done
-
-            load_result = self.model_manager.load_model(
-                self.model_type,
-                verbose=False
-            )
-
-            # Calculate total time
-            elapsed = time.time() - start_time
-            self.progress.emit(elapsed)
-
-            if load_result:
-                self.success.emit()
-            else:
-                self.error.emit(f"Failed to load {self.model_type} model")
-
-        except Exception as e:
-            elapsed = time.time() - start_time
-            self.progress.emit(elapsed)
-            self.error.emit(f"Error loading model: {str(e)}")
-
-    def stop(self):
-        """Request the worker to stop (for future cancellation support)."""
-        self._is_running = False
-
-
-class ModelLoadWorkerWithTimer(QThread):
-    """
-    Enhanced model loading worker that emits periodic progress updates.
-
-    This version uses a separate timer to emit progress signals while
-    the model is loading, allowing the UI to show elapsed time.
+    The key improvement: Uses a separate timer thread to emit progress
+    signals during the blocking load_model() call, preventing UI freezing.
 
     Signals:
-        progress: Emitted every 0.1 seconds with elapsed time
+        progress: Emitted every 100ms with elapsed time (float seconds)
         success: Emitted when model loads successfully
         error: Emitted with error message if loading fails
     """
@@ -119,40 +51,57 @@ class ModelLoadWorkerWithTimer(QThread):
         self._start_time = None
 
     def run(self):
-        """Execute model loading with periodic progress updates."""
+        """Execute model loading with periodic progress signal emission."""
+        import threading
+
         self._start_time = time.time()
         self._is_running = True
+        load_result = None
+        exception_occurred = None
 
-        # We need to run load_model in a way that allows us to emit progress
-        # Unfortunately, load_model is blocking, so we'll use a different approach:
-        # Run it directly but use QTimer in the main thread for progress
+        # Define a function to emit progress updates periodically
+        # This runs in a separate daemon thread while load_model() is blocking
+        def emit_progress():
+            """Emit progress signals every 100ms while loading."""
+            while self._is_running:
+                elapsed = time.time() - self._start_time
+                self.progress.emit(elapsed)
+                time.sleep(0.1)  # Update every 100ms
 
-        # Actually, since this is already in a QThread, we can't easily
-        # emit progress during the blocking call. Instead, we'll just
-        # load and emit final time.
-
-        # Better approach: Emit progress from main thread using QTimer
-        # This worker just does the loading
+        # Start the progress emission thread
+        progress_thread = threading.Thread(target=emit_progress, daemon=True)
+        progress_thread.start()
 
         try:
+            # This is the blocking call - but now progress signals are
+            # being emitted in a separate thread every 100ms
             load_result = self.model_manager.load_model(
                 self.model_type,
                 verbose=False
             )
 
+        except Exception as e:
+            exception_occurred = e
+
+        finally:
+            # Stop the progress thread
+            self._is_running = False
+            progress_thread.join(timeout=1.0)
+
+            # Emit final status
             elapsed = time.time() - self._start_time
             self.progress.emit(elapsed)
 
-            if load_result:
+            if exception_occurred:
+                self.error.emit(f"Error loading model: {str(exception_occurred)}")
+            elif load_result:
                 self.success.emit()
             else:
                 self.error.emit(f"Failed to load {self.model_type} model")
 
-        except Exception as e:
-            if self._start_time:
-                elapsed = time.time() - self._start_time
-                self.progress.emit(elapsed)
-            self.error.emit(f"Error loading model: {str(e)}")
+    def stop(self):
+        """Request the worker to stop (for future cancellation support)."""
+        self._is_running = False
 
 
 class ProcessingWorker(QThread):

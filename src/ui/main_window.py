@@ -330,6 +330,11 @@ class MainWindow(QMainWindow):
             ]
             self.show_failed_files_dialog(failed_files)
 
+        # IMPORTANT: Emit selection change signal to update button state
+        # This ensures the "Generate Summary" button is enabled immediately
+        # for any files that were auto-checked during processing
+        self.file_table.selection_changed.emit()
+
     @Slot(str)
     def on_processing_error(self, error_message):
         """Handle processing errors."""
@@ -399,6 +404,7 @@ class MainWindow(QMainWindow):
         self.model_load_worker = ModelLoadWorker(self.model_manager, model_type)
 
         # Connect signals
+        self.model_load_worker.progress.connect(self.model_load_dialog.update_elapsed_time)
         self.model_load_worker.success.connect(self._on_model_load_success)
         self.model_load_worker.error.connect(self._on_model_load_error)
         self.model_load_worker.finished.connect(self._on_model_load_finished)
@@ -406,7 +412,11 @@ class MainWindow(QMainWindow):
         # Start loading
         self.status_bar.showMessage(f"Loading {model_display_name}...")
         self.model_load_worker.start()
-        self.model_load_dialog.show()
+
+        # FIXED: Use exec() to enter the dialog's event loop
+        # This allows the dialog's timer to fire and worker signals to be processed
+        # The dialog will be closed by finish_success() or finish_error()
+        self.model_load_dialog.exec()
 
     def _on_model_load_success(self):
         """Handle successful model loading."""

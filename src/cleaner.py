@@ -132,8 +132,8 @@ class DocumentCleaner:
             'method': None,
             'confidence': 0,
             'cleaned_text': '',
-            'pages': None,
-            'size_mb': 0,
+            'page_count': None,  # Changed from 'pages' to match FileReviewTable
+            'file_size': 0,      # Changed from 'size_mb' to store bytes (not MB)
             'case_numbers': [],
             'error_message': None
         }
@@ -149,18 +149,19 @@ class DocumentCleaner:
                     error(result['error_message'])
                     return result
 
-                # Get file size
-                result['size_mb'] = file_path.stat().st_size / (1024 * 1024)
+                # Get file size in bytes (for display in FileReviewTable)
+                result['file_size'] = file_path.stat().st_size
+                size_mb = result['file_size'] / (1024 * 1024)
 
                 # Check file size limits
-                if result['size_mb'] > MAX_FILE_SIZE_MB:
+                if size_mb > MAX_FILE_SIZE_MB:
                     result['status'] = 'error'
-                    result['error_message'] = f"File exceeds maximum size ({MAX_FILE_SIZE_MB}MB). File size: {result['size_mb']:.1f}MB"
+                    result['error_message'] = f"File exceeds maximum size ({MAX_FILE_SIZE_MB}MB). File size: {size_mb:.1f}MB"
                     error(result['error_message'])
                     return result
 
-                if result['size_mb'] > LARGE_FILE_WARNING_MB:
-                    warning(f"Large file detected ({result['size_mb']:.1f}MB). Processing may take longer.")
+                if size_mb > LARGE_FILE_WARNING_MB:
+                    warning(f"Large file detected ({size_mb:.1f}MB). Processing may take longer.")
 
                 # Determine file type and process
                 file_extension = file_path.suffix.lower()
@@ -267,7 +268,7 @@ class DocumentCleaner:
             return {
                 'status': 'error',
                 'error_message': error_messages.get(error_type, error_messages['unknown']),
-                'pages': page_count
+                'page_count': page_count
             }
 
         # Step 2: Heuristic check (digital vs scanned)
@@ -284,7 +285,7 @@ class DocumentCleaner:
                 'method': 'digital_text',
                 'confidence': 100,
                 'cleaned_text': text,
-                'pages': page_count,
+                'page_count': page_count,
                 'status': 'success'
             }
         else:
@@ -400,7 +401,7 @@ class DocumentCleaner:
                 'method': 'ocr',
                 'confidence': int(confidence),
                 'cleaned_text': ocr_text,
-                'pages': page_count or len(images),
+                'page_count': page_count or len(images),
                 'status': 'success'
             }
 
@@ -408,7 +409,7 @@ class DocumentCleaner:
             return {
                 'status': 'error',
                 'error_message': f"OCR processing failed: {str(e)}",
-                'pages': page_count
+                'page_count': page_count
             }
 
     def _is_page_number(self, line: str) -> bool:
@@ -635,10 +636,11 @@ Examples:
         print(f"  Status: {result['status'].upper()}")
         print(f"  Method: {result['method'] or 'N/A'}")
         print(f"  Confidence: {result['confidence']}%")
-        print(f"  Size: {result['size_mb']:.2f} MB")
+        size_mb = result['file_size'] / (1024 * 1024) if result['file_size'] else 0
+        print(f"  Size: {size_mb:.2f} MB")
 
-        if result.get('pages'):
-            print(f"  Pages: {result['pages']}")
+        if result.get('page_count'):
+            print(f"  Pages: {result['page_count']}")
 
         if result['error_message']:
             print(f"  Error: {result['error_message']}")
