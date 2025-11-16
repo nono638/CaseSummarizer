@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QProgressBar
 )
 from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QTextCursor
 import os
 
 # Import prompt configuration
@@ -532,10 +532,15 @@ class SummaryResultsWidget(QGroupBox):
         self.word_count_label = QLabel("Words: 0")
         self.word_count_label.setStyleSheet("color: #666; font-size: 11px;")
 
+        self.last_updated_label = QLabel("")  # Hidden by default
+        self.last_updated_label.setStyleSheet("color: #16a34a; font-size: 11px; font-style: italic;")
+        self.last_updated_label.setVisible(False)
+
         self.gen_time_label = QLabel("Generation time: --")
         self.gen_time_label.setStyleSheet("color: #666; font-size: 11px;")
 
         stats_layout.addWidget(self.word_count_label)
+        stats_layout.addWidget(self.last_updated_label)
         stats_layout.addStretch()
         stats_layout.addWidget(self.gen_time_label)
 
@@ -632,14 +637,15 @@ class SummaryResultsWidget(QGroupBox):
         Append a token to the summary (for streaming display).
 
         Args:
-            token: Text token from the AI model
+            token: Text token from the AI model (may be batched)
         """
         from src.debug_logger import debug_log
+        from datetime import datetime
 
         # Debug: Log first few tokens to verify method is being called
         current_text = self.summary_text.toPlainText()
         if len(current_text) < 100:
-            debug_log(f"[GUI append_token] Token received: '{token}' (current length: {len(current_text)})")
+            debug_log(f"[GUI append_token] Token batch received: '{token[:50]}...' (current length: {len(current_text)})")
 
         # Insert the token at the end
         # Note: We use insertPlainText instead of cursor manipulation
@@ -649,6 +655,11 @@ class SummaryResultsWidget(QGroupBox):
 
         # Update word count
         self._update_word_count()
+
+        # Update "last updated" timestamp to prove updates are happening
+        now = datetime.now()
+        self.last_updated_label.setText(f"Updated: {now.strftime('%H:%M:%S')}")
+        self.last_updated_label.setVisible(True)
 
         # Auto-scroll to show new content
         self.summary_text.ensureCursorVisible()
@@ -669,6 +680,7 @@ class SummaryResultsWidget(QGroupBox):
         self.summary_text.clear()
         self.word_count_label.setText("Words: 0")
         self.gen_time_label.setText("Generation time: --")
+        self.last_updated_label.setVisible(False)
         self._disable_buttons()
         self.hide_progress()
 
@@ -681,6 +693,9 @@ class SummaryResultsWidget(QGroupBox):
         """
         import time
         self._generation_start_time = time.time()
+
+        # Hide last updated timestamp from previous generation
+        self.last_updated_label.setVisible(False)
 
         # Update status message
         self.progress_status.setText(f"Generating {target_words}-word summary... (0:00)")

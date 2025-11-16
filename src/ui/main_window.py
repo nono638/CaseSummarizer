@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 
 from src.ui.widgets import FileReviewTable, AIControlsWidget, SummaryResultsWidget
-from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker
+from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker, AIWorkerProcess
 from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
@@ -490,8 +490,8 @@ class MainWindow(QMainWindow):
         self.process_btn.setEnabled(False)
         self.status_bar.showMessage(f"Generating {summary_length}-word summary from {len(selected_results)} file(s)...")
 
-        # Create and configure AI worker
-        self.ai_worker = AIWorker(
+        # Create and configure AI worker (multiprocessing-based)
+        self.ai_worker = AIWorkerProcess(
             model_manager=self.model_manager,
             processing_results=selected_results,
             summary_length=summary_length
@@ -502,11 +502,11 @@ class MainWindow(QMainWindow):
 
         # Connect signals
         self.ai_worker.progress_updated.connect(self._on_ai_progress)
-        # NOTE: Disabled streaming token display to prevent GUI freezing
-        # self.ai_worker.token_generated.connect(self._on_token_generated)
+        # Re-enabled streaming token display (now uses batching to prevent freezing)
+        self.ai_worker.token_generated.connect(self._on_token_generated)
         self.ai_worker.summary_complete.connect(self._on_summary_complete)
         self.ai_worker.error.connect(self._on_ai_error)
-        self.ai_worker.finished.connect(self._on_ai_finished)
+        self.ai_worker.heartbeat_lost.connect(self._on_heartbeat_lost)
 
         # Start worker
         self.ai_worker.start()
@@ -540,6 +540,12 @@ class MainWindow(QMainWindow):
             f"Summary complete! Generated {word_count} words.", 5000
         )
 
+        # Re-enable process button and cleanup
+        self.process_btn.setEnabled(True)
+        if self.ai_worker:
+            self.ai_worker.deleteLater()
+            self.ai_worker = None
+
     @Slot(str)
     def _on_ai_error(self, error_message: str):
         """Handle errors from AI worker."""
@@ -552,6 +558,19 @@ class MainWindow(QMainWindow):
             f"An error occurred while generating the summary:\n\n{error_message}"
         )
         self.status_bar.showMessage("Summary generation failed")
+
+        # Re-enable process button and cleanup
+        self.process_btn.setEnabled(True)
+        if self.ai_worker:
+            self.ai_worker.deleteLater()
+            self.ai_worker = None
+
+    @Slot()
+    def _on_heartbeat_lost(self):
+        """Handle lost heartbeat from AI worker (process may have crashed)."""
+        self.status_bar.showMessage("Warning: Worker process not responding...", 10000)
+        # Note: Don't stop the worker yet - it might recover.
+        # User will be notified, but generation continues
 
     @Slot()
     def _on_ai_finished(self):
