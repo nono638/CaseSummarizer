@@ -1197,3 +1197,221 @@ No critical refinement needed. The multiprocessing architecture completely solve
 
 The core architecture is solid and production-ready.
 
+---
+
+## 2025-11-15 23:30 - Fix Incomplete Summaries with Token Buffer
+**Feature:** Token buffer multiplier to prevent mid-sentence cutoffs
+
+### Problem
+User reported that generated summaries appeared incomplete, cutting off mid-sentence. Investigation revealed the issue was **not** a missing word count parameter (which was already being passed correctly to the prompt), but rather an insufficient `max_tokens` limit.
+
+**Example from `generated_summary.txt`:**
+```
+[Response]: On November 10, 2025, the Supreme Court of the State of New York
+conducted a trial involving Luigi Napolitano and multiple defendants, including
+healthcare professionals and North Shore University Hospital. The case was
+presided over by Justice [Name Redact
+```
+Cut off at "Redact" instead of completing "Redacted]".
+
+**Root Cause:**
+The token calculation was too conservative:
+```python
+# Old calculation (onnx_model_manager.py:327)
+max_tokens = int(max_words_range * tokens_per_word)
+# For 300-word target: max_tokens = 320 * 1.5 = 480 tokens
+```
+
+This provided **zero buffer** for:
+- Completing the final sentence
+- Natural wrap-up/conclusion
+- Token estimation variance (actual ratio varies 1.3-1.7, not exactly 1.5)
+
+### Solution Implemented
+
+Added a configurable **token buffer multiplier** to give the model extra tokens to complete thoughts naturally.
+
+**Files Changed:**
+
+1. **`config/prompt_parameters.json`** - Added new parameter:
+   ```json
+   "token_buffer_multiplier": 1.3,
+   "_token_buffer_multiplier_help": "Extra token budget multiplier to prevent
+   mid-sentence cutoffs (1.0 = no buffer, 1.3 = 30% extra tokens).
+   Recommended: 1.2-1.5"
+   ```
+
+2. **`src/prompt_config.py`** - Added support in two places:
+   - Updated `DEFAULTS` dictionary to include `token_buffer_multiplier: 1.3`
+   - Added convenience property:
+     ```python
+     @property
+     def token_buffer_multiplier(self) -> float:
+         """Get token buffer multiplier to prevent mid-sentence cutoffs."""
+         return self.get('generation', 'token_buffer_multiplier', default=1.3)
+     ```
+
+3. **`src/ai/onnx_model_manager.py:325-328`** - Updated token calculation:
+   ```python
+   # New calculation with buffer
+   tokens_per_word = self.prompt_config.tokens_per_word
+   buffer_multiplier = self.prompt_config.token_buffer_multiplier
+   max_tokens = int(max_words_range * tokens_per_word * buffer_multiplier)
+   ```
+
+**Results:**
+- 300-word target now gets: `max_tokens = 320 * 1.5 * 1.3 = 624 tokens` (instead of 480)
+- Extra ~144 tokens provides cushion for natural completion
+- Model can finish sentences and wrap up conclusions properly
+- Word count instruction still respected (model is told target in prompt)
+
+**User Customization:**
+Power users can now adjust the buffer in `prompt_parameters.json`:
+- `1.0` = No buffer (tight token budget, may cut off)
+- `1.3` = 30% buffer (recommended default)
+- `1.5` = 50% buffer (generous, for verbose conclusions)
+
+### Status
+Fix complete. Summaries should now complete naturally without mid-sentence cutoffs. The prompt already correctly includes the user's desired word count (e.g., "Length: Between 180 and 220 words (target: 200 words)"), and this fix ensures the model has enough tokens to reach that target.
+
+**Next Step:** Address prompt engineering and customization as discussed with user.
+
+---
+
+## 2025-11-16 - Configurable Prompt Templates with GUI Selection
+**Feature:** User-selectable prompt presets with live preview and persistent preferences
+
+### Summary
+Implemented a complete prompt template management system that allows users to select different analytical styles for their summaries. The system provides two preset prompts focused on **analytical depth** (not length, which is controlled by the slider), with full GUI integration including live preview and user preferences.
+
+### What Was Built
+
+#### 1. Prompt Template Infrastructure
+
+**Created Files:**
+- **`config/prompts/phi-3-mini/factual-summary.txt`** - Objective, fact-focused summary template
+  - Identifies parties, claims, procedural status, timeline
+  - Presents facts objectively without analysis or speculation
+  - Uses plain language and active voice
+
+- **`config/prompts/phi-3-mini/strategic-analysis.txt`** - Deep analytical summary template
+  - Identifies contradictions, inconsistencies, and timeline issues
+  - Notes conspicuous absences and avoided topics
+  - Analyzes strengths/weaknesses and strategic implications
+  - Flags ambiguities and unusual procedural moves
+
+- **`src/prompt_template_manager.py`** - Core template management class
+  - Discovers available models and presets from directory structure
+  - Loads, validates, and formats templates with variable substitution
+  - Template caching for performance
+  - Generic fallback system (auto-creates generic-summary.txt if no prompts exist)
+  - Three-tier default selection: user preference → alphabetical → generic fallback
+
+- **`src/user_preferences.py`** - Persistent user preferences manager
+  - Singleton pattern for global access
+  - Saves/loads preferences to `config/user_preferences.json`
+  - Stores default prompt per model with graceful error handling
+  - Tracks last used model
+
+#### 2. GUI Components (src/ui/widgets.py)
+
+Added to **AIControlsWidget**:
+- **Prompt selector dropdown** - Disabled until model loads, then auto-populates
+- **Expandable preview section** - Collapsible with ▼/▲ toggle showing formatted prompt
+- **Live preview updates** - Preview refreshes when slider changes or different prompt selected
+- **"Set as Default" button** - Saves preferred prompt per model with visual confirmation
+
+**New Signals:**
+- `prompt_changed(str)` - Emitted when prompt selection changes
+- `set_default_requested(str, str)` - Emitted when user saves default (model_name, preset_id)
+
+#### 3. Integration Changes
+
+**Updated `src/ui/main_window.py`:**
+- Added `_populate_prompt_dropdown()` - Called after successful model load
+- Added `save_default_prompt()` - Saves user's preferred default to preferences file
+- Updated `process_with_ai()` - Gets selected preset_id and passes to worker
+
+**Updated `src/ui/workers.py`:**
+- `onnx_generation_worker_process()` - Added `preset_id` parameter
+- `AIWorkerProcess` - Stores and passes preset_id to worker process
+- Worker process uses preset_id when calling `generate_summary()`
+
+**Updated `src/ai/onnx_model_manager.py`:**
+- `generate_summary()` - Uses PromptTemplateManager to load and format templates
+- Fallback to factual-summary if requested preset doesn't exist
+
+### Technical Details
+
+**Template Variables:**
+All templates support these variables (auto-filled at generation time):
+- `{min_words}` - Minimum word count (e.g., 180)
+- `{max_words}` - Target word count (e.g., 200)
+- `{max_words_range}` - Maximum word count (e.g., 220)
+- `{case_text}` - The legal document text to summarize
+
+**Template Validation:**
+Templates are validated to ensure they contain:
+- Required Phi-3 chat tokens: `<|system|>`, `<|user|>`, `<|end|>`, `<|assistant|>`
+- Required template variables (listed above)
+- Correct token ordering
+
+**Multiprocessing Considerations:**
+The preset_id (simple string) is passed across process boundaries. The worker process recreates the PromptTemplateManager internally since Python objects can't be pickled across processes.
+
+### User Workflow
+
+1. **Load Model** → Dropdown auto-populates with available presets
+2. **Select Prompt** → Preview shows formatted prompt with example values
+3. **Adjust Slider** → Preview updates with new word counts in real-time
+4. **Set as Default** (optional) → Preference saved to JSON, auto-selected next time
+5. **Generate Summary** → Selected preset used for generation
+
+### Testing
+
+Created `test_prompts.py` validation script:
+- ✅ Discovers models correctly
+- ✅ Finds both presets (factual-summary, strategic-analysis)
+- ✅ Loads templates successfully
+- ✅ Validates required tokens and variables
+- ✅ Formats templates with test values
+- ✅ All formatted prompts contain required elements
+
+**Test Results:** All tests pass successfully.
+
+### Files Created/Modified
+
+**New Files:**
+- `config/prompts/phi-3-mini/factual-summary.txt` (992 chars)
+- `config/prompts/phi-3-mini/strategic-analysis.txt` (1287 chars)
+- `src/prompt_template_manager.py` (300 lines)
+- `src/user_preferences.py` (144 lines)
+- `test_prompts.py` (77 lines)
+
+**Modified Files:**
+- `src/ui/widgets.py` - Added prompt selection UI components (~150 lines)
+- `src/ui/main_window.py` - Added dropdown population and preference saving
+- `src/ui/workers.py` - Added preset_id parameter handling
+- `src/ai/onnx_model_manager.py` - Integrated PromptTemplateManager
+- `src/config.py` - Added PROMPTS_DIR constant
+
+### Status
+
+**Complete and Tested.** The prompt template system is fully functional with:
+- Two analytical depth presets ready to use
+- GUI components working and responsive
+- User preferences persisting correctly
+- Generic fallback system protecting against missing prompts
+- Full integration with multiprocessing worker architecture
+
+### Does This Feature Need Further Refinement?
+
+No critical refinement needed. Possible future enhancements:
+
+1. **More Presets:** Users can easily add new .txt files to `config/prompts/phi-3-mini/`
+2. **Multi-Model Support:** System already supports model-specific prompts (just add new model directories)
+3. **Custom Prompts:** Could add GUI button to create/edit custom prompts
+4. **Import/Export:** Could add ability to share prompt files with other users
+
+The core architecture is extensible and production-ready.
+

@@ -1,15 +1,18 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 - Complete and Working:** All GUI freezing issues resolved via multiprocessing architecture. Application is fully functional with responsive GUI, streaming token display, and comprehensive error handling. Backend delivers 5.4x performance improvement over original llama-cpp implementation.
+**Phase 3 - Complete with Prompt Template System:** Application is fully functional with responsive GUI, user-selectable prompt templates, live preview, and persistent preferences. Backend delivers 5.4x performance improvement over original llama-cpp implementation.
 
 **Current Branch:** `phase3-enhancements`
 **Status:** ✅ **FULLY FUNCTIONAL** - Ready to merge to main
 
-**Latest Session (2025-11-15 Evening):**
-Successfully resolved all critical GUI issues by migrating from QThread to multiprocessing. The ONNX Runtime now runs in a completely separate process, eliminating all GUI freezing. Streaming token display works perfectly with batched updates and live timestamps.
+**Latest Session (2025-11-16):**
+Implemented complete prompt template selection system with GUI integration. Users can now choose between analytical depth presets (Factual Summary vs Strategic Analysis), preview formatted prompts in real-time, and save their preferred defaults per model. All preferences persist across sessions.
 
 **What Works ✅:**
+- ✅ **Prompt template selection** with dropdown and live preview
+- ✅ **Two analytical depth presets** (Factual Summary, Strategic Analysis)
+- ✅ **User preferences** - Save default prompt per model
 - ✅ **GUI remains fully responsive** during summary generation (no freezing!)
 - ✅ **Streaming token display** with real-time "Updated: HH:MM:SS" timestamps
 - ✅ Backend AI generation (5.4x faster: 0.6 → 3.21 tokens/sec)
@@ -44,12 +47,14 @@ Implemented complete architectural redesign using `multiprocessing.Process` inst
 - **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
+- **src/prompt_template_manager.py** - Prompt template discovery, loading, validation, and formatting system
+- **src/user_preferences.py** - User preferences manager (saves default prompts per model to JSON)
 - **src/ai/model_manager.py** (241 lines) - LEGACY: llama-cpp-python model manager (kept for reference)
-- **src/ai/onnx_model_manager.py** - ONNX Runtime GenAI model manager with DirectML (5.4x faster, default)
+- **src/ai/onnx_model_manager.py** - ONNX Runtime GenAI model manager with DirectML (5.4x faster, default, uses PromptTemplateManager)
 - **src/ai/__init__.py** - AI package initialization (early onnxruntime_genai import, exports ONNXModelManager)
-- **src/ui/main_window.py** - Main application window (uses AIWorkerProcess, heartbeat monitoring)
-- **src/ui/widgets.py** - Custom widgets including FileReviewTable, AIControlsWidget, SummaryResultsWidget (with QTextCursor import, timestamp display)
-- **src/ui/workers.py** - Background workers (multiprocessing-based AIWorkerProcess, QThread-based ProcessingWorker)
+- **src/ui/main_window.py** - Main application window (uses AIWorkerProcess, heartbeat monitoring, prompt dropdown population)
+- **src/ui/widgets.py** - Custom widgets including FileReviewTable, AIControlsWidget (with prompt selector/preview), SummaryResultsWidget
+- **src/ui/workers.py** - Background workers (multiprocessing-based AIWorkerProcess with preset_id support, QThread-based ProcessingWorker)
 - **src/ui/dialogs.py** - Progress dialogs (ModelLoadProgressDialog with timer, SimpleProgressDialog)
 - **src/ui/__init__.py** - UI package initialization
 - **src/utils/logger.py** - Debug mode logging with performance timing using Timer context manager
@@ -66,6 +71,9 @@ Implemented complete architectural redesign using `multiprocessing.Process` inst
 
 ### Configuration
 - **config/prompt_parameters.json** - User-editable AI settings (word count, temperature, top-p, etc.)
+- **config/prompts/phi-3-mini/factual-summary.txt** - Objective fact-focused summary template
+- **config/prompts/phi-3-mini/strategic-analysis.txt** - Deep analytical summary template
+- **config/user_preferences.json** - User's saved default prompts per model (auto-created)
 - **requirements.txt** - Python dependencies including onnxruntime-genai-directml, huggingface-hub, numpy<2.0
 - **.gitignore** - Git ignore rules (venv/, cleaned/, *.log, etc.)
 - **venv/** - Virtual environment (NOT in git, auto-created by session-start hook)
@@ -191,9 +199,12 @@ python -m src.main      # Launch GUI
 1. Select legal documents (PDF/TXT/RTF)
 2. Review processing results in file table
 3. Click "Load Model" (takes ~2 seconds)
-4. Adjust summary length slider (100-500 words)
-5. Click "Generate Summaries"
-6. Watch streaming text appear with live timestamps
-7. Save or copy generated summary
+4. Select prompt template from dropdown (Factual Summary or Strategic Analysis)
+5. Preview formatted prompt (optional - click "Show Prompt Preview")
+6. Adjust summary length slider (100-500 words)
+7. Set as default prompt for this model (optional)
+8. Click "Generate Summaries"
+9. Watch streaming text appear with live timestamps
+10. Save or copy generated summary
 
 **No known issues.** Application is production-ready for Phase 3 merge to main.

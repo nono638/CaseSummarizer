@@ -189,6 +189,7 @@ class MainWindow(QMainWindow):
         # Right side: AI Controls (Phase 3)
         self.ai_controls = AIControlsWidget(self.model_manager)
         self.ai_controls.load_model_requested.connect(self.load_ai_model)
+        self.ai_controls.set_default_requested.connect(self.save_default_prompt)
         self.ai_controls.setMaximumWidth(300)
         main_layout.addWidget(self.ai_controls, stretch=1)
 
@@ -419,6 +420,9 @@ class MainWindow(QMainWindow):
         self.ai_controls.refresh_status()
         self.on_selection_changed()  # Update process button state
 
+        # Populate prompt dropdown with available presets
+        self._populate_prompt_dropdown()
+
     def _on_model_load_error(self, error_msg):
         """Handle model loading error."""
         if self.model_load_dialog:
@@ -445,6 +449,47 @@ class MainWindow(QMainWindow):
             self.model_load_worker = None
 
         # Dialog will close itself via finish_success/finish_error
+
+    def _populate_prompt_dropdown(self):
+        """Populate the prompt dropdown with available presets for the loaded model."""
+        from src.prompt_template_manager import PromptTemplateManager
+        from src.user_preferences import get_user_preferences
+        from src.config import PROMPTS_DIR
+
+        # Get the model identifier (hardcoded for now, will be made dynamic)
+        model_id = "phi-3-mini"
+
+        # Initialize managers
+        template_manager = PromptTemplateManager(PROMPTS_DIR)
+        prefs_manager = get_user_preferences()
+
+        # Get user's preferred default prompt for this model
+        user_preference = prefs_manager.get_default_prompt(model_id)
+
+        # Get best default preset (considering user preference)
+        default_preset_id = template_manager.get_best_default_preset(model_id, user_preference)
+
+        # Get available presets
+        presets = template_manager.get_available_presets(model_id)
+
+        # Populate the dropdown
+        self.ai_controls.populate_prompts(model_id, presets, default_preset_id)
+
+    def save_default_prompt(self, model_name: str, preset_id: str):
+        """
+        Save the user's preferred default prompt for a model.
+
+        Args:
+            model_name: Name of the model (e.g., 'phi-3-mini')
+            preset_id: Preset identifier (e.g., 'factual-summary')
+        """
+        from src.user_preferences import get_user_preferences
+
+        prefs_manager = get_user_preferences()
+        prefs_manager.set_default_prompt(model_name, preset_id)
+
+        # Show confirmation in status bar
+        self.status_bar.showMessage(f"Saved '{preset_id}' as default prompt for {model_name}", 3000)
 
     @Slot()
     def process_with_ai(self):
@@ -479,6 +524,7 @@ class MainWindow(QMainWindow):
 
         # Get summary settings
         summary_length = self.ai_controls.get_summary_length()
+        preset_id = self.ai_controls.get_selected_preset_id()
 
         # Clear previous summary
         self.summary_results.clear_summary()
@@ -494,7 +540,8 @@ class MainWindow(QMainWindow):
         self.ai_worker = AIWorkerProcess(
             model_manager=self.model_manager,
             processing_results=selected_results,
-            summary_length=summary_length
+            summary_length=summary_length,
+            preset_id=preset_id
         )
 
         # Store start time for timing

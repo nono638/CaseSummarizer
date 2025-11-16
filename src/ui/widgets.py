@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QCheckBox,
     QWidget, QHBoxLayout, QHeaderView, QVBoxLayout,
     QGroupBox, QRadioButton, QSlider, QLabel, QPushButton,
-    QTextEdit, QProgressBar
+    QTextEdit, QProgressBar, QComboBox
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QColor, QTextCursor
@@ -315,6 +315,7 @@ class AIControlsWidget(QGroupBox):
     Phase 3 Features:
     - Model selection (Standard 9B vs Pro 27B)
     - Summary length slider (100-500 words)
+    - Prompt template selection with preview
     - Model status indicator
     - Load/unload model buttons
     """
@@ -323,6 +324,8 @@ class AIControlsWidget(QGroupBox):
     model_changed = Signal(str)  # Emits 'standard' or 'pro'
     summary_length_changed = Signal(int)  # Emits word count
     load_model_requested = Signal(str)  # Emits model type to load
+    prompt_changed = Signal(str)  # Emits preset_id when prompt selection changes
+    set_default_requested = Signal(str, str)  # Emits (model_name, preset_id) to save as default
 
     def __init__(self, model_manager=None):
         super().__init__("AI Settings")
@@ -366,6 +369,54 @@ class AIControlsWidget(QGroupBox):
         self.load_model_btn = QPushButton("Load Model")
         self.load_model_btn.clicked.connect(self._on_load_model_clicked)
         layout.addWidget(self.load_model_btn)
+
+        # Separator
+        layout.addSpacing(15)
+
+        # Prompt Selection Section
+        prompt_label = QLabel("<b>Prompt Template:</b>")
+        layout.addWidget(prompt_label)
+
+        # Dropdown for prompt selection (disabled until model loads)
+        self.prompt_selector = QComboBox()
+        self.prompt_selector.setEnabled(False)
+        self.prompt_selector.setToolTip("Load a model first to see available prompts")
+        self.prompt_selector.addItem("Load model first...")
+        self.prompt_selector.currentIndexChanged.connect(self._on_prompt_selection_changed)
+        layout.addWidget(self.prompt_selector)
+
+        # Preview toggle button
+        self.preview_toggle_btn = QPushButton("▼ Show Prompt Preview")
+        self.preview_toggle_btn.setFlat(True)
+        self.preview_toggle_btn.setStyleSheet("text-align: left; padding: 5px;")
+        self.preview_toggle_btn.clicked.connect(self._toggle_preview)
+        self.preview_toggle_btn.setEnabled(False)
+        layout.addWidget(self.preview_toggle_btn)
+
+        # Preview text area (initially hidden, expandable)
+        self.prompt_preview = QTextEdit()
+        self.prompt_preview.setReadOnly(True)
+        self.prompt_preview.setPlaceholderText("Prompt preview will appear here...")
+        self.prompt_preview.setMaximumHeight(200)
+        self.prompt_preview.setStyleSheet("""
+            QTextEdit {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 8px;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 9pt;
+            }
+        """)
+        self.prompt_preview.hide()
+        layout.addWidget(self.prompt_preview)
+
+        # "Set as Default" button
+        self.set_default_btn = QPushButton("Set as Default for This Model")
+        self.set_default_btn.setToolTip("Save this prompt as the default for the currently loaded model")
+        self.set_default_btn.setEnabled(False)
+        self.set_default_btn.clicked.connect(self._on_set_default_clicked)
+        layout.addWidget(self.set_default_btn)
 
         # Separator
         layout.addSpacing(15)
@@ -446,6 +497,10 @@ class AIControlsWidget(QGroupBox):
             f"{min_range} and {max_range} words."
         )
 
+        # Update prompt preview if visible (word counts will change)
+        if self.prompt_preview.isVisible():
+            self._update_prompt_preview()
+
         self.summary_length_changed.emit(value)
 
     def _on_load_model_clicked(self):
@@ -494,6 +549,133 @@ class AIControlsWidget(QGroupBox):
     def get_summary_length(self) -> int:
         """Get the current summary length setting."""
         return self.length_slider.value()
+
+    def get_selected_preset_id(self) -> str:
+        """
+        Get the currently selected prompt preset ID.
+
+        Returns:
+            str: Preset ID (e.g., 'factual-summary') or empty string if none selected
+        """
+        if self.prompt_selector.currentIndex() >= 0:
+            return self.prompt_selector.currentData()
+        return ""
+
+    def populate_prompts(self, model_name: str, presets: list, default_preset_id: str = None):
+        """
+        Populate the prompt selector dropdown with available presets.
+
+        Args:
+            model_name: Name of the loaded model (e.g., 'phi-3-mini')
+            presets: List of preset dicts with 'name' and 'id' keys
+            default_preset_id: Optional preset ID to select by default
+        """
+        # Clear existing items
+        self.prompt_selector.blockSignals(True)
+        self.prompt_selector.clear()
+
+        # Add presets to dropdown
+        for preset in presets:
+            self.prompt_selector.addItem(preset['name'], preset['id'])
+
+        # Select default preset if specified
+        if default_preset_id:
+            for i in range(self.prompt_selector.count()):
+                if self.prompt_selector.itemData(i) == default_preset_id:
+                    self.prompt_selector.setCurrentIndex(i)
+                    break
+
+        # Enable the dropdown and preview toggle
+        self.prompt_selector.setEnabled(True)
+        self.prompt_selector.setToolTip("Select a prompt template for summarization")
+        self.preview_toggle_btn.setEnabled(True)
+        self.set_default_btn.setEnabled(True)
+
+        self.prompt_selector.blockSignals(False)
+
+        # Update preview with current selection
+        self._update_prompt_preview()
+
+    def _toggle_preview(self):
+        """Toggle the prompt preview visibility."""
+        if self.prompt_preview.isVisible():
+            self.prompt_preview.hide()
+            self.preview_toggle_btn.setText("▼ Show Prompt Preview")
+        else:
+            self.prompt_preview.show()
+            self.preview_toggle_btn.setText("▲ Hide Prompt Preview")
+            # Update preview when showing
+            self._update_prompt_preview()
+
+    def _on_prompt_selection_changed(self, index):
+        """Handle prompt selection change."""
+        if index >= 0:
+            preset_id = self.prompt_selector.currentData()
+            if preset_id:
+                # Update preview
+                self._update_prompt_preview()
+                # Emit signal
+                self.prompt_changed.emit(preset_id)
+
+    def _update_prompt_preview(self):
+        """Update the prompt preview with formatted example."""
+        preset_id = self.get_selected_preset_id()
+        if not preset_id:
+            self.prompt_preview.setPlainText("No prompt selected")
+            return
+
+        # Get the current word count setting
+        max_words = self.get_summary_length()
+        tolerance = self.prompt_config.word_count_tolerance
+        min_words = max_words - tolerance
+        max_words_range = max_words + tolerance
+
+        # Load and format template with example values
+        try:
+            from ..prompt_template_manager import PromptTemplateManager
+            from ..config import PROMPTS_DIR
+
+            manager = PromptTemplateManager(PROMPTS_DIR)
+            model_id = "phi-3-mini"  # Hardcoded for now
+
+            template = manager.load_template(model_id, preset_id)
+            formatted_prompt = manager.format_template(
+                template=template,
+                min_words=min_words,
+                max_words=max_words,
+                max_words_range=max_words_range,
+                case_text="[Your legal document text will appear here...]"
+            )
+
+            self.prompt_preview.setPlainText(formatted_prompt)
+
+        except Exception as e:
+            self.prompt_preview.setPlainText(f"Error loading preview: {str(e)}")
+
+    def _on_set_default_clicked(self):
+        """Handle 'Set as Default' button click."""
+        preset_id = self.get_selected_preset_id()
+        if not preset_id:
+            return
+
+        # Get current model name
+        model_name = "phi-3-mini"  # Hardcoded for now, will be made dynamic
+
+        # Emit signal to save preference
+        self.set_default_requested.emit(model_name, preset_id)
+
+        # Show brief confirmation
+        original_text = self.set_default_btn.text()
+        self.set_default_btn.setText("✓ Saved as Default")
+        self.set_default_btn.setEnabled(False)
+
+        # Reset button after 2 seconds
+        QTimer.singleShot(2000, lambda: self._reset_default_button(original_text))
+
+    def _reset_default_button(self, original_text: str):
+        """Reset the 'Set as Default' button."""
+        self.set_default_btn.setText(original_text)
+        self.set_default_btn.setEnabled(True)
 
     def refresh_status(self):
         """Refresh the model status display."""

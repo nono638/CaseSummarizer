@@ -1,16 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)",
-      "Bash(python:*)",
-      "Bash(venvScriptspip install pdfplumber pdf2image pytesseract nltk)",
-      "Bash(\"venv/Scripts/python.exe\" -m pip install pdfplumber pdf2image pytesseract nltk)",
-      "Bash(\"venv/Scripts/python.exe\" -m src.cleaner:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebSearch",
+      "Bash(\"venv/Scripts/python.exe\" test_prompts.py)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd configurable prompt templates with GUI selection\n\nImplemented complete prompt template management system allowing users to select\ndifferent analytical styles for their summaries with full GUI integration,\nlive preview, and persistent preferences.\n\nKey Changes:\n- Created two analytical depth presets (factual-summary, strategic-analysis)\n- Added PromptTemplateManager for template discovery, validation, and formatting\n- Implemented UserPreferencesManager for persistent user preferences (JSON)\n- Added prompt selector dropdown to AI Controls widget\n- Added expandable preview section with live updates (slider changes update preview)\n- Added \"Set as Default\" button with visual confirmation\n- Integrated preset_id throughout worker architecture (multiprocessing support)\n- Generic fallback system auto-creates default prompt if none exist\n\nGUI Components:\n- Dropdown selector (disabled until model loads, then auto-populates)\n- Collapsible preview (▼/▲ toggle)\n- Live preview updates when slider or dropdown changes\n- \"Set as Default\" button saves preference per model\n\nFiles Created:\n- config/prompts/phi-3-mini/factual-summary.txt (objective facts)\n- config/prompts/phi-3-mini/strategic-analysis.txt (deep analysis)\n- src/prompt_template_manager.py (300 lines)\n- src/user_preferences.py (144 lines)\n- test_prompts.py (validation tests - all passing)\n\nFiles Modified:\n- src/ui/widgets.py - Added prompt selection UI (~150 lines)\n- src/ui/main_window.py - Dropdown population and preference saving\n- src/ui/workers.py - Added preset_id parameter support\n- src/ai/onnx_model_manager.py - PromptTemplateManager integration\n- src/config.py - Added PROMPTS_DIR constant\n- development_log.md - Comprehensive session documentation\n- human_summary.md - Updated project status\n\nResults:\n- Users can choose between analytical depth presets\n- Preview shows formatted prompts with example values\n- Preferences persist across sessions\n- System extensible (add new .txt files to add presets)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "outputStyle": "Explanatory"
 }
