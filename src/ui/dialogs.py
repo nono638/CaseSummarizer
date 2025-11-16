@@ -125,6 +125,18 @@ class ModelLoadProgressDialog(QDialog):
         """
         self.status_label.setText(status_text)
 
+    def update_elapsed_time(self, elapsed_seconds):
+        """
+        Update the elapsed time display.
+
+        This is called by the worker thread's progress signal
+        to keep the UI updated during model loading.
+
+        Args:
+            elapsed_seconds: Elapsed time as a float in seconds
+        """
+        self.timer_label.setText(f"Elapsed time: {elapsed_seconds:.1f} seconds")
+
     def _on_cancel(self):
         """Handle cancel button click (future enhancement)."""
         self.cancelled.emit()

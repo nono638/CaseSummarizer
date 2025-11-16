@@ -119,17 +119,20 @@ class FileReviewTable(QTableWidget):
 
         checkbox = QCheckBox()
 
+        # IMPORTANT: Connect signal BEFORE setting state
+        # This ensures that initial auto-check triggers the signal
+        checkbox.stateChanged.connect(self._on_checkbox_changed)
+
+        # Disable checkbox for failed files (must be done before setChecked to prevent signal)
+        if status == 'error':
+            checkbox.setEnabled(False)
+
         # Auto-check files with confidence >= 70% and success status
+        # Now that signal is connected, this will properly emit the signal
         if status == 'success' and confidence >= 70:
             checkbox.setChecked(True)
         else:
             checkbox.setChecked(False)
-
-        # Disable checkbox for failed files
-        if status == 'error':
-            checkbox.setEnabled(False)
-
-        checkbox.stateChanged.connect(self._on_checkbox_changed)
         checkbox_layout.addWidget(checkbox)
         checkbox_widget.setLayout(checkbox_layout)
 

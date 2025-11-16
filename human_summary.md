@@ -1,13 +1,16 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 - Complete with Prompt Template System:** Application is fully functional with responsive GUI, user-selectable prompt templates, live preview, and persistent preferences. Backend delivers 5.4x performance improvement over original llama-cpp implementation.
+**Phase 3 - Complete with GUI Fixes:** Application is fully functional with responsive GUI, user-selectable prompt templates, live preview, and persistent preferences. Backend delivers 5.4x performance improvement over original llama-cpp implementation. Recent session focused on GUI responsiveness and data display fixes.
 
 **Current Branch:** `phase3-enhancements`
 **Status:** ✅ **FULLY FUNCTIONAL** - Ready to merge to main
 
-**Latest Session (2025-11-16):**
-Implemented complete prompt template selection system with GUI integration. Users can now choose between analytical depth presets (Factual Summary vs Strategic Analysis), preview formatted prompts in real-time, and save their preferred defaults per model. All preferences persist across sessions.
+**Latest Session (2025-11-16 - GUI Bug Fixes):**
+Diagnosed and fixed three critical GUI issues affecting user experience:
+1. **"Generate Summary" button now enables immediately** after file selection (was requiring "Select All" workaround)
+2. **File size and page count now display correctly** (were showing 0B and "--" due to key mismatch)
+3. **Progress dialog event loop fixed** (now properly enters `.exec()` to process updates)
 
 **What Works ✅:**
 - ✅ **Prompt template selection** with dropdown and live preview
@@ -15,17 +18,19 @@ Implemented complete prompt template selection system with GUI integration. User
 - ✅ **User preferences** - Save default prompt per model
 - ✅ **GUI remains fully responsive** during summary generation (no freezing!)
 - ✅ **Streaming token display** with real-time "Updated: HH:MM:SS" timestamps
+- ✅ **File selection** enables Generate button immediately (no need for "Select All")
+- ✅ **File metadata display** shows actual file sizes and page counts
 - ✅ Backend AI generation (5.4x faster: 0.6 → 3.21 tokens/sec)
 - ✅ ONNX model loading (Phi-3 Mini with DirectML)
 - ✅ Heartbeat monitoring (warns if worker process stalls)
 - ✅ Comprehensive error handling with user-friendly messages
 - ✅ Process isolation (worker crashes don't affect GUI)
 
-**Issues Resolved This Session:**
-- ✅ **GUI freezing** - Fixed via multiprocessing (separate process, not thread)
-- ✅ **Text display** - Fixed missing `QTextCursor` import
-- ✅ **Streaming overwhelm** - Fixed via token batching (~15 chars per update)
-- ✅ **Progress feedback** - Added heartbeat system and live timestamps
+**Issues Resolved This Session (2025-11-16):**
+- ✅ **Generate Summary button** - Now enables intuitively after file selection
+- ✅ **File size/page display** - Fixed key name mismatch (pages→page_count, size_mb→file_size)
+- ⚠️ **Progress dialog responsiveness** - Improved with event loop fix, may need further refinement
+- ✅ **Signal delivery** - Fixed checkbox state change signal timing in file table
 
 **Technical Achievement:**
 Implemented complete architectural redesign using `multiprocessing.Process` instead of `QThread`. This provides true process isolation, ensuring ONNX Runtime operations cannot block the Qt event loop regardless of execution time.

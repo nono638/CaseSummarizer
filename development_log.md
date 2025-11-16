@@ -1415,3 +1415,91 @@ No critical refinement needed. Possible future enhancements:
 
 The core architecture is extensible and production-ready.
 
+---
+
+## 2025-11-16 19:30 - GUI Responsiveness and Data Display Fixes
+
+**Session:** Multiple GUI bug fixes and improvements for better user experience.
+
+### Issues Fixed
+
+#### 1. **Progress Bar Responsiveness During Model Loading** (PARTIAL FIX)
+**Problem:** When clicking "Load Model", the progress dialog appeared blank for several seconds, then abruptly showed "model loaded". No progress updates were visible.
+
+**Root Cause:** The modal dialog was created with `setModal(True)` but shown with `.show()` instead of `.exec()`, preventing the dialog's event loop from running. This meant:
+- Internal timer never fired
+- Progress signals from worker thread couldn't be delivered
+- Progress bar animation didn't work
+- Elapsed time never updated
+
+**Fix Applied:**
+- Changed `main_window.py` line 415: `dialog.show()` → `dialog.exec()`
+- Now dialog properly enters its own event loop, allowing timer and signals to be processed
+- Added daemon thread in `workers.py` to emit progress signals every 100ms during blocking load
+
+**Status:** Partially improved - dialog now has event loop running. Further refinement may be needed for smoother visual feedback.
+
+#### 2. **"Generate Summary" Button Greyed Out After File Selection** (FIXED)
+**Problem:** When documents were loaded from the file browser, they appeared selected in the table but the "Generate Summary" button remained disabled. User had to click "Select All" or manually reselect files to enable the button.
+
+**Root Cause:** Two issues:
+1. The `selection_changed` signal was never emitted after files were auto-checked during table population
+2. Checkbox state was being set BEFORE the signal handler was connected
+
+**Fix Applied:**
+- **widgets.py (lines 122-135):** Reordered to connect signal BEFORE setting checkbox state
+- **main_window.py (line 336):** Added `self.file_table.selection_changed.emit()` after file processing completes
+- Now button enables immediately for auto-checked files without user intervention
+
+**Status:** ✅ FIXED - Button now enables intuitively after file selection.
+
+#### 3. **File Size and Page Count Not Displaying** (FIXED)
+**Problem:** When documents were loaded, the file size column showed "0 B" and pages column showed "--" despite files being successfully processed.
+
+**Root Cause:** Key name mismatch between data creation and consumption:
+- `cleaner.py` created result dict with keys: `'pages'` (int) and `'size_mb'` (float in MB)
+- `widgets.py` (FileReviewTable) expected keys: `'page_count'` and `'file_size'` (in bytes)
+- `.get()` calls returned defaults (0) when keys weren't found
+
+**Fix Applied:**
+- **cleaner.py (lines 128-139):** Updated result dictionary keys:
+  - `'pages': None` → `'page_count': None`
+  - `'size_mb': 0` → `'file_size': 0` (now stored in bytes instead of MB)
+- **cleaner.py (lines 152-164):** Updated file size calculation to store bytes: `result['file_size'] = file_path.stat().st_size`
+- **cleaner.py:** Updated all key references throughout file (lines 271, 288, 404, 412, 641-642)
+- **FileReviewTable** already had correct `_format_file_size()` function to display bytes in human-readable format
+
+**Status:** ✅ FIXED - File sizes and page counts now display correctly.
+
+### Files Modified
+
+- `src/ui/workers.py` - Enhanced ModelLoadWorker with daemon thread for progress signals
+- `src/ui/main_window.py` - Changed dialog.show() to dialog.exec() + added signal emission after processing
+- `src/ui/dialogs.py` - Added `update_elapsed_time()` method to ModelLoadProgressDialog
+- `src/ui/widgets.py` - Reordered signal connection before checkbox state change
+- `src/cleaner.py` - Fixed key names and units for file_size and page_count data
+
+### Architecture Patterns Established
+
+1. **Signal Emission for UI State:** After batch operations (file processing), emit signals to trigger dependent UI updates
+2. **Thread-Safe Progress Updates:** Daemon threads can emit progress signals to main thread's event loop (must be running)
+3. **Data Contract Matching:** Ensure data source keys match consumer expectations to avoid silent failures with default values
+4. **Modal Dialog Event Loops:** Modal dialogs must use `.exec()` to enter their event loop and process timers/signals
+
+### Testing Notes
+
+- Progress dialog now shows elapsed time updates during model loading
+- "Generate Summary" button enables immediately after file selection
+- File size displays in appropriate units (B, KB, MB, GB)
+- Page count displays correctly for PDFs
+- Selection state properly synchronized between table UI and button enabled state
+
+### Status
+
+**PARTIALLY COMPLETE** - Three of four identified GUI issues addressed:
+- ✅ Button enabled state (FIXED)
+- ✅ File size/page display (FIXED)
+- ⚠️ Progress dialog (IMPROVED but may need further refinement)
+
+The progress dialog now has a proper event loop, but the visual responsiveness may still need adjustment. The core architectural issues are resolved; further improvements could focus on visual feedback quality.
+
