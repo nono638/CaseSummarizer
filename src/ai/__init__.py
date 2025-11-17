@@ -1,23 +1,34 @@
 """
 LocalScribe AI Module
-Handles AI model loading and text generation.
+Handles AI model loading and text generation via Ollama.
+
+Architecture:
+=============
+This module uses Ollama as the primary AI backend for several key reasons:
+
+1. **Cross-Platform Stability**: Works identically on Windows, macOS, and Linux
+   without DLL or environment-specific issues.
+
+2. **No External Dependencies**: Ollama is a standalone service; no Python packages
+   for the actual model inference (requests library only for API calls).
+
+3. **Commercial Viability**: MIT-licensed, safe for commercial distribution
+   with no license conflicts.
+
+4. **Flexibility**: Easy to swap models at runtime, pull new models via UI,
+   and support multiple backends if needed in the future.
+
+Deprecated Managers:
+- ONNXModelManager: See development_log.md for details on Phi-3 token corruption bug
+- LlamaCppModelManager: Legacy implementation kept for reference only
 """
 
-# CRITICAL: Import onnxruntime_genai BEFORE PySide6/Qt to avoid DLL conflicts on Windows
-# See: https://github.com/pytorch/pytorch/issues/166628
-try:
-    import onnxruntime_genai as _og
-    _ONNX_AVAILABLE = True
-except ImportError:
-    _ONNX_AVAILABLE = False
+# Primary AI Model Manager: Ollama-based
+# - REST API integration with local Ollama service
+# - Supports any model available on https://ollama.ai/library
+from .ollama_model_manager import OllamaModelManager
 
-# New ONNX-based model manager (recommended for Windows with DirectML)
-from .onnx_model_manager import ONNXModelManager
+# DEFAULT: Use Ollama for all AI operations
+ModelManager = OllamaModelManager
 
-# Legacy llama-cpp model manager (for reference/fallback)
-from .model_manager import ModelManager as LlamaCppModelManager
-
-# Default to ONNX model manager for better performance
-ModelManager = ONNXModelManager
-
-__all__ = ['ModelManager', 'ONNXModelManager', 'LlamaCppModelManager']
+__all__ = ['ModelManager', 'OllamaModelManager']

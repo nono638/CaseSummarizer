@@ -1,0 +1,114 @@
+# Intelligent Chunking Patterns
+# These regex patterns are used to detect section boundaries in legal documents
+# for intelligent paragraph-aware chunking.
+#
+# Format: One regex pattern per line. Lines starting with # are comments.
+# The patterns are matched against the beginning of paragraphs (using re.match)
+#
+# IMPORTANT: Escape special regex characters appropriately.
+# Common patterns for legal documents are provided below.
+
+# ============================================================================
+# LEGAL DOCUMENT SECTION HEADERS
+# ============================================================================
+
+# Standard legal section headers (all caps or title case)
+^(STATEMENT OF|BACKGROUND|FACTS|FACTS AND|ARGUMENT|ARGUMENTS|CONCLUSION|CONCLUSIONS|DISCUSSION|RELIEF)
+
+# Alternative format: "I. INTRODUCTION" or "I. Introduction"
+^[IVX]+\.\s+[A-Z]
+
+# Numbered sections: "1. Background Information"
+^\d+\.\s+[A-Z]
+
+# Lettered subsections: "A. Facts" or "a. Facts"
+^[A-Z][\.)]\s+[A-Z]
+^[a-z][\.)]\s+[A-Z]
+
+# ============================================================================
+# DEPOSITION AND TESTIMONY SECTIONS
+# ============================================================================
+
+# Question in deposition/testimony: "Q: " or "QUESTION:"
+^Q[\:\.]
+^QUESTION[\:\.]
+
+# Answer in deposition: "A: " or "ANSWER:"
+^A[\:\.]
+^ANSWER[\:\.]
+
+# Court speaking in transcript: "COURT:" or "THE COURT:"
+^(THE\s+)?COURT[\:\.]
+
+# Counsel/Attorney speaking: "MR." or "MS." followed by name
+^(MR|MS|MRS|DR)\.\s+[A-Z]
+
+# Judge intervention: "JUDGE:" or "THE JUDGE:"
+^(THE\s+)?JUDGE[\:\.]
+
+# ============================================================================
+# DOCUMENT STRUCTURE MARKERS
+# ============================================================================
+
+# Page breaks or section dividers (often indicated by multiple dashes)
+^={3,}
+^-{3,}
+^\*{3,}
+
+# Exhibits or attachments: "Exhibit A:" or "EXHIBIT 1:"
+^EXHIBIT\s+[A-Z0-9]
+
+# Footnotes or endnotes: Usually start with numbers
+^[\[{0-9]+[\]}]
+
+# ============================================================================
+# LEGAL CASE SPECIFIC PATTERNS
+# ============================================================================
+
+# Plaintiff/Defendant sections
+^PLAINTIFF
+^DEFENDANT
+^PETITIONER
+^RESPONDENT
+
+# Common legal document sections
+^RELIEF SOUGHT
+^PRAYER FOR RELIEF
+^WHEREFORE
+^ALLEGATIONS
+^COUNTS?
+^CLAIM[S]?
+
+# ============================================================================
+# TIME/DATE MARKERS (Section breaks by temporal elements)
+# ============================================================================
+
+# Dates in various formats
+^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}
+^\d{1,2}/\d{1,2}/\d{2,4}
+^\d{4}-\d{2}-\d{2}
+
+# Time markers
+^(Morning|Afternoon|Evening) Session
+^(Day\s+\d+|Deposition\s+on)
+
+# ============================================================================
+# NOTES FOR USERS
+# ============================================================================
+# To add custom patterns:
+# 1. Identify common headers or markers in your documents
+# 2. Create a regex pattern that matches the beginning of those sections
+# 3. Add the pattern on a new line (no trailing spaces)
+# 4. Test the pattern with your documents
+#
+# Common regex patterns:
+# ^       = start of line
+# \s      = whitespace
+# \d      = digit
+# A|B     = A or B (alternation)
+# [A-Z]   = any uppercase letter
+# {3,}    = 3 or more repetitions
+# (...)   = grouping
+#
+# Example: To match "SECTION I:", use:
+#   ^SECTION\s+[IVX]+

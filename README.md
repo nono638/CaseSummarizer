@@ -45,8 +45,9 @@ LocalScribe is a private, secure Windows desktop application that processes lega
 
 - Python 3.10+
 - Windows 10/11 (64-bit)
-- 16GB RAM minimum (32GB recommended)
+- 8GB RAM minimum (16GB recommended)
 - Tesseract OCR (for scanned documents)
+- **Ollama** - For AI-powered document summarization (see setup below)
 
 ## Installation
 
@@ -81,6 +82,46 @@ pip install -r requirements.txt
 ```python
 python -c "import nltk; nltk.download('words')"
 ```
+
+6. **Install and Configure Ollama** (for AI document summarization):
+
+LocalScribe uses Ollama to run lightweight AI models locally. Ollama is a separate service that runs independently.
+
+**Step 1: Download Ollama**
+- Visit: https://ollama.ai
+- Download the Windows installer
+- Run the installer and follow the prompts
+- This will start Ollama as a background service on port 11434
+
+**Step 2: Download a model**
+Open PowerShell or Command Prompt and run:
+```bash
+# Download Phi 1.5B (recommended - excellent quality, very fast)
+ollama pull phi:1.5b
+
+# Alternative: Download TinyLlama 1.1B (if you have limited resources)
+ollama pull tinyllama:1.1b
+```
+
+This downloads the model (~1-2 GB) and may take a few minutes.
+
+**Step 3: Verify Ollama is running**
+Test the connection:
+```bash
+curl http://localhost:11434/api/tags
+```
+
+You should see a JSON response listing available models.
+
+**Note for Windows Users:**
+- Ollama runs automatically in the background after installation
+- You can verify it's running by checking the system tray (look for Ollama icon)
+- If not running, search for "Ollama" in Windows search and launch it
+
+**Available Models** (from https://ollama.ai/library):
+- `phi:1.5b` - Recommended (excellent quality, very fast, ~2GB)
+- `tinyllama:1.1b` - Ultra-light (~1.1GB)
+- `neural-chat:7b` - Higher quality (~4GB, slower)
 
 **IMPORTANT:** Always activate the virtual environment before running any code:
 ```bash

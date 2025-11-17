@@ -1,58 +1,49 @@
-=== Generated Summary (Multiprocessing) ===
-Generation time: 229.9s
-Word count: 306
-Token count: 535
+=== Generated Summary ===
+Generation time: 285.9s
+Total time: 285.9s
+Word count: 56
+Token count: 56
 ============================================================
 
-[Word Count: 350]
+5000.
 
-The transcript presents a courtroom scene where the trial of Luigi Napolitano against multiple defendants is underway. The document reveals a complex litigation involving multiple healthcare professionals.
+20000000000
 
+200, and, and,5000:000s:
 
-Contradictions and inconsistencies:
-
-- The court's acknowledgment of an appellate decision suggests that the case's status is not final, yet the trial is proceeding.
-
-
-Missing evidence or avoided topics:
-
-- The document does not specify the nature of the case or the claims against the defendants.
+20000:
 
 
-Strengths and weaknesses of positions:
-
-- Plaintiff's position:
-
-  - Strength: Representation by a reputable law firm (Harris, Keenan, and Goldfarb)
-
-  - Weakness: Lack of detail on the case's specifics
-
-- Defendants' position:
-
-  - Strength: Appellate decision in their favor for some defendants
-
-  - Weakness: The trial is ongoing despite the appellate decision, indicating potential procedural issues
 
 
-Ambiguities and strategic choices:
 
-- The court's decision to proceed with the trial despite the appellate decision suggests a strategic choice to address the case's merits.
+(202202000050000005500000000000000005:500:2020000ve:
 
-- The absence of the appellate decision's details in the transcript may indicate a strategic omission or an oversight.
+:0vex202:s:0cth:
+vector:00vexthe:0.
+:0raceline:0x of the document:
+ (150s:
+
+5:
+
+20000:50000:
+505, words, and20:
+0000s, and, to, paragraphs:0005, and, and, and, and, and:5:
+:100, and, to20:000000:
+20s:0x:
+.5,0s,05,0x, and:
+:0.0, and, and,
+, and, and, and, and:
+, and:
+500s:
+50x
 
 
-Patterns and themes:
-
-- The case involves multiple defendants, indicating a potential mass tort or class action.
-
-- The appellate decision's partial affirmation and remanding for trial suggest a complex legal landscape and potential for further litigation.
-
-
-Strategic implications:
-
-- The trial's continuation despite the appellate decision may indicate the plaintiff's belief in the merits of the case or a strategic decision to seek a different outcome.
-
-- The defendants' representation by a law firm with a strong reputation may suggest a focus on credibility and expertise.
-
-
-The document's analysis reveals a trial with strategic nuances, procedural complexities, and potential for further litigation. The absence of specific case details and the appellate decision's omission in the transcript raise questions about the case's current status and the parties' strategic choices.
+s, and:
+20s:
+ (50ve: 
+20
+:
+ (1. (to: 
+:
+,0.A:00s:

@@ -7,11 +7,18 @@ PySide6>=6.6.0
 numpy<2.0
 
 # Local AI Engine
-# ONNX Runtime with DirectML - Optimized for Windows with GPU acceleration
-onnxruntime-genai-directml>=0.10.0
-huggingface-hub>=0.20.0  # For downloading ONNX models
-# Legacy fallback (can be removed after confirming ONNX works on all systems)
-llama-cpp-python>=0.3.0
+# Ollama REST API - For commercial use (MIT license, no version conflicts)
+# Install Ollama from https://ollama.ai
+# No pip dependencies required - Ollama is a standalone service
+# requests library is already included below for API calls
+
+# Optional: ONNX Runtime support (legacy, has token corruption bug)
+# Uncomment if needed for backwards compatibility
+# onnxruntime-genai-directml>=0.10.0  # LEGACY: Phi-3 has token corruption bug (see development_log.md)
+# huggingface-hub>=0.20.0  # For downloading ONNX models
+
+# Optional: llama-cpp-python (legacy fallback)
+# llama-cpp-python>=0.3.0
 
 # OCR
 pytesseract>=0.3.10
@@ -27,6 +34,8 @@ nltk>=3.8.1
 # Utilities
 requests>=2.31.0  # For license server API calls and downloading filter lists
 cryptography>=41.0.0  # For encrypting license.dat
+PyYAML>=6.0  # For configuration file parsing
+pandas>=2.0.0  # For organizing chunk data and progressive summaries
 
 # Development Tools
 pytest>=7.4.3

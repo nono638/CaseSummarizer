@@ -32,12 +32,21 @@ OCR_DPI = 300
 OCR_CONFIDENCE_THRESHOLD = 70  # Files below this are pre-unchecked
 
 # AI Model Configuration
-# Standard: Phi-3 Mini 3.8B (CPU-optimized, fast, good quality)
-# Pro: Gemma 2 9B (Requires GPU for reasonable performance)
-STANDARD_MODEL_NAME = "Phi-3-mini-4k-instruct-q4.gguf"
-PRO_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"
-MAX_CONTEXT_TOKENS = 4096  # Phi-3 Mini context window
-SAFE_PROCESSING_TOKENS = 3000  # Conservative for CPU performance
+# Using Ollama for commercial viability and stability
+# Qwen2.5:7b-instruct: Optimized for legal document summarization with excellent instruction-following
+# and structured output capabilities. Requires 16GB+ RAM, ~4.7GB disk space (Q4_K_M quantization)
+# Ollama models available at https://ollama.ai/library
+OLLAMA_API_BASE = "http://localhost:11434"  # Default Ollama API endpoint
+OLLAMA_MODEL_NAME = "qwen2.5:7b-instruct"  # Production model: Qwen2.5 7B (excellent for NLP/summarization, good instruction-following)
+OLLAMA_MODEL_FALLBACK = "llama3.2:3b-instruct"  # Fallback: Llama 3.2 3B (fastest option, good quality)
+OLLAMA_TIMEOUT_SECONDS = 600  # 10 minutes for long summaries
+MAX_CONTEXT_TOKENS = 4096  # Safe for most Ollama models
+SAFE_PROCESSING_TOKENS = 3000  # Conservative for performance
+
+# Legacy model constants (for backwards compatibility with llama-cpp-python)
+# These are no longer used but kept to avoid breaking imports in legacy code
+STANDARD_MODEL_NAME = "Phi-3-mini-4k-instruct-q4.gguf"  # DEPRECATED
+PRO_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"  # DEPRECATED
 
 # Default Processing Settings
 DEFAULT_SUMMARY_WORDS = 200

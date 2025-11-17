@@ -1,0 +1,118 @@
+# Intelligent Chunking & Progressive Summarization Configuration
+# This configuration controls how long documents are split into chunks
+# and how their summaries are progressively generated with document context.
+
+# ============================================================================
+# CHUNKING SETTINGS
+# ============================================================================
+chunking:
+  # Maximum words per chunk before attempting to split at section boundaries
+  max_chunk_words: 2000
+
+  # Path to file containing regex patterns for section detection
+  # Used to identify logical document boundaries for intelligent chunking
+  patterns_file: "config/chunking_patterns.txt"
+
+  # Minimum and maximum chunk sizes (words)
+  # Chunks will not be split if they would fall below min or exceed max
+  min_chunk_words: 500
+  max_chunk_words_hard_limit: 3000
+
+# ============================================================================
+# SUMMARIZATION SETTINGS
+# ============================================================================
+summarization:
+  # Target word count for each chunk's summary
+  # AI model will aim to produce summaries of approximately this length
+  chunk_summary_target_words: 75
+
+  # Maximum sentences for progressive (global) document summary
+  # This rolling summary provides context about the entire document so far
+  progressive_summary_max_sentences: 2
+
+  # Maximum sentences for local context (previous chunk summary)
+  # This provides immediate context about what just happened
+  local_context_max_sentences: 2
+
+# ============================================================================
+# FAST MODE SETTINGS (Batched Progressive Updates)
+# ============================================================================
+fast_mode:
+  # Whether to use Fast Mode (batched updates) vs Deep Mode (per-chunk updates)
+  # Fast Mode: Progressive summary updated every N chunks (faster, 1 AI call per update)
+  # Deep Mode: Progressive summary updated after every chunk (slower, more expensive)
+  enabled: true
+
+  # Base batch frequency: update progressive summary every N chunks
+  # Default: 5 (update after chunks 5, 10, 15, 20, etc.)
+  base_batch_frequency: 5
+
+  # ========================================================================
+  # ADAPTIVE BATCHING: Vary batch frequency based on document position
+  # ========================================================================
+  adaptive_batching: true
+
+  # Early document: More frequent updates (establishing context)
+  early_document:
+    threshold_chunks: 20      # Apply this rule for first 20 chunks
+    batch_frequency: 5        # Update every 5 chunks in early document
+
+  # Middle document: Less frequent updates (context is established)
+  middle_document:
+    threshold_chunks: 80      # Apply this rule from chunk 21 to 80
+    batch_frequency: 10       # Update every 10 chunks in middle
+
+  # End document: More frequent updates again (important conclusions)
+  late_document:
+    threshold_chunks: null    # Apply to all chunks after middle (80+)
+    batch_frequency: 5        # Update every 5 chunks in late document
+
+  # ========================================================================
+  # SECTION-AWARE BATCHING: Use document structure instead of fixed batches
+  # ========================================================================
+  section_aware_batching: true
+
+  # Min/max chunks per batch when using section-aware batching
+  # If a section is too small, it will be combined with adjacent sections
+  section_batch_min_chunks: 3
+  section_batch_max_chunks: 15
+
+  # If section-aware batching fails (no sections detected), fall back to adaptive
+  fallback_to_adaptive: true
+
+# ============================================================================
+# PROCESSING SETTINGS
+# ============================================================================
+processing:
+  # Display percentage progress bar (0-100%)
+  show_progress_percentage: true
+
+  # Display detected section/document area being processed
+  # Example: "Processing chunk 23/100 (23%) - Section: 'Plaintiff Testimony'"
+  show_section_names: true
+
+  # Save debugging DataFrame to CSV file after processing
+  # Location: debug/summarization_TIMESTAMP.csv
+  save_debug_dataframe: true
+
+  # Clear debug folder of old summaries (keep last N files)
+  debug_files_to_keep: 5
+
+# ============================================================================
+# DEBUG MODE
+# ============================================================================
+debug:
+  # Enable verbose logging (only when DEBUG environment variable is set)
+  enabled: false
+
+  # Log each AI call (chunk summary vs progressive summary update)
+  log_ai_calls: true
+
+  # Log timing information for each step
+  log_timing: true
+
+  # Log chunk boundaries and section detection
+  log_boundaries: true
+
+  # Log full context passed to AI model (very verbose)
+  log_full_context: false
