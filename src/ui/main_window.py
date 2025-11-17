@@ -675,6 +675,9 @@ class MainWindow(QMainWindow):
         """Handle completed summary from AI worker."""
         import time
 
+        # CRITICAL: Display the summary text in the results widget
+        self.summary_results.set_summary(summary)
+
         # Hide progress indicator
         self.summary_results.hide_progress()
 
@@ -688,6 +691,8 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(
             f"Summary complete! Generated {word_count} words.", 5000
         )
+
+        debug_log(f"[MAIN WINDOW] Summary displayed to user: {word_count} words")
 
         # Re-enable process button and cleanup
         self.process_btn.setEnabled(True)
