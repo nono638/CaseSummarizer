@@ -65,7 +65,8 @@
       "Bash(\"venv\\Scripts\\python\" -m pip install -q pdfplumber pytesseract pdf2image pillow nltk requests)",
       "Bash(pkill:*)",
       "Bash(del debug_flow.txt)",
-      "Bash(timeout 300 \"venv\\Scripts\\python\":*)"
+      "Bash(timeout 300 \"venv\\Scripts\\python\":*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

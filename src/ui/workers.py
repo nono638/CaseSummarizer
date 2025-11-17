@@ -403,27 +403,35 @@ class AIWorker(QThread):
             # Step 6: Log performance data for future predictions
             try:
                 log_step("STEP 6: Logging performance data...")
-                tracker = get_performance_tracker()
-                model_name = self.model_manager.current_model_name or 'standard'
+                try:
+                    tracker = get_performance_tracker()
+                    model_name = self.model_manager.current_model_name or 'standard'
 
-                tracker.log_generation(
-                    input_text=self._combined_text,
-                    input_documents=len(self.processing_results),
-                    requested_summary_length=self.summary_length,
-                    actual_summary_length=word_count,
-                    generation_time_seconds=generation_time,
-                    model_name=model_name
-                )
-                log_step("Performance logging complete")
+                    tracker.log_generation(
+                        input_text=self._combined_text,
+                        input_documents=len(self.processing_results),
+                        requested_summary_length=self.summary_length,
+                        actual_summary_length=word_count,
+                        generation_time_seconds=generation_time,
+                        model_name=model_name
+                    )
+                    log_step("Performance logging complete")
+                except Exception as perf_error:
+                    log_step(f"Performance logging failed (non-fatal): {perf_error}")
+                    print(f"Performance logging failed: {perf_error}")
+                    import traceback
+                    traceback.print_exc()
+                    # Continue anyway - performance logging is not critical
+
+                # Final success message
+                log_step("=== AI WORKER THREAD FINISHED SUCCESSFULLY ===")
+
             except Exception as e:
-                log_step(f"Performance logging failed (non-fatal): {e}")
-                print(f"Performance logging failed: {e}")
-
-        except Exception as e:
-            import traceback
-            error_details = f"Error generating summary: {str(e)}\n{traceback.format_exc()}"
-            log_step(f"EXCEPTION CAUGHT: {error_details}")
-            self.error.emit(error_details)
+                import traceback
+                error_details = f"Error generating summary: {str(e)}\n{traceback.format_exc()}"
+                log_step(f"EXCEPTION CAUGHT: {error_details}")
+                print(f"[AIWORKER] Exception details: {error_details}")
+                self.error.emit(error_details)
 
     def _process_with_intelligent_chunking(self, combined_text, doc_info):
         """

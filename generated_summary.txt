@@ -1,59 +1,39 @@
 === Generated Summary ===
 Generation time: 77.0s
 Total time: 77.0s
-Word count: 713
-Token count: 713
+Word count: 379
+Token count: 379
 ============================================================
 
-**Supreme Court of the State of New York**
+**Summary of Legal Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf**
 
-**LUIGI NAPOLITANO, Index No. 700321/2022**
+**Introduction:**
 
-**v.**
+This legal document is a complaint filed by Luigi Napolitano, a physician, against Robert L. Wighton, M.D., and his medical associates, SULMAN N.N., KARYN C.S., and NORTH SHORE, alleging medical malpractice. The document details the claims against Wighton, based on alleged negligent medical care during a patient's treatment.
 
-**ROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N., and NORTH SHORE**
+**Key Facts & Allegations:**
 
-**s/h/a MADELINE FILS-ALME**
+*   **Claim of Negligence:** Luigi Napolitano claims Wighton owed him a duty of care and breached that duty by providing substandard medical treatment. The core claim centers on Wighton's alleged negligence in diagnosing and treating Madeline Fils-Aime, a patient.
+*   **Legal Basis:** The plaintiff seeks to apportion the liability of the cause of action, arguing the plaintiff failed to bring the action within the two-and-one-half-year statute of limitations.
+*   **Patient's Perspective:** Madeline Fils-Aime is seeking to limit the liability of the defendant, and this is being challenged by the defendant's counsel.
+*   **Statute of Limitations:** The plaintiff contends the statute of limitations has expired.
+*   **Consent:** The plaintiff claims the defendant failed to obtain informed consent from the patient regarding the medical treatment.
+*   **Medical Records:** The document references the provision of articles 16 and 17 of the CPLR regarding limitations on liability.
+*   **Coronavirus Aid:** MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, R.N. is immune under the provisions of the CPLR.
 
-**CASE** – Complaint Answer – 13.
+**Procedural Status & Timeline:**
 
-**To the Honorable Court:**
+The case is in the early stages of litigation. The complaint was filed on January 27, 2022.  The Plaintiff is seeking a verified bill of particulars from the Defendants, outlining the causes of action, including the alleged negligence, statute of limitations issues, and potential damages.
 
-This is a response to the complaint filed by the plaintiff, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, alleging medical malpractice. We deny the plaintiff’s claims, asserting the defense of the statute of limitations and the defense of reasonable care.
+**Rulings, Decisions & Outcomes (as presented in the document):**
 
-The plaintiff’s complaint centers on the alleged negligence of the defendant, ROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N., and NORTH SHORE.  The plaintiff’s claim hinges on a breach of the duty of care owed to her, predicated on a claim of causation stemming from the defendant’s alleged negligent medical treatment. We will address these claims by arguing that the plaintiff's allegations lack factual support and that the defendant's actions were within the scope of standard medical practice.
+*   The Plaintiff denies each allegation of the Complaint.
+*   The Defendant denies any knowledge or information relating to the alleged negligence.
+*   The Court has determined the Plaintiff is entitled to reduce damages by the expense of medical care, pending compensation.
+*   The court has identified points of contention concerning patient consent and the provision of informed consent.
 
-**1. Procedural Status and Timeline:** The plaintiff has failed to demonstrate a sufficient basis for bringing this lawsuit within the statutory timeframe. New York law requires a claim to be filed within two and one-half (21/2) years of the injury. The plaintiff's claim is being brought more than two and one-half years after the alleged injury, exceeding the required deadline.
+**Further Notes:** The document provides the legal framework (CPLR), specific allegations, and procedural timelines.
 
-**2. Charging and Alleged Facts:**  The plaintiff asserts several allegations of negligence, but these are largely unsupported by sufficient evidence. The core of the plaintiff’s complaint consists of denials of the defendant's negligence, a lack of medical documentation, and assertions regarding the consent of informed consent. The defendant denies these assertions and points to a specific medical professional with a different license.  The plaintiff seeks to apportion liability, which is a speculative claim with no factual basis.
+---
 
-**3.  Findings of Fact and Evidence:** The defendant, ROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N., and NORTH SHORE, have provided their testimony regarding the medical treatment they rendered to MADELINE FILS-AIME.  They acknowledge the existence of the treatment and their professional responsibilities. Crucially, the defendant has presented expert medical opinions that support the reasonableness of their actions under the prevailing standards of medical practice. The expert’s opinion demonstrates that the treatment was a standard and customary course of care for patients with similar symptoms.
-
-**4. Legal Arguments:**  We assert the following arguments:
-
-*   **Statute of Limitations:** The plaintiff’s claim is barred by the statute of limitations, as stipulated in Section 214-a of the CPLR.
-*   **Reasonable Care:** The defendant acted in a reasonable and prudent manner, demonstrating the requisite level of care, and performed a legitimate medical treatment.
-*   **Lack of Causation:**  The plaintiff's causal link between the defendant's actions and the alleged harm is tenuous and unsupported by evidence.
-
-**5.  Rulings, Decisions, and Outcomes:**  The defendant's expert medical opinion serves as a key piece of evidence supporting the reasonableness of their treatment.  It demonstrates that the treatment administered was standard and expected. Furthermore, the defendant is obligated to defend against the plaintiff's allegations, which are unsupported.
-
-**6.  Specific Provisions of Law:** We will rely on the provision of Article 16 of the CPLR, which limits the joint and several liability of the defendant. The plaintiff’s claims do not allege any actual injury or damages, therefore, they do not warrant a claim for joint and several liability.  We will also apply the New York Emergency or Disaster Treatment Act and the New York Executive Order, limiting the liability for medical malpractice.
-
-**7.  Payment of Damages:** The plaintiff is seeking to reduce damages by the costs associated with the alleged negligence, but these costs were not specifically enumerated and must be considered within the scope of the negligent act itself.
-
-**8.  Legal Defense:**  The defendant will vigorously defend against the plaintiff’s claims, presenting evidence that demonstrates the reasonableness of their medical decision-making and that the alleged harm did not occur.
-
-This case is being brought under the law that will be followed in the state of New York.
-
-Respectfully submitted,
-
-ATTACHED:
-
-*   Expert Medical Opinion
-*   [Other Relevant Documents]
-
-Attorney for Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME
-
-**[Attorney's Contact Information]**
-
-**Note:** This summary aims to provide a concise overview of the key points. A full legal analysis would be required for a complete representation of the case.
+Let me know if you'd like me to do anything else with this summary, such as expanding on a particular point or focusing on a specific legal issue!
