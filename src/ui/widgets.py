@@ -1008,10 +1008,7 @@ class SummaryResultsWidget(QGroupBox):
             seconds = int(elapsed % 60)
             time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
 
-        # Get current word count
-        word_count = len(self.summary_text.toPlainText().split())
-
-        # Update status with timer and word count
+        # Update status with timer only
         # Extract target words from current status (if it exists)
         current_status = self.progress_status.text()
         if "Generating" in current_status and "-word" in current_status:
@@ -1021,11 +1018,11 @@ class SummaryResultsWidget(QGroupBox):
             if match:
                 target = match.group(1)
                 self.progress_status.setText(
-                    f"Generating {target}-word summary... ({time_str} elapsed, {word_count} words so far)"
+                    f"Generating {target}-word summary... ({time_str} elapsed)"
                 )
         else:
             self.progress_status.setText(
-                f"Generating summary... ({time_str} elapsed, {word_count} words so far)"
+                f"Generating summary... ({time_str} elapsed)"
             )
 
     def set_generation_time(self, seconds: float):
