@@ -58,7 +58,11 @@
       "Bash(\"venv\\Scripts\\python.exe\" -m pip install onnxruntime-genai-directml==0.11.1 --force-reinstall)",
       "Bash(\"venv\\Scripts\\python.exe\" -m pip install onnxruntime-genai-directml==0.11.0 --force-reinstall)",
       "WebFetch(domain:pypi.org)",
-      "Bash(\"venv\\Scripts\\python.exe\":*)"
+      "Bash(\"venv\\Scripts\\python.exe\":*)",
+      "Bash(ollama list:*)",
+      "Bash(timeout 30 python:*)",
+      "Bash(venvScriptspython -m pip install -q pdfplumber pytesseract pdf2image pillow nltk requests)",
+      "Bash(\"venv\\Scripts\\python\" -m pip install -q pdfplumber pytesseract pdf2image pillow nltk requests)"
     ],
     "deny": [],
     "ask": []

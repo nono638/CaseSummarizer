@@ -1,5 +1,9 @@
 === LocalScribe Debug Log ===
-Started: 2025-11-17T11:58:27.204591
+Started: 2025-11-17T15:39:27.888898
 ============================================================
 
-[11:58:31.508] [OLLAMA] Connection error: Cannot reach http://localhost:11434
+[15:39:30.905] [OLLAMA] Connection successful
+[15:39:33.000] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:39:35.061] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:39:37.134] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:39:37.134] [MAIN WINDOW] [OK] Ollama service is accessible on startup

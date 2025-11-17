@@ -600,7 +600,7 @@ class AIControlsWidget(QGroupBox):
             # For now, use "qwen2.5:7b" or a generic fallback
             template_model_id = "qwen2.5:7b"  # Default to Qwen template directory
 
-            presets = manager.get_presets(template_model_id)
+            presets = manager.get_available_presets(template_model_id)
 
             if presets:
                 self.prompt_selector.blockSignals(True)

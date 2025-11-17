@@ -39,6 +39,7 @@ class OllamaModelManager:
         """Initialize the Ollama model manager."""
         self.api_base = OLLAMA_API_BASE
         self.model_name = OLLAMA_MODEL_NAME
+        self.current_model_name = OLLAMA_MODEL_NAME  # For compatibility with worker code
         self.timeout = OLLAMA_TIMEOUT_SECONDS
         self.is_connected = False
         self.prompt_config = get_prompt_config()
@@ -141,6 +142,7 @@ class OllamaModelManager:
             model_name = self.model_name
 
         self.model_name = model_name
+        self.current_model_name = model_name  # Keep in sync for compatibility
 
         if not self.is_connected:
             self._check_connection()

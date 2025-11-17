@@ -235,9 +235,11 @@ class MainWindow(QMainWindow):
         left_widget.setLayout(layout)
         main_layout.addWidget(left_widget, stretch=3)
 
-        # Right side: AI Controls (Phase 3)
+        # Right side: AI Controls (Phase 3 - Ollama integration)
         self.ai_controls = AIControlsWidget(self.model_manager)
-        self.ai_controls.load_model_requested.connect(self.load_ai_model)
+        # Connect Ollama-specific signals
+        self.ai_controls.pull_model_requested.connect(self.pull_ai_model)
+        self.ai_controls.model_changed.connect(self.on_model_changed)
         self.ai_controls.set_default_requested.connect(self.save_default_prompt)
         self.ai_controls.setMaximumWidth(300)
         main_layout.addWidget(self.ai_controls, stretch=1)
@@ -430,6 +432,47 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("Ready")
 
     @Slot(str)
+    def pull_ai_model(self, model_name: str):
+        """
+        Pull/download a new Ollama model.
+
+        Args:
+            model_name: Ollama model name (e.g., 'qwen2.5:7b-instruct')
+        """
+        self.status_bar.showMessage(f"Pulling model: {model_name}... (this may take several minutes)")
+
+        try:
+            # Call Ollama API to pull model
+            # Note: This is a blocking call, but Ollama runs as a separate service
+            self.model_manager.load_model(model_name)
+
+            self.status_bar.showMessage(f"Model {model_name} pulled successfully!", 5000)
+
+            # Update UI
+            self.ai_controls.pull_model_complete()
+            self.ai_controls.refresh_status()
+
+        except Exception as e:
+            self.status_bar.showMessage(f"Failed to pull model: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Model Pull Failed",
+                f"Could not pull model '{model_name}':\n\n{str(e)}\n\n"
+                f"Make sure Ollama service is running and the model name is correct."
+            )
+            self.ai_controls.pull_model_complete()
+
+    def on_model_changed(self, model_name: str):
+        """
+        Handle model selection change from dropdown.
+
+        Args:
+            model_name: Selected Ollama model name
+        """
+        self.status_bar.showMessage(f"Selected model: {model_name}")
+        # Model is already available (from get_available_models), just refresh status
+        self.ai_controls.refresh_status()
+
     def load_ai_model(self, model_type):
         """
         Load an AI model in a background thread with progress dialog.
@@ -770,9 +813,9 @@ class MainWindow(QMainWindow):
         """
         try:
             self.model_manager.health_check()
-            debug_log("[MAIN WINDOW] ✓ Ollama service is accessible on startup")
+            debug_log("[MAIN WINDOW] [OK] Ollama service is accessible on startup")
         except Exception as e:
-            debug_log(f"[MAIN WINDOW] ✗ Ollama service not accessible: {str(e)}")
+            debug_log(f"[MAIN WINDOW] [ERROR] Ollama service not accessible: {str(e)}")
 
             # Build platform-specific instructions
             start_command = "ollama serve"  # Default command
