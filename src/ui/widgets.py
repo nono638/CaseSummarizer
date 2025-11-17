@@ -590,14 +590,17 @@ class AIControlsWidget(QGroupBox):
         try:
             from ..prompt_template_manager import PromptTemplateManager
             from ..config import PROMPTS_DIR
+            from ..debug_logger import debug_log
 
             manager = PromptTemplateManager(PROMPTS_DIR)
 
-            # Map Ollama model names to prompt template model IDs (generic approach)
-            # For now, use "qwen2.5:7b" or a generic fallback
-            template_model_id = "qwen2.5:7b"  # Default to Qwen template directory
+            # All Ollama models use the same prompt templates (phi-3-mini directory)
+            # These templates are model-agnostic and work with any LLM
+            template_model_id = "phi-3-mini"  # Universal template directory
 
+            debug_log(f"[WIDGETS] Loading prompts for model '{model_name}' using template set '{template_model_id}'")
             presets = manager.get_available_presets(template_model_id)
+            debug_log(f"[WIDGETS] Found {len(presets)} presets: {[p['id'] for p in presets]}")
 
             if presets:
                 self.prompt_selector.blockSignals(True)
@@ -612,6 +615,10 @@ class AIControlsWidget(QGroupBox):
 
                 self._update_prompt_preview()
         except Exception as e:
+            from ..debug_logger import debug_log
+            debug_log(f"[WIDGETS] ERROR loading prompts for '{model_name}': {str(e)}")
+            import traceback
+            debug_log(f"[WIDGETS] Traceback: {traceback.format_exc()}")
             self.prompt_selector.setEnabled(False)
             self.prompt_selector.clear()
             self.prompt_selector.addItem(f"Error loading presets: {str(e)}")
@@ -710,7 +717,7 @@ class AIControlsWidget(QGroupBox):
             from ..config import PROMPTS_DIR
 
             manager = PromptTemplateManager(PROMPTS_DIR)
-            template_model_id = "qwen2.5:7b"  # Default to Qwen template
+            template_model_id = "phi-3-mini"  # Universal template directory
 
             template = manager.load_template(template_model_id, preset_id)
             formatted_prompt = manager.format_template(

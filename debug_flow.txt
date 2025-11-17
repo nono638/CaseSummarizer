@@ -1,9 +1,95 @@
 === LocalScribe Debug Log ===
-Started: 2025-11-17T15:39:27.888898
+Started: 2025-11-17T15:48:32.524315
 ============================================================
 
-[15:39:30.905] [OLLAMA] Connection successful
-[15:39:33.000] [OLLAMA] Found 1 models: ['gemma3:1b']
-[15:39:35.061] [OLLAMA] Found 1 models: ['gemma3:1b']
-[15:39:37.134] [OLLAMA] Found 1 models: ['gemma3:1b']
-[15:39:37.134] [MAIN WINDOW] [OK] Ollama service is accessible on startup
+[15:48:35.567] [OLLAMA] Connection successful
+[15:48:37.630] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:48:39.664] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:48:41.715] [OLLAMA] Found 1 models: ['gemma3:1b']
+[15:48:41.716] [MAIN WINDOW] [OK] Ollama service is accessible on startup
+[15:49:16.939] 
+[MAIN WINDOW] Windows detected - using thread-based AI worker to avoid DLL issues
+[15:49:16.939] 
+[AIWORKER] *** RUN METHOD STARTED ***
+[15:49:16.939] [15:49:16.939] [AIWORKER] === STARTING AI WORKER THREAD ===
+[15:49:16.939] [15:49:16.939] [AIWORKER] Summary length target: 150 words
+[15:49:16.939] [15:49:16.939] [AIWORKER] Preset ID: None
+[15:49:16.939] [15:49:16.939] [AIWORKER] Number of documents to process: 1
+[15:49:16.939] [15:49:16.939] [AIWORKER] STEP 1: Starting document text combination...
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Processing document 1/1
+[15:49:16.939] [15:49:16.939] [AIWORKER]     Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf, Text length: 31138 chars
+[15:49:16.939] [15:49:16.939] [AIWORKER] STEP 1 COMPLETE: Combined text length: 31231 chars, 4968 words
+[15:49:16.939] [15:49:16.939] [AIWORKER] STEP 2: Preparing text for model processing...
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Combined document has 4968 words
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Document exceeds max input words (4968 > 1200)
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Truncating to first 1200 words for model input
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Truncated text length: 1200 words
+[15:49:16.939] [15:49:16.939] [AIWORKER] STEP 3: Preparing for model generation...
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Final input length: 1200 words, 7664 chars
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Model manager status: loaded=True, model=gemma3:1b
+[15:49:16.939] [15:49:16.939] [AIWORKER] STEP 4: Starting summary generation...
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Calling model_manager.generate_summary()...
+[15:49:16.939] [15:49:16.939] [AIWORKER]   Parameters: max_words=150, preset_id=None
+[15:49:16.939] 
+[OLLAMA GENERATE] Starting text generation
+[15:49:16.939] [OLLAMA GENERATE] Model: gemma3:1b
+[15:49:16.939] [OLLAMA GENERATE] Max tokens: 331
+[15:49:16.939] [OLLAMA GENERATE] Prompt length: 8615 chars
+[15:49:16.939] [OLLAMA GENERATE] Temperature: 0.3, Top P: 0.9
+[15:49:16.939] [OLLAMA GENERATE] ===== COMPLETE PROMPT START =====
+[15:49:16.939] <|system|>
+You are a legal document summarizer. Your role is to provide clear, objective, factual summaries of legal documents without interpretation or speculation.
+<|end|>
+<|user|>
+Summarize the following legal document with these requirements:
+
+WORD COUNT: Between 130 and 170 words (target: 150 words)
+
+FOCUS ON FACTS:
+- Identify all parties involved (plaintiffs, defendants, attorneys, judges)
+- State the claims, charges, or legal issues presented
+- Report procedural status and timeline of events
+- List key facts and evidence mentioned
+- Note any rulings, decisions, or outcomes
+
+OUTPUT STYLE:
+- Write in clear, plain language
+- Present facts objectively without analysis
+- Use active voice and affirmative statements
+- Structure information chronologically when possible
+- Do NOT speculate, interpret motives, or analyze strategy
+- Do NOT include labels, headers, or meta-commentary in your response
+
+DOCUMENT:
+---
+--- Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf --- SUPREME COURT OF THE STATE OF NEW YORK LUIGI NAPOLITANO, Index No. 700321/2022 Plaintiff, VERIFIED ANSWER -againstROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N. and NORTH SHORE Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, by her attorneys, WAGNER, DOMAN, LETO & DI LEO, P.C. answering the complaint of the plaintiff herein, upon information and belief: 1. Denies each and every allegation contained in paragraph designated "1" in the form alleged but admits ROBERT WIGHTON, M.D. was a physician duly licensed to practice medicine in the State of New York. 2. Denies each and every allegation contained in paragraph designated "10" in the form alleged but admits SULMAN MAHOOD, M.D. was a physician duly licensed to practice medicine in the State of New York. 3. Denies any knowledge or information thereof sufficient to form a belief as to the 4. Denies each and every allegation contained in paragraphs designated "9", "18", 5. Answering paragraph “107”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “106”. 6. Answering paragraph “117”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “116”. 7. Answering paragraph “128”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “127”. 8. Answering paragraph “141”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “140”. 9. Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, demands that the liability, if any, be apportioned. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 10. The alleged cause of action sounding in medical malpractice is barred by the statute of limitations in that the plaintiff failed to bring this action within two and one-half (21/2) years as set forth in Section 214-a of the CPLR. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 11. The cause of action in informed consent alleging a negligent failure to obtain same is barred in that the plaintiff has failed to bring the action within the two and one-half (21/2) years set forth in Section 214-a of the CPLR, and the decision of Murriello v. Crappotta, COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 12. It is alleged upon information and belief that the cause of action asserted by the plaintiff concerning the receipt by the defendant of an informed consent falls within the scope of Section 2805(d) of the Public Health Law, such law having been fully complied with by the defendant, thus barring the assertion of this cause of action. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 13. The alleged cause of action asserted by the plaintiff in paragraphs "1" through “145” fails to state a cause of action in that they do not contain any allegations of injury to the plaintiff for which the answering defendant can be held liable. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 14. Upon information and belief, any damages sustained by the plaintiff was/were caused in whole or in part by the culpable conduct of the plaintiff and/or damages were aggravated by the culpable conduct of the plaintiff. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 15. Defendant will rely upon the provision of Article 16 of the CPLR with regard to the limitation of joint and several liability. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 16. Any award to plaintiff for the cost of medical care, custodial care or rehabilitation services, loss of earnings or other economic loss should be reduced by the amount such expense has been or will be replaced or indemnified in whole or in part from any collateral source in accordance with the provisions and limitations set forth in CPLR § 4545. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 17. Answering defendant will rely upon the New York General Obligations Law § 15-108, and is thereby entitled to a set-off of damages based on any prior settlements regarding the injuries alleged in this lawsuit. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 18. Upon information and belief, the plaintiff failed to mitigate his or her damages. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 19. Answering defendant exercised all care reasonably necessary to prevent and limit the deprivation and injury for which liability is alleged herein by plaintiff. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 20. That pursuant to the “Coronavirus Aid, Relief, and Economic Security Act” signed into law on March 27, 2020, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME is immune from any cause of action arising under the Federal or State law for any harm caused by an act or omission of the professional in the provision of health care services during the COVID19 public health emergency. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 21. That this matter is barred pursuant to the applicable provisions of New York Emergency or Disaster Treatment Act, Art. 30-D, N.Y. Public Health Law, §§3080-82, as enacted on April 3, 2020, New York Executive Order 202.10, and any and all related Executive Orders issued by the Governor of the State of New York. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 22. That this matter is barred pursuant to the applicable provisions of the Public Readiness and Emergency Preparedness Act. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 23. That at all times, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME acted within the scope of the crisis standards of care, as well as the standards of care in place in the locality in question at the time of the COVID-19 emergency. WHEREFORE, defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME, demands judgment dismissing the complaint herein together with interest, costs, disbursements, or judgment over, as may be required by law. Dated: January 27, 2022 Mineola, New York Attorneys for Defendant MADELINE FILS-AIME, R.N. s/h/a 227 Mineola Boulevard Mineola, NY 11501 Attorneys for Plaintiff 233 Broadway, Suite 900 New York, NY 10279 SUPREME COURT OF THE STATE OF NEW YORK LUIGI NAPOLITANO, Index No. 700321/2022 Plaintiff, DEMAND FOR VERIFIED -againstROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N. and NORTH SHORE COUNSELORS: PLEASE TAKE NOTICE that pursuant to Section 3041, Rules 3042 and 3043, and Section 3044 of the Civil Practice Law and Rules, you are hereby required to serve a verified bill of particulars upon the undersigned within twenty (20) days after the receipt of this In the event of your failure to comply with this demand for a verified bill of particulars within that time, motion will be made for an order precluding you from offering any evidence on the causes of action alleged in the complaint concerning the following items: 1. The dates and times of day of the alleged negligent acts and/or omissions which will be alleged and claimed against the answering defendant herein. 2. The exact location of the alleged negligent acts and/or omissions charged against the answering defendant herein. 3. A statement of each and every act of negligence or omission, which constituted the alleged malpractice complained of with the date of each if different from the dates in Paragraph 1. 4. State the names of each and every person who performed such acts or failed to act; if the names are not known, describe the physical appearances with sufficient clarity for ready identification. 5. State the occupation of each such person. 6. A statement of the accepted medical practices, customs and medical standards, which it is claimed were violated in each of the above acts or omissions. 7. State whether or not any
+---
+<|end|>
+<|assistant|>
+
+[15:49:16.939] [OLLAMA GENERATE] ===== COMPLETE PROMPT END =====
+[15:50:33.940] [OLLAMA GENERATE] Generation complete: 1074 tokens in 77.00s
+[15:50:33.940] [OLLAMA GENERATE] Output length: 4827 chars
+[15:50:33.940] [OLLAMA GENERATE] Output preview (first 100 chars): **Supreme Court of the State of New York**
+
+**LUIGI NAPOLITANO, Index No. 700321/2022**
+
+**v.**
+
+**R
+[15:50:33.941] [15:50:33.941] [AIWORKER] *** GENERATION COMPLETE! *** 4827 chars received
+[15:50:33.941] [15:50:33.941] [AIWORKER] Summary preview: **Supreme Court of the State of New York**
+
+**LUIGI NAPOLITANO, Index No. 700321/2022**
+
+**v.**
+
+**R...
+[15:50:33.941] [15:50:33.941] [AIWORKER] STEP 5: Summarization complete, finalizing...
+[15:50:33.941] [15:50:33.941] [AIWORKER]   Final summary: 713 words, 713 tokens
+[15:50:33.941] [15:50:33.941] [AIWORKER]   Generation time: 77.0s
+[15:50:33.941] [15:50:33.941] [AIWORKER]   Total time (including preprocessing): 77.0s
+[15:50:33.941] [15:50:33.941] [AIWORKER]   Average time per token: 0.108s
+[15:50:33.942] [15:50:33.942] [AIWORKER]   Summary written to: C:\Users\noahc\Dropbox\Not Work\Data Science\CaseSummarizer\generated_summary.txt
+[15:50:33.943] [15:50:33.943] [AIWORKER] === AI WORKER COMPLETE ===
+[15:50:33.943] [15:50:33.943] [AIWORKER] STEP 6: Logging performance data...

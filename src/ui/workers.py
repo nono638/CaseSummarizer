@@ -550,38 +550,22 @@ def ai_generation_worker_process(
             'timestamp': time.time()
         })
 
-        # CRITICAL: Pre-load onnxruntime_genai DLLs in this subprocess context BEFORE
-        # attempting to import ONNXModelManager. On Windows, the DLL initialization can
-        # fail if not properly loaded in the subprocess context. Importing at module level
-        # ensures DLLs are initialized before any ONNX operations are attempted.
-        # See: https://github.com/microsoft/onnxruntime-genai/issues/...
-        try:
-            import onnxruntime_genai  # noqa: F401 - Pre-load DLLs in subprocess context
-        except Exception as dll_error:
-            debug_log(f"[WORKER PROCESS] Warning: onnxruntime_genai pre-load warning: {dll_error}")
-            # Continue anyway - the actual import might succeed if DLLs are shared
-
-        # Import and initialize model manager IN THIS PROCESS
+        # Import and initialize Ollama model manager IN THIS PROCESS
         # (Must be done here, not passed from parent, due to multiprocessing constraints)
-        from src.ai.onnx_model_manager import ONNXModelManager
+        from src.ai.ollama_model_manager import OllamaModelManager
 
-        debug_log("[WORKER PROCESS] Initializing ONNX Model Manager...")
-        model_manager = ONNXModelManager()
+        debug_log("[WORKER PROCESS] Initializing Ollama Model Manager...")
+        model_manager = OllamaModelManager()
 
-        # Check if model is already loaded (it won't be in new process)
+        # Check Ollama connection
         if not model_manager.is_model_loaded():
-            debug_log(f"[WORKER PROCESS] Loading model: {model_name}")
-            output_queue.put({
-                'type': 'status',
-                'data': f'Loading {model_name} model in worker process...'
-            })
+            debug_log(f"[WORKER PROCESS] ERROR: Ollama not accessible")
+            raise RuntimeError(
+                f"Ollama service not accessible at {model_manager.api_base}. "
+                "Please ensure Ollama is running: ollama serve"
+            )
 
-            # Load model
-            load_success = model_manager.load_model(model_name, verbose=False)
-            if not load_success:
-                raise RuntimeError(f"Failed to load model: {model_name}")
-
-            debug_log(f"[WORKER PROCESS] Model loaded successfully")
+        debug_log(f"[WORKER PROCESS] Ollama connected successfully")
 
         # Send heartbeat after model load
         output_queue.put({
@@ -601,49 +585,37 @@ def ai_generation_worker_process(
             'data': 'Generating summary...'
         })
 
-        token_buffer = []
-        full_summary = ""
-        token_count = 0
-        last_batch_time = time.time()
+        # Generate summary (Ollama REST API returns complete summary, not streaming)
+        generation_start = time.time()
         last_heartbeat_time = time.time()
-        estimated_tokens = summary_length * 1.3  # Rough estimate (tokens > words)
 
-        # Stream tokens from model
-        for token in model_manager.generate_summary(
+        debug_log(f"[WORKER PROCESS] Calling model_manager.generate_summary()...")
+        debug_log(f"[WORKER PROCESS] Parameters: max_words={summary_length}, preset_id={preset_id}")
+
+        full_summary = model_manager.generate_summary(
             case_text=combined_text,
             max_words=summary_length,
-            preset_id=preset_id,
-            stream=True
-        ):
-            token_count += 1
-            full_summary += token
-            token_buffer.append(token)
+            preset_id=preset_id
+        )
 
+        debug_log(f"[WORKER PROCESS] Generation returned {len(full_summary)} chars")
+
+        # Send the complete summary in batches to simulate streaming
+        # This maintains UI responsiveness and matches the streaming interface
+        char_pos = 0
+        while char_pos < len(full_summary):
+            # Get next batch of characters
+            batch_end = min(char_pos + batch_size, len(full_summary))
+            batch_text = full_summary[char_pos:batch_end]
+
+            output_queue.put({
+                'type': 'token',
+                'data': batch_text,
+                'buffer_size': len(batch_text)
+            })
+
+            char_pos = batch_end
             current_time = time.time()
-            buffer_text = ''.join(token_buffer)
-
-            # Send batch if: buffer >= batch_size chars OR timeout elapsed
-            should_send_batch = (
-                len(buffer_text) >= batch_size or
-                (current_time - last_batch_time) >= batch_timeout
-            )
-
-            if should_send_batch and token_buffer:
-                output_queue.put({
-                    'type': 'token',
-                    'data': buffer_text,
-                    'buffer_size': len(token_buffer)
-                })
-                token_buffer = []
-                last_batch_time = current_time
-
-            # Send progress update (estimated percentage)
-            if token_count % 20 == 0:
-                progress_pct = min(95, int((token_count / estimated_tokens) * 100))
-                output_queue.put({
-                    'type': 'progress',
-                    'data': progress_pct
-                })
 
             # Send heartbeat periodically
             if (current_time - last_heartbeat_time) >= heartbeat_interval:
@@ -653,21 +625,17 @@ def ai_generation_worker_process(
                     'timestamp': current_time
                 })
                 last_heartbeat_time = current_time
-                debug_log(f"[WORKER PROCESS] Heartbeat sent (token #{token_count})")
+                debug_log(f"[WORKER PROCESS] Heartbeat sent (chars sent: {char_pos}/{len(full_summary)})")
 
-        # Send any remaining tokens
-        if token_buffer:
-            output_queue.put({
-                'type': 'token',
-                'data': ''.join(token_buffer),
-                'buffer_size': len(token_buffer)
-            })
+            # Small delay to make batching visible and allow heartbeats
+            time.sleep(0.01)
 
         # Calculate final stats
         word_count = len(full_summary.split())
+        token_count = len(full_summary.split())  # Approximate: use word count as token count
 
         debug_log(f"[WORKER PROCESS] Generation complete!")
-        debug_log(f"[WORKER PROCESS] Tokens: {token_count}, Words: {word_count}")
+        debug_log(f"[WORKER PROCESS] Words: {word_count}, Approximate tokens: {token_count}")
 
         # Send completion message
         output_queue.put({
