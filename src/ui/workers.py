@@ -433,6 +433,14 @@ class AIWorker(QThread):
             log_step("=== AI WORKER THREAD FINISHED SUCCESSFULLY ===")
             print("[AIWORKER] === WORKER THREAD EXITING NORMALLY ===")
 
+        except Exception as e:
+            """Catch any unhandled exceptions in the main AI worker flow."""
+            import traceback
+            error_details = f"Unhandled exception in AI worker: {str(e)}\n{traceback.format_exc()}"
+            log_step(f"UNHANDLED EXCEPTION: {error_details}")
+            print(f"[AIWORKER] {error_details}")
+            self.error.emit(error_details)
+
     def _process_with_intelligent_chunking(self, combined_text, doc_info):
         """
         Process document chunks intelligently with progress reporting.
