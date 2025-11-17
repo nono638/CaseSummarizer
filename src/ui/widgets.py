@@ -570,15 +570,12 @@ class AIControlsWidget(QGroupBox):
 
             # Update status
             if current_model:
-                if self.model_manager.is_model_loaded():
-                    self.model_status_label.setText(
-                        f"<font color='#5cb85c'>✓ {current_model} loaded and ready</font>"
-                    )
-                    self._populate_prompts_for_model(current_model)
-                else:
-                    self.model_status_label.setText(
-                        f"<font color='#f0ad4e'>⚠ {current_model} available but not loaded</font>"
-                    )
+                # For Ollama, models are ready as soon as they appear in available_models
+                self.model_status_label.setText(
+                    f"<font color='#5cb85c'>✓ {current_model} loaded and ready</font>"
+                )
+                # Always populate prompts for Ollama models (they don't need explicit loading)
+                self._populate_prompts_for_model(current_model)
             else:
                 self.model_status_label.setText(
                     "<font color='#f0ad4e'>⚠ No models available. Download one using 'Pull Model'.</font>"
