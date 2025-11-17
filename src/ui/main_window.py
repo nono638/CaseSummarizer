@@ -674,31 +674,50 @@ class MainWindow(QMainWindow):
     def _on_summary_complete(self, summary: str):
         """Handle completed summary from AI worker."""
         import time
+        import traceback
 
-        # CRITICAL: Display the summary text in the results widget
-        self.summary_results.set_summary(summary)
+        try:
+            # CRITICAL: Display the summary text in the results widget
+            print("[MAIN WINDOW] Attempting to display summary...")
+            self.summary_results.set_summary(summary)
+            print(f"[MAIN WINDOW] Summary displayed successfully ({len(summary)} chars)")
 
-        # Hide progress indicator
-        self.summary_results.hide_progress()
+            # Hide progress indicator
+            print("[MAIN WINDOW] Hiding progress indicator...")
+            self.summary_results.hide_progress()
+            print("[MAIN WINDOW] Progress indicator hidden")
 
-        # Calculate generation time
-        if hasattr(self, '_ai_start_time'):
-            elapsed = time.time() - self._ai_start_time
-            self.summary_results.set_generation_time(elapsed)
+            # Calculate generation time
+            if hasattr(self, '_ai_start_time'):
+                elapsed = time.time() - self._ai_start_time
+                print(f"[MAIN WINDOW] Setting generation time: {elapsed:.1f}s")
+                self.summary_results.set_generation_time(elapsed)
+                print("[MAIN WINDOW] Generation time set")
 
-        # Update status
-        word_count = len(summary.split())
-        self.status_bar.showMessage(
-            f"Summary complete! Generated {word_count} words.", 5000
-        )
+            # Update status
+            word_count = len(summary.split())
+            print(f"[MAIN WINDOW] Updating status bar with {word_count} words...")
+            self.status_bar.showMessage(
+                f"Summary complete! Generated {word_count} words.", 5000
+            )
+            print("[MAIN WINDOW] Status bar updated")
 
-        debug_log(f"[MAIN WINDOW] Summary displayed to user: {word_count} words")
+            debug_log(f"[MAIN WINDOW] Summary displayed to user: {word_count} words")
 
-        # Re-enable process button and cleanup
-        self.process_btn.setEnabled(True)
-        if self.ai_worker:
-            self.ai_worker.deleteLater()
-            self.ai_worker = None
+            # Re-enable process button and cleanup
+            print("[MAIN WINDOW] Re-enabling process button...")
+            self.process_btn.setEnabled(True)
+            if self.ai_worker:
+                self.ai_worker.deleteLater()
+                self.ai_worker = None
+            print("[MAIN WINDOW] Summary complete handler finished successfully")
+
+        except Exception as e:
+            error_details = f"Exception in _on_summary_complete: {str(e)}\n{traceback.format_exc()}"
+            print(f"[MAIN WINDOW] {error_details}")
+            debug_log(f"[MAIN WINDOW] ERROR IN SUMMARY COMPLETE HANDLER: {error_details}")
+            # Show error to user
+            self.status_bar.showMessage(f"Error displaying summary: {str(e)}", 5000)
 
     @Slot(str)
     def _on_ai_error(self, error_message: str):
