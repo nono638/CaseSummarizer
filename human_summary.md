@@ -6,13 +6,27 @@
 **Current Branch:** `phase3-enhancements`
 **Status:** ✅ **OLLAMA INTEGRATED & TESTED** - Backend migration complete
 
-**Latest Session (2025-11-17 - Ollama Complete Integration):**
-Completed half-finished Ollama implementation and fully migrated from ONNX:
-1. **UI Completely Rewritten:** AIControlsWidget now uses dynamic model dropdown (populated from Ollama)
-2. **Service Health Check Added:** Startup detection with platform-specific install instructions
-3. **Worker Process Cleanup:** Renamed to generic names, removed ONNX-specific code
-4. **Module Simplified:** Removed all ONNX imports, Ollama is sole active backend
-5. **Clean Deprecation:** Old ONNX/llama-cpp implementations marked as deprecated with clear migration notes
+**Latest Session (2025-11-17 - Critical Ollama Fixes & Full Testing):**
+Fixed two critical blocking issues that prevented the application from working:
+
+**CRITICAL BUG FIXES:**
+1. **Prompt Selector Non-Functional:** Template directory was hardcoded as `"qwen2.5:7b"` (doesn't exist). Fixed by using `"phi-3-mini"` which contains the actual templates. Added comprehensive error logging to debug template loading.
+
+2. **Worker Process Still Using ONNX:** The `ai_generation_worker_process()` function was completely un-migrated - still imported `ONNXModelManager` and tried to call non-existent `generate_summary(stream=True)` method. Fixed by:
+   - Replacing ONNX imports with OllamaModelManager
+   - Implementing non-streaming API calls (Ollama's REST endpoint returns complete summaries)
+   - Implementing character-based batching to simulate streaming for UI compatibility
+
+3. **Worker Process Crash Detection:** Added robust error logging to capture worker subprocess exceptions in the debug log rather than silently crashing the GUI.
+
+**VERIFICATION:**
+Created comprehensive test_ollama_workflow.py with 4 automated tests:
+- Test 1: Ollama Connection ✓ PASS
+- Test 2: Model Availability ✓ PASS (found gemma3:1b)
+- Test 3: Prompt Templates ✓ PASS (found 2 presets)
+- Test 4: Summary Generation ✓ PASS (140 words in 19.75s)
+
+All integration tests passing. Application fully functional end-to-end.
 
 **What Works ✅:**
 - ✅ **Ollama service integration** with REST API calls
