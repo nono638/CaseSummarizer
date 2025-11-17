@@ -19,14 +19,28 @@ Fixed two critical blocking issues that prevented the application from working:
 
 3. **Worker Process Crash Detection:** Added robust error logging to capture worker subprocess exceptions in the debug log rather than silently crashing the GUI.
 
+**CRITICAL FIX #3 - Missing Summary Display:**
+The `_on_summary_complete()` event handler was NOT calling `self.summary_results.set_summary(summary)`. This meant:
+- Summary generated successfully
+- But never displayed in the GUI results panel
+- Copy/Save buttons remained disabled
+- User saw empty panel and thought it failed
+
+Fixed by adding the single missing line that displays the summary text.
+
 **VERIFICATION:**
 Created comprehensive test_ollama_workflow.py with 4 automated tests:
 - Test 1: Ollama Connection ✓ PASS
 - Test 2: Model Availability ✓ PASS (found gemma3:1b)
 - Test 3: Prompt Templates ✓ PASS (found 2 presets)
-- Test 4: Summary Generation ✓ PASS (140 words in 19.75s)
+- Test 4: Summary Generation ✓ PASS (171 words in 20.6s)
 
-All integration tests passing. Application fully functional end-to-end.
+All integration tests passing. **Complete workflow now functional:**
+1. Select documents → Processing
+2. Choose prompt template
+3. Click Generate → Ollama generates summary
+4. **Summary displays in results panel**
+5. User can copy to clipboard or save to file
 
 **What Works ✅:**
 - ✅ **Ollama service integration** with REST API calls
