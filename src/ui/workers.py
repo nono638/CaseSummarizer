@@ -215,17 +215,20 @@ class AIWorker(QThread):
         self._combined_text = ""  # Store for performance logging
 
     def run(self):
-        """Execute AI summary generation in background thread with intelligent chunking."""
+        """
+        Execute AI summary generation using a dynamic, model-aware map-reduce strategy.
+        """
+        # --- Imports ---
+        from src.chunking_engine import ChunkingEngine
+        from src.config import get_model_config
+        from pathlib import Path
         import datetime
+        import time
+        import math
 
-        # Log immediately before any other operations to catch startup errors
-        try:
-            debug_log("\n[AIWORKER] *** RUN METHOD STARTED ***")
-        except Exception as e:
-            print(f"[AIWORKER] Critical error in run() startup: {e}")
-
+        # --- Setup ---
         start_time = time.time()
-
+        
         def log_step(msg):
             """Log detailed timestamped messages for troubleshooting."""
             timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -235,181 +238,143 @@ class AIWorker(QThread):
                 print(f"[AIWORKER] Logging error: {e}")
 
         try:
-            log_step("=== STARTING AI WORKER THREAD ===")
+            log_step("=== STARTING AI WORKER THREAD (DYNAMIC CHUNKING) ===")
+            
+            # --- Step 1: Load Model-Specific Configuration ---
+            model_name = self.model_manager.current_model_name or "gemma3:1b"
+            model_config = get_model_config(model_name)
+            max_tokens = model_config.get('max_input_tokens', 2048)
+            
+            log_step(f"Model: '{model_name}'")
+            log_step(f"Max Input Tokens: {max_tokens}")
             log_step(f"Summary length target: {self.summary_length} words")
             log_step(f"Preset ID: {self.preset_id}")
-            log_step(f"Number of documents to process: {len(self.processing_results)}")
 
-            # Step 1: Combine cleaned texts from all documents
-            log_step("STEP 1: Starting document text combination...")
-            self.progress_updated.emit("Combining document texts...")
+            # --- Step 2: Process documents and create chunks ---
+            log_step("STEP 2: Starting document chunking...")
+            self.progress_updated.emit("Chunking documents...")
 
-            combined_text = ""
-            doc_info = []  # Track document names and start positions for chunk reporting
+            chunking_engine = ChunkingEngine()
+            all_chunks = []
+            other_files_text = ""
 
-            for idx, result in enumerate(self.processing_results):
-                log_step(f"  Processing document {idx+1}/{len(self.processing_results)}")
-                if result.get('status') == 'success' and result.get('cleaned_text'):
+            for result in self.processing_results:
+                if result.get('status') == 'success':
+                    file_path = Path(result.get('file_path'))
                     filename = result.get('filename', 'Unknown')
-                    text_length = len(result.get('cleaned_text', ''))
-                    log_step(f"    Document: {filename}, Text length: {text_length} chars")
-                    doc_info.append({'filename': filename, 'start_pos': len(combined_text)})
-                    combined_text += f"\n\n--- Document: {filename} ---\n\n"
-                    combined_text += result['cleaned_text']
-                else:
-                    log_step(f"    Document SKIPPED (status: {result.get('status')}, has text: {bool(result.get('cleaned_text'))})")
 
-            if not combined_text.strip():
-                log_step("ERROR: No valid document text found!")
-                self.error.emit("No valid document text found to summarize")
+                    if file_path.suffix.lower() == '.pdf':
+                        log_step(f"  Processing PDF with semantic chunker: {filename}")
+                        self.progress_updated.emit(f"Chunking '{filename}' with semantic splitter...")
+                        pdf_chunks = chunking_engine.chunk_pdf(file_path, max_tokens=max_tokens)
+                        if pdf_chunks:
+                            log_step(f"    - Found {len(pdf_chunks)} chunks.")
+                            self.progress_updated.emit(f"Broke '{filename}' into {len(pdf_chunks)} semantic chunks.")
+                            all_chunks.extend(pdf_chunks)
+                    elif result.get('cleaned_text'):
+                        log_step(f"  Adding text from non-PDF for classic chunking: {filename}")
+                        other_files_text += f"\n\n--- Document: {filename} ---\n\n"
+                        other_files_text += result['cleaned_text']
+
+            if other_files_text.strip():
+                log_step("Running classic chunker on combined text...")
+                other_chunks = chunking_engine.chunk_text(other_files_text)
+                log_step(f"  - Found {len(other_chunks)} classic chunks.")
+                all_chunks.extend(other_chunks)
+
+            if not all_chunks:
+                log_step("ERROR: No chunks were created from any documents.")
+                self.error.emit("No text could be chunked from the provided documents.")
                 return
 
-            log_step(f"STEP 1 COMPLETE: Combined text length: {len(combined_text)} chars, {len(combined_text.split())} words")
-            self._combined_text = combined_text
+            # --- Step 3: Dynamically calculate intermediate summary size ---
+            num_chunks = len(all_chunks)
+            # Rough conversion: 1 token ~ 0.75 words. So, max_words = max_tokens * 0.75
+            # We use a more conservative 0.5 ratio to be safe.
+            safe_final_input_words = max_tokens * 0.5
+            
+            # Calculate words per chunk summary, with a floor and ceiling
+            inter_summary_words = math.floor(safe_final_input_words / num_chunks) if num_chunks > 0 else 0
+            inter_summary_words = max(30, min(inter_summary_words, 250)) # Clamp between 30 and 250 words
 
-            # Step 2: Prepare text for model (respecting context window limits)
-            log_step("STEP 2: Preparing text for model processing...")
-            combined_words = combined_text.split()
-            log_step(f"  Combined document has {len(combined_words)} words")
+            log_step(f"STEP 3: Dynamic Calculation Complete.")
+            log_step(f"  - Total chunks: {num_chunks}")
+            log_step(f"  - Safe final input words: ~{int(safe_final_input_words)}")
+            log_step(f"  - Intermediate summary target: {inter_summary_words} words per chunk")
 
-            # IMPORTANT: Phi-3 Mini has 4096 token context window
-            # Conservative strategy per best practices:
-            # - Actual token-to-word ratio: ~2.0 for typical legal text
-            # - Max context: 4096 tokens
-            # - Leave 500 token margin for prompt template overhead
-            # - Leave 200 token margin for output generation
-            # Available for input: 4096 - 500 - 200 = 3396 tokens
-            # Safe input words: 3396 / 2.0 = 1698 words max
-            # Use 1200 words as conservative limit (leaves ~400 tokens extra buffer)
-            MAX_INPUT_WORDS = 1200  # Conservative limit: 1200 words ≈ 2400 tokens, safe for 4096 context
-            if len(combined_words) > MAX_INPUT_WORDS:
-                log_step(f"  Document exceeds max input words ({len(combined_words)} > {MAX_INPUT_WORDS})")
-                log_step(f"  Truncating to first {MAX_INPUT_WORDS} words for model input")
-                combined_text = " ".join(combined_words[:MAX_INPUT_WORDS])
-                log_step(f"  Truncated text length: {len(combined_text.split())} words")
-                self.progress_updated.emit(
-                    f"Processing first {MAX_INPUT_WORDS} words of {len(combined_words)} total..."
-                )
-            else:
-                log_step("  Document size acceptable for model")
-                self.progress_updated.emit(
-                    f"Processing {len(combined_words)} words of input..."
-                )
+            # --- Step 4: Summarize each chunk (Map phase) ---
+            log_step("STEP 4: Summarizing chunks individually (Map)...")
+            self.progress_updated.emit(f"Summarizing {num_chunks} chunks...")
+            
+            chunk_summaries = []
+            for i, chunk in enumerate(all_chunks):
+                if not self._is_running: return
+                
+                log_step(f"  - Summarizing chunk {i+1}/{num_chunks} ({chunk.word_count} words)")
+                self.progress_updated.emit(f"Summarizing chunk {i+1} of {num_chunks}")
+                try:
+                    chunk_summary = self.model_manager.generate_summary(
+                        case_text=chunk.text,
+                        max_words=inter_summary_words,
+                        preset_id=self.preset_id
+                    )
+                    if chunk_summary:
+                        chunk_summaries.append(chunk_summary)
+                    else:
+                        log_step(f"    - WARNING: Model returned empty summary for chunk {i+1}")
+                except Exception as e:
+                    log_step(f"ERROR summarizing chunk {i+1}: {e}")
+                    self.error.emit(f"Failed to summarize chunk {i+1}: {e}")
+                    return
+            
+            if not chunk_summaries:
+                log_step("ERROR: No chunk summaries were generated.")
+                self.error.emit("Model failed to generate summaries for any document chunks.")
+                return
 
-            # Step 3: Prepare for model generation
-            log_step("STEP 3: Preparing for model generation...")
-            final_word_count = len(combined_text.split())
-            log_step(f"  Final input length: {final_word_count} words, {len(combined_text)} chars")
-            log_step(f"  Model manager status: loaded={self.model_manager.is_model_loaded()}, model={self.model_manager.current_model_name}")
+            # --- Step 5: Combine summaries and generate final summary (Reduce phase) ---
+            log_step("STEP 5: Creating final summary (Reduce)...")
+            self.progress_updated.emit("Creating final summary...")
+            combined_summaries = "\n\n".join(chunk_summaries)
+            self._combined_text = combined_summaries
 
-            self.progress_updated.emit(
-                f"Generating {self.summary_length}-word summary... (first token may take 1-5 minutes on CPU)"
-            )
+            # Truncate combined summaries if they *still* exceed the safe word limit
+            combined_words = combined_summaries.split()
+            if len(combined_words) > safe_final_input_words:
+                log_step(f"  Combined summaries exceed safe limit ({len(combined_words)} > {safe_final_input_words}). Truncating.")
+                combined_summaries = " ".join(combined_words[:int(safe_final_input_words)])
 
-            full_summary = ""
-            token_count = 0
+            log_step(f"  - Final input word count: {len(combined_summaries.split())}")
 
-            # Step 4: Generate summary (non-streaming, with periodic status updates)
-            log_step("STEP 4: Starting summary generation...")
-            log_step(f"  Calling model_manager.generate_summary()...")
-            log_step(f"  Parameters: max_words={self.summary_length}, preset_id={self.preset_id}")
+            # --- Step 6: Generate final summary ---
+            log_step("STEP 6: Starting final generation...")
+            self.progress_updated.emit(f"Generating {self.summary_length}-word summary...")
 
             generation_start = time.time()
-            first_update = True
-            progress_spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-            spinner_idx = 0
+            full_summary = self.model_manager.generate_summary(
+                case_text=combined_summaries,
+                max_words=self.summary_length,
+                preset_id=self.preset_id
+            )
 
-            # Start progress update timer (emit status every 1 second)
-            import threading
-            def emit_progress_updates():
-                """Emit progress updates with elapsed time every second."""
-                nonlocal spinner_idx, first_update
-                while self._is_running and generation_start < time.time():
-                    if first_update:
-                        log_step("Inference started, emitting progress updates every second...")
-                        first_update = False
-
-                    elapsed = time.time() - generation_start
-                    spinner = progress_spinner[spinner_idx % len(progress_spinner)]
-                    status = f"Generating {self.summary_length}-word summary... {spinner} ({elapsed:.0f}s)"
-                    self.progress_updated.emit(status)
-                    spinner_idx += 1
-                    time.sleep(1.0)
-
-            progress_thread = threading.Thread(target=emit_progress_updates, daemon=True)
-            progress_thread.start()
-
-            try:
-                # Non-streaming generation - returns complete summary as string
-                full_summary = self.model_manager.generate_summary(
-                    case_text=combined_text,
-                    max_words=self.summary_length,
-                    preset_id=self.preset_id
-                )
-
-                # Stop the progress update thread
-                self._is_running = False
-                progress_thread.join(timeout=2.0)
-
-                log_step(f"*** GENERATION COMPLETE! *** {len(full_summary)} chars received")
-                log_step(f"Summary preview: {full_summary[:100]}...")
-
-                if not full_summary:
-                    log_step("ERROR: Empty summary returned!")
-                    self.error.emit("Model generated empty summary")
-                    return
-
-                token_count = len(full_summary.split())  # Use word count as proxy for tokens
-
-            except Exception as e:
-                log_step(f"ERROR during summary generation: {str(e)}")
-                import traceback
-                log_step(f"Traceback: {traceback.format_exc()}")
-                self.error.emit(f"Summary generation failed: {str(e)}")
+            if not full_summary:
+                log_step("ERROR: Empty final summary returned!")
+                self.error.emit("Model generated an empty final summary.")
                 return
-
-            # Step 5: Complete and finalize
-            log_step("STEP 5: Summarization complete, finalizing...")
+            
+            # --- Step 7: Finalize and emit results ---
+            log_step("STEP 7: Finalizing...")
             word_count = len(full_summary.split())
             generation_time = time.time() - generation_start
-            total_time = time.time() - start_time
-
-            log_step(f"  Final summary: {word_count} words, {token_count} tokens")
-            log_step(f"  Generation time: {generation_time:.1f}s")
-            log_step(f"  Total time (including preprocessing): {total_time:.1f}s")
-
-            # Non-streaming mode doesn't track time-to-first-token, but we can calculate average time/token
-            avg_token_time = generation_time / max(1, token_count)
-            log_step(f"  Average time per token: {avg_token_time:.3f}s")
-
             self.progress_updated.emit(f"Summary complete ({word_count} words)")
-
-            # DEBUG: Write summary to file for verification
-            from pathlib import Path
-            debug_output = Path(__file__).parent.parent.parent / "generated_summary.txt"
-            with open(debug_output, 'w', encoding='utf-8') as f:
-                f.write("=== Generated Summary ===\n")
-                f.write(f"Generation time: {generation_time:.1f}s\n")
-                f.write(f"Total time: {total_time:.1f}s\n")
-                f.write(f"Word count: {word_count}\n")
-                f.write(f"Token count: {token_count}\n")
-                f.write("=" * 60 + "\n\n")
-                f.write(full_summary.strip())
-            log_step(f"  Summary written to: {debug_output}")
-
             self.summary_complete.emit(full_summary.strip())
             log_step("=== AI WORKER COMPLETE ===")
 
-            # Step 6: Log performance data for future predictions (non-critical)
-            # Wrapped in try-except to prevent crashes if performance logging fails
-            log_step("STEP 6: Logging performance data...")
+            # --- Step 8: Log performance ---
+            log_step("STEP 8: Logging performance data...")
             try:
-                print("[AIWORKER] Getting performance tracker...")
+                from src.performance_tracker import get_performance_tracker
                 tracker = get_performance_tracker()
-                print("[AIWORKER] Tracker obtained successfully")
-                model_name = self.model_manager.current_model_name or 'standard'
-                print(f"[AIWORKER] Logging generation: {word_count} words in {generation_time:.1f}s")
-
                 tracker.log_generation(
                     input_text=self._combined_text,
                     input_documents=len(self.processing_results),
@@ -418,28 +383,18 @@ class AIWorker(QThread):
                     generation_time_seconds=generation_time,
                     model_name=model_name
                 )
-                print("[AIWORKER] Performance logging successful")
                 log_step("Performance logging complete")
             except Exception as perf_error:
-                # Performance logging is non-critical - log the error but don't crash
-                error_msg = f"Performance logging failed (non-critical): {perf_error}"
-                log_step(error_msg)
-                print(f"[AIWORKER] {error_msg}")
-                import traceback
-                print(f"[AIWORKER] Traceback: {traceback.format_exc()}")
-                # Continue anyway - performance logging is not critical to functionality
-
-            # Final success message - always reached if no exception above
+                log_step(f"Performance logging failed (non-critical): {perf_error}")
+            
             log_step("=== AI WORKER THREAD FINISHED SUCCESSFULLY ===")
-            print("[AIWORKER] === WORKER THREAD EXITING NORMALLY ===")
 
         except Exception as e:
-            """Catch any unhandled exceptions in the main AI worker flow."""
             import traceback
             error_details = f"Unhandled exception in AI worker: {str(e)}\n{traceback.format_exc()}"
             log_step(f"UNHANDLED EXCEPTION: {error_details}")
-            print(f"[AIWORKER] {error_details}")
             self.error.emit(error_details)
+
 
     def _process_with_intelligent_chunking(self, combined_text, doc_info):
         """
@@ -1086,3 +1041,4 @@ class AIWorkerProcess(QObject):
             if self.process.is_alive():
                 debug_log("[AIWorkerProcess] Force killing worker process")
                 self.process.kill()
+

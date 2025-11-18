@@ -5,6 +5,7 @@ Centralized configuration for the application.
 
 import os
 from pathlib import Path
+import yaml
 
 # Debug Mode Configuration
 DEBUG_MODE = os.environ.get('DEBUG', 'false').lower() == 'true'
@@ -32,22 +33,75 @@ OCR_DPI = 300
 OCR_CONFIDENCE_THRESHOLD = 70  # Files below this are pre-unchecked
 
 # AI Model Configuration
-# Using Ollama for commercial viability and stability
-# Qwen2.5:7b-instruct: Optimized for legal document summarization with excellent instruction-following
-# and structured output capabilities. Requires 16GB+ RAM, ~4.7GB disk space (Q4_K_M quantization)
-# Ollama models available at https://ollama.ai/library
 OLLAMA_API_BASE = "http://localhost:11434"  # Default Ollama API endpoint
-OLLAMA_MODEL_NAME = "gemma3:1b"  # TEST MODEL: Gemma 3 1B (small, fast, already downloaded on system)
-OLLAMA_MODEL_FALLBACK = "gemma3:1b"  # Fallback: Same model for testing
-# NOTE: For production, use qwen2.5:7b-instruct (excellent for legal docs) or llama3.2:3b-instruct (faster fallback)
+OLLAMA_MODEL_NAME = "gemma3:1b"  # Default model for the application
+OLLAMA_MODEL_FALLBACK = "gemma3:1b"  # Fallback if the primary model fails
 OLLAMA_TIMEOUT_SECONDS = 600  # 10 minutes for long summaries
-MAX_CONTEXT_TOKENS = 4096  # Safe for most Ollama models
-SAFE_PROCESSING_TOKENS = 3000  # Conservative for performance
 
-# Legacy model constants (for backwards compatibility with llama-cpp-python)
-# These are no longer used but kept to avoid breaking imports in legacy code
-STANDARD_MODEL_NAME = "Phi-3-mini-4k-instruct-q4.gguf"  # DEPRECATED
-PRO_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"  # DEPRECATED
+# --- New Model Configuration System ---
+MODEL_CONFIG_FILE = Path(__file__).parent.parent / "config" / "models.yaml"
+MODEL_CONFIGS = {}
+
+def load_model_configs():
+    """Loads model configurations from config/models.yaml."""
+    global MODEL_CONFIGS
+    try:
+        with open(MODEL_CONFIG_FILE, 'r') as f:
+            data = yaml.safe_load(f)
+            MODEL_CONFIGS = data.get('models', {})
+        if DEBUG_MODE and MODEL_CONFIGS:
+            print(f"[Config] Loaded {len(MODEL_CONFIGS)} model configurations from {MODEL_CONFIG_FILE}")
+    except FileNotFoundError:
+        if DEBUG_MODE:
+            print(f"[Config] WARNING: Model config file not found at {MODEL_CONFIG_FILE}. Using fallback values.")
+        MODEL_CONFIGS = {}
+    except Exception as e:
+        print(f"[Config] ERROR: Failed to load or parse model config file: {e}")
+        MODEL_CONFIGS = {}
+
+def get_model_config(model_name: str) -> dict:
+    """
+    Returns the configuration for a specific model, with fallbacks.
+
+    Args:
+        model_name: The name of the model (e.g., 'gemma3:1b').
+
+    Returns:
+        A dictionary containing the model's configuration.
+    """
+    if not MODEL_CONFIGS:
+        load_model_configs()
+    
+    # 1. Try to find the exact model name
+    if model_name in MODEL_CONFIGS:
+        return MODEL_CONFIGS[model_name]
+    
+    # 2. Fallback for base names (e.g., user has 'gemma3:1b-instruct', config has 'gemma3:1b')
+    base_name = model_name.split(':')[0]
+    for name, config in MODEL_CONFIGS.items():
+        if name.startswith(base_name):
+            if DEBUG_MODE:
+                print(f"[Config] Found partial match for '{model_name}': using config for '{name}'.")
+            return config
+
+    # 3. Fallback to the default model name if no match found
+    if OLLAMA_MODEL_NAME in MODEL_CONFIGS:
+        if DEBUG_MODE:
+            print(f"[Config] WARNING: Model '{model_name}' not found. Falling back to default model '{OLLAMA_MODEL_NAME}'.")
+        return MODEL_CONFIGS[OLLAMA_MODEL_NAME]
+
+    # 4. Absolute fallback if config is empty or default is missing
+    if DEBUG_MODE:
+        print("[Config] WARNING: No model configurations found. Using hard-coded fallback values.")
+    return {
+        'context_window': 4096,
+        'max_input_tokens': 2048,
+    }
+
+# Load configs on module import
+load_model_configs()
+# --- End New Model Configuration System ---
+
 
 # Default Processing Settings
 DEFAULT_SUMMARY_WORDS = 200
@@ -61,7 +115,6 @@ LEGAL_KEYWORDS_CA = Path(__file__).parent.parent / "data" / "keywords" / "legal_
 
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
-SUMMARY_PROMPT_TEMPLATE = Path(__file__).parent.parent / "config" / "summary_prompt_template.txt"  # Legacy, deprecated
 LEGAL_KEYWORDS_FEDERAL = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_federal.txt"
 
 # License Configuration

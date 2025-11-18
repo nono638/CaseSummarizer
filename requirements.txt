@@ -31,6 +31,9 @@ striprtf>=0.0.26  # For RTF file parsing
 # NLP Tools
 nltk>=3.8.1
 
+# LLM Framework
+langchain>=0.1.0  # For building LLM applications and chains
+
 # Utilities
 requests>=2.31.0  # For license server API calls and downloading filter lists
 cryptography>=41.0.0  # For encrypting license.dat
@@ -43,3 +46,8 @@ pytest-qt>=4.2.0
 
 # Packaging
 pyinstaller>=6.3.0
+
+langchain
+langchain-community
+pypdf
+sentence-transformers

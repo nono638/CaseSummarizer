@@ -5,9 +5,7 @@ This module implements intelligent text chunking for long documents using:
 1. Paragraph-aware splitting (respects paragraph boundaries)
 2. Section detection (uses regex patterns to identify document structure)
 3. Adaptive batch sizing (respects min/max word counts)
-
-The chunking process preserves context and document structure, making it
-suitable for legal documents with clear sections.
+4. Semantic chunking for PDF documents using LangChain.
 """
 
 import re
@@ -18,6 +16,11 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
 import yaml
+
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import SemanticChunker, RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 
 from src.config import DEBUG_MODE
 
@@ -78,6 +81,7 @@ class ChunkingEngine:
     - Paragraph-aware splitting
     - Section detection via regex patterns
     - Adaptive batch sizing (min/max constraints)
+    - Semantic chunking for PDFs
     - Preserves document structure
     """
 
@@ -94,6 +98,23 @@ class ChunkingEngine:
         self.config = self._load_config(config_path)
         self.patterns = self._load_patterns()
         self.compiled_patterns = self._compile_patterns()
+
+        # Initialize LangChain components
+        debug("Initializing LangChain components for semantic chunking...")
+        init_start = time.time()
+        try:
+            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            self.semantic_chunker = SemanticChunker(
+                self.embeddings, breakpoint_threshold_type="gradient"
+            )
+            debug_timing("LangChain component initialization", time.time() - init_start)
+        except Exception as e:
+            error(f"Failed to initialize LangChain components: {e}")
+            # This might happen if models need to be downloaded. The app can
+            # continue with text-based chunking but PDF chunking will fail.
+            self.embeddings = None
+            self.semantic_chunker = None
+
 
     def _load_config(self, config_path: Path) -> Dict:
         """Load configuration from YAML file."""
@@ -134,6 +155,78 @@ class ChunkingEngine:
             except re.error as e:
                 error(f"Invalid regex pattern '{pattern}': {e}")
         return compiled
+
+    def chunk_pdf(self, file_path: Path, max_tokens: int) -> List[Chunk]:
+        """
+        Load and chunk a PDF using semantic chunking with a "safety split".
+
+        Args:
+            file_path: Path to the PDF file.
+            max_tokens: The maximum number of tokens a chunk can have.
+
+        Returns:
+            List of Chunk objects.
+        """
+        start_time = time.time()
+        info(f"Starting semantic PDF chunking for {file_path}...")
+
+        if not self.semantic_chunker or not self.embeddings:
+            error("Semantic chunking components are not initialized. Cannot chunk PDF.")
+            return []
+
+        try:
+            loader = PyPDFLoader(str(file_path))
+            documents = loader.load()
+            debug(f"Loaded {len(documents)} pages from PDF.")
+
+            semantic_docs = self.semantic_chunker.split_documents(documents)
+            debug(f"Split PDF into {len(semantic_docs)} initial semantic chunks.")
+
+            # --- Safety Split Logic ---
+            final_docs = []
+            # A simple rule of thumb: 1 token ~ 4 characters
+            max_chars = max_tokens * 4
+            
+            secondary_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=max_chars,
+                chunk_overlap=int(max_chars * 0.1), # 10% overlap
+                length_function=len,
+            )
+
+            for doc in semantic_docs:
+                if len(doc.page_content) > max_chars:
+                    debug(f"Semantic chunk is too large ({len(doc.page_content)} chars > {max_chars} chars). Applying safety split.")
+                    sub_texts = secondary_splitter.split_text(doc.page_content)
+                    
+                    for sub_text in sub_texts:
+                        final_docs.append(Document(page_content=sub_text, metadata=doc.metadata))
+                    debug(f"  - Split oversized chunk into {len(sub_texts)} sub-chunks.")
+                else:
+                    final_docs.append(doc)
+            
+            if len(final_docs) > len(semantic_docs):
+                debug(f"Safety split increased chunk count from {len(semantic_docs)} to {len(final_docs)}.")
+
+            # Convert final Document objects to the project's Chunk dataclass
+            chunks = []
+            for i, doc in enumerate(final_docs):
+                word_count = len(doc.page_content.split())
+                chunk = Chunk(
+                    chunk_num=i + 1,
+                    text=doc.page_content,
+                    word_count=word_count,
+                    section_name=f"Semantic Chunk {i+1}"
+                )
+                chunks.append(chunk)
+
+            total_time = time.time() - start_time
+            debug_timing("Semantic PDF chunking", total_time)
+            info(f"Created {len(chunks)} total chunks from PDF document.")
+            return chunks
+
+        except Exception as e:
+            error(f"Failed to chunk PDF {file_path}: {e}")
+            return []
 
     def _split_into_paragraphs(self, text: str) -> List[Tuple[str, int]]:
         """
@@ -310,3 +403,4 @@ class ChunkingEngine:
 def create_chunking_engine(config_path: Path = None) -> ChunkingEngine:
     """Factory function to create a ChunkingEngine instance."""
     return ChunkingEngine(config_path)
+
