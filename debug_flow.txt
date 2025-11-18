@@ -1,365 +1,87 @@
 === LocalScribe Debug Log ===
-Started: 2025-11-16T14:22:41.205600
+Started: 2025-11-17T16:11:13.975381
 ============================================================
 
-[14:22:41.936] 
-[WORKER PROCESS] Starting ONNX generation worker...
-[14:22:41.936] [WORKER PROCESS] Model: standard
-[14:22:41.936] [WORKER PROCESS] Input length: 1856 chars
-[14:22:41.936] [WORKER PROCESS] Target summary length: 350 words
-[14:22:41.937] [WORKER PROCESS] Initializing ONNX Model Manager...
-[14:22:41.938] [WORKER PROCESS] Loading model: standard
-[14:22:41.938] 
-[ONNX MODEL LOAD] Sta[14:22:41.988] [AIWorkerProcess] Heartbeat received
-[14[14:22:43.895] [WORKER PROCESS] Model loaded successfully
-[14:22:43.900] [WORKER P[14:22:44.068] [AIWorkerProcess] Heartbeat received
-[14:22:44.068] [AIWorkerProcess] Status: Generating summary...
-[14:22:59.118] [AIWorkerProcess] WARNING: No heartbeat for 15.2s
-[14:23:01.124] [AIWorkerProcess] WARNING: No heartbeat for 17.2s
-[14:23:03.118] [AIWorkerProcess] WARNING: No heartbeat for 19.2s
-[14:23:05.118] [AIWorkerProcess] WARNING: No heartbeat for 21.2s
-[14:23:07.115] [AIWorkerProcess] WARNING: No heartbeat for 23.2s
-[14:23:09.115] [AIWorkerProcess] WARNING: No heartbeat for 25.2s
-[14:23:11.119] [AIWorkerProcess] WARNING: No heartbeat for 27.2s
-[14:23:13.119] [AIWorkerProcess] WARNING: No heartbeat for 29.2s
-[14:23:15.124] [AIWorkerProcess] WARNING: No heartbeat for 31.2s
-[14:23:17.124] [AIWorkerProcess] WARN[14:23:48.303] [ONNX MODEL] Tokens appended successfully
-[14:23:48.304] [ONNX MODEL] Starting token generation...
-[14:23:48.304] [ONNX MODEL] Token #1: ' ['
-[14:23:48.304] [WORKER PROCESS] Heartbeat sent (token #1)
-[14:23:48.677] [ONNX MODEL] Token #2: 'Word'
-[14:23:48.903] [ONNX MODEL] Token #3: ' Count'
-[14:23:49.132] [ONNX MODEL] Token #4: ':'
-[14:23:49.360] [ONNX MODEL] Token #5: ' '
-[14:23:52.790] [ONNX MODEL] Token #20: ' where'
-[14:23:53.472] [WORKER PROCESS] Heartbeat sent (token #23)
-[14:23:57.415] [ONNX MODEL] Token #40: ' a'
-[14:23:58.733] [WORKER PROCESS] Heartbeat sent (token #45)
-[14:24:03.301] [ONNX MODEL] Token #60: ' incons'
-[14:24:03.920] [WORKER PROCESS] Heartbeat sent (token #62)
-[14:24:09.267] [WORKER PROCESS] Heartbeat sent (token #77)
-[14:24:10.344] [ONNX MODEL] Token #80: ' that'
-[14:24:14.531] [WORKER PROCESS] Heartbeat sent (token #92)
-[14:24:17.039] [ONNX MODEL] Token #100: 'Miss'
-[14:24:19.565] [WORKER PROCESS] Heartbeat sent (token #108)
-[14:24:23.298] [ONNX MODEL] Token #120: ' or'
-[14:24:24.622] [WORKER PROCESS] Heartbeat sent (token #124)
-[14:24:29.648] [WORKER PROCESS] Heartbeat sent (token #139)
-[14:24:29.951] [ONNX MODEL] Token #140: ':'
-[14:24:34.792] [WORKER PROCESS] Heartbeat sent (token #155)
-[14:24:36.446] [ONNX MODEL] Token #160: ' by'
-[14:24:40.069] [WORKER PROCESS] Heartbeat sent (token #171)
-[14:24:42.985] [ONNX MODEL] Token #180: ')'
-[14:24:45.105] [WORKER PROCESS] Heartbeat sent (token #189)
-[14:24:47.799] [ONNX MODEL] Token #200: '
-'
-[14:24:50.165] [WORKER PROCESS] Heartbeat sent (token #210)
-[14:24:52.592] [ONNX MODEL] Token #220: ' in'
-[14:24:55.389] [WORKER PROCESS] Heartbeat sent (token #231)
-[14:24:57.958] [ONNX MODEL] Token #240: ' despite'
-[14:25:00.543] [WORKER PROCESS] Heartbeat sent (token #249)
-[14:25:04.320] [ONNX MODEL] Token #260: ' strateg'
-[14:25:05.726] [WORKER PROCESS] Heartbeat sent (token #264)
-[14:25:10.803] [WORKER PROCESS] Heartbeat sent (token #279)
-[14:25:11.133] [ONNX MODEL] Token #280: 'ell'
-[14:25:16.140] [WORKER PROCESS] Heartbeat sent (token #295)
-[14:25:17.669] [ONNX MODEL] Token #300: ' The'
-[14:25:21.178] [WORKER PROCESS] Heartbeat sent (token #311)
-[14:25:24.194] [ONNX MODEL] Token #320: ' om'
-[14:25:26.395] [WORKER PROCESS] Heartbeat sent (token #327)
-[14:25:30.551] [ONNX MODEL] Token #340: ' The'
-[14:25:31.469] [WORKER PROCESS] Heartbeat sent (token #343)
-[14:25:36.471] [WORKER PROCESS] Heartbeat sent (token #359)
-[14:25:36.784] [ONNX MODEL] Token #360: ' app'
-[14:25:41.540] [WORKER PROCESS] Heartbeat sent (token #374)
-[14:25:43.620] [ONNX MODEL] Token #380: ' landscape'
-[14:25:46.829] [WORKER PROCESS] Heartbeat sent (token #390)
-[14:25:49.923] [ONNX MODEL] Token #400: '-'
-[14:25:51.877] [WORKER PROCESS] Heartbeat sent (token #406)
-[14:25:56.263] [ONNX MODEL] Token #420: 's'
-[14:25:57.126] [WORKER PROCESS] Heartbeat sent (token #423)
-[14:26:01.955] [ONNX MODEL] Token #440: '
-'
-[14:26:02.216] [WORKER PROCESS] Heartbeat sent (token #441)
-[14:26:07.207] [ONNX MODEL] Token #460: ' on'
-[14:26:07.474] [WORKER PROCESS] Heartbeat sent (token #461)
-[14:26:12.757] [ONNX MODEL] Token #480: ' strateg'
-[14:26:12.757] [WORKER PROCESS] Heartbeat sent (token #480)
-[14:26:18.037] [WORKER PROCESS] Heartbeat sent (token #498)
-[14:26:18.673] [ONNX MODEL] Token #500: ' of'
-[14:26:23.099] [WORKER PROCESS] Heartbeat sent (token #514)
-[14:26:25.014] [ONNX MODEL] Token #520: ' about'
-[14:26:28.289] [WORKER PROCESS] Heartbeat sent (token #530)
-[14:26:30.013] [ONNX MODEL] Generation complete: 535 tokens
-[14:26:30.026] [WORKER PROCESS] Generation complete!
-[14:26:30.026] [WORKER PROCESS] Tokens: 535, Words: 306
-[14:26:30.026] [WORKER PROCESS] Worker process shutting down
- batch: 2 tokens, 11 chars
-[14:24:03.952] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:24:03.952] [AIWorkerProcess] Heartbeat received
-[14:24:04.939] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:05.591] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:06.355] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:07.117] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:07.784] [AIWorkerProcess] Token batch: 2 tokens, 15 chars
-[14:24:08.449] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:24:09.321] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:24:09.321] [AIWorkerProcess] Heartbeat received
-[14:24:10.081] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:24:10.750] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:24:11.403] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:24:12.069] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:12.732] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:13.494] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:14.276] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:14.609] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:14.609] [AIWorkerProcess] Heartbeat received
-[14:24:15.591] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:16.257] [AIWorkerProcess] Token batch: 2 tokens, 4 chars
-[14:24:16.814] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:17.469] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:18.011] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:24:18.664] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:19.340] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:19.672] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:19.672] [AIWorkerProcess] Heartbeat received
-[14:24:20.546] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:21.199] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:24:21.850] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:24:22.408] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:23.059] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:24:23.724] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:24.378] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:24.702] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:24:24.702] [AIWorkerProcess] Heartbeat received
-[14:24:25.689] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:26.444] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:27.329] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:27.981] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:28.520] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:29.078] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:24:29.728] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:29.728] [AIWorkerProcess] Heartbeat received
-[14:24:30.395] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:30.952] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:31.604] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:32.144] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:24:32.801] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:33.358] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:34.126] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:34.887] [AIWorkerProcess] Token batch: 2 tokens, 3 chars
-[14:24:34.887] [AIWorkerProcess] Heartbeat received
-[14:24:35.538] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:24:36.205] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:36.857] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:37.507] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:38.159] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:24:38.834] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:24:39.388] [AIWorkerProcess] Token batch: 2 tokens, 3 chars
-[14:24:40.148] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:40.479] [AIWorkerProcess] Heartbeat received
-[14:24:40.814] [AIWorkerProcess] Token batch: 2 tokens, 4 chars
-[14:24:41.458] [AIWorkerProcess] Token batch: 2 tokens, 4 chars
-[14:24:42.120] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:42.782] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:43.220] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:43.981] [AIWorkerProcess] Token batch: 3 tokens, 3 chars
-[14:24:44.643] [AIWorkerProcess] Token batch: 3 tokens, 7 chars
-[14:24:45.177] [AIWorkerProcess] Token batch: 3 tokens, 7 chars
-[14:24:45.177] [AIWorkerProcess] Heartbeat received
-[14:24:46.060] [AIWorkerProcess] Token batch: 3 tokens, 13 chars
-[14:24:46.929] [AIWorkerProcess] Token batch: 3 tokens, 12 chars
-[14:24:47.376] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:48.137] [AIWorkerProcess] Token batch: 3 tokens, 11 chars
-[14:24:48.799] [AIWorkerProcess] Token batch: 3 tokens, 6 chars
-[14:24:49.552] [AIWorkerProcess] Token batch: 3 tokens, 8 chars
-[14:24:50.217] [AIWorkerProcess] Token batch: 3 tokens, 11 chars
-[14:24:50.218] [AIWorkerProcess] Heartbeat received
-[14:24:50.975] [AIWorkerProcess] Token batch: 3 tokens, 4 chars
-[14:24:51.642] [AIWorkerProcess] Token batch: 3 tokens, 10 chars
-[14:24:52.401] [AIWorkerProcess] Token batch: 3 tokens, 10 chars
-[14:24:53.170] [AIWorkerProcess] Token batch: 3 tokens, 18 chars
-[14:24:53.818] [AIWorkerProcess] Token batch: 3 tokens, 15 chars
-[14:24:54.368] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:24:54.921] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:24:55.467] [AIWorkerProcess] Token batch: 2 tokens, 3 chars
-[14:24:55.675] [AIWorkerProcess] Heartbeat received
-[14:24:56.009] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:56.560] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:24:57.112] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:24:57.756] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:24:58.304] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:24:58.858] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:24:59.407] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:24:59.944] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:00.604] [AIWorkerProcess] Token batch: 2 tokens, 21 chars
-[14:25:00.605] [AIWorkerProcess] Heartbeat received
-[14:25:01.263] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:25:01.806] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:02.571] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:03.227] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:04.001] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:04.758] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:05.420] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:05.753] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:06.175] [AIWorkerProcess] Heartbeat received
-[14:25:06.842] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:07.609] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:08.367] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:09.029] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:09.576] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:10.234] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:10.882] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:10.882] [AIWorkerProcess] Heartbeat received
-[14:25:11.547] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:12.100] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:12.748] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:25:13.516] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:14.274] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:14.828] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:15.491] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:16.149] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:16.149] [AIWorkerProcess] Heartbeat received
-[14:25:16.812] [AIWorkerProcess] Token batch: 2 tokens, 4 chars
-[14:25:17.481] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:18.034] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:18.680] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:25:19.339] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:19.990] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:20.655] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:21.193] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:21.193] [AIWorkerProcess] Heartbeat received
-[14:25:21.857] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:22.519] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:25:23.167] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:23.930] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:24.594] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:25.243] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:25.791] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:26.454] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:26.783] [AIWorkerProcess] Heartbeat received
-[14:25:27.102] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:27.765] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:28.414] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:29.072] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:29.734] [AIWorkerProcess] Token batch: 2 tokens, 3 chars
-[14:25:30.273] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:30.935] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:31.485] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:25:31.485] [AIWorkerProcess] Heartbeat received
-[14:25:32.142] [AIWorkerProcess] Token batch: 2 tokens, 16 chars
-[14:25:32.791] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:25:33.450] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:34.000] [AIWorkerProcess] Token batch: 2 tokens, 15 chars
-[14:25:34.660] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:35.206] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:35.869] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:36.531] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:36.860] [AIWorkerProcess] Heartbeat received
-[14:25:37.187] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:37.837] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:38.391] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:39.044] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:39.703] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:40.353] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:41.230] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:41.558] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:41.988] [AIWorkerProcess] Heartbeat received
-[14:25:42.648] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:25:43.302] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:44.068] [AIWorkerProcess] Token batch: 2 tokens, 16 chars
-[14:25:44.725] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:25:45.270] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:45.926] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:46.587] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:46.918] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:46.918] [AIWorkerProcess] Heartbeat received
-[14:25:47.789] [AIWorkerProcess] Token batch: 2 tokens, 4 chars
-[14:25:48.444] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:48.988] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:49.645] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:50.301] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:50.961] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:51.614] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:51.944] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:51.944] [AIWorkerProcess] Heartbeat received
-[14:25:52.933] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:53.479] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:25:54.132] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:25:54.803] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:25:55.446] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:55.989] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:56.646] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:25:57.197] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:25:57.197] [AIWorkerProcess] Heartbeat received
-[14:25:57.742] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:25:58.295] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:25:58.838] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:25:59.495] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:26:00.038] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:26:00.698] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:01.245] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:26:01.789] [AIWorkerProcess] Token batch: 2 tokens, 18 chars
-[14:26:02.230] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:02.555] [AIWorkerProcess] Heartbeat received
-[14:26:02.774] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:03.317] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:26:03.868] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:26:04.086] [AIWorkerProcess] Token batch: 1 tokens, 15 chars
-[14:26:04.629] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:26:05.180] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:26:05.613] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:26:06.163] [AIWorkerProcess] Token batch: 2 tokens, 18 chars
-[14:26:06.710] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:07.260] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:26:08.022] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:26:08.571] [AIWorkerProcess] Heartbeat received
-[14:26:09.117] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:26:09.662] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:26:09.989] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:10.213] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:10.541] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:11.083] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:11.628] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:26:12.181] [AIWorkerProcess] Token batch: 2 tokens, 5 chars
-[14:26:12.837] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:26:12.838] [AIWorkerProcess] Heartbeat received
-[14:26:13.382] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:26:13.926] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:26:14.581] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:26:15.132] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:15.677] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:26:16.231] [AIWorkerProcess] Token batch: 2 tokens, 14 chars
-[14:26:16.886] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:17.431] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:26:18.088] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:26:18.411] [AIWorkerProcess] Heartbeat received
-[14:26:18.742] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:19.395] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:20.054] [AIWorkerProcess] Token batch: 2 tokens, 13 chars
-[14:26:20.599] [AIWorkerProcess] Token batch: 2 tokens, 8 chars
-[14:26:21.261] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:26:21.911] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:22.572] [AIWorkerProcess] Token batch: 2 tokens, 2 chars
-[14:26:23.116] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:26:23.443] [AIWorkerProcess] Heartbeat received
-[14:26:23.775] [AIWorkerProcess] Token batch: 2 tokens, 7 chars
-[14:26:24.429] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:26:25.084] [AIWorkerProcess] Token batch: 2 tokens, 16 chars
-[14:26:26.294] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:26:27.051] [AIWorkerProcess] Token batch: 2 tokens, 6 chars
-[14:26:27.709] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:26:27.711] [AIWorkerProcess] Token batch: 2 tokens, 11 chars
-[14:26:28.365] [AIWorkerProcess] Token batch: 2 tokens, 12 chars
-[14:26:28.693] [AIWorkerProcess] Heartbeat received
-[14:26:29.350] [AIWorkerProcess] Token batch: 2 tokens, 9 chars
-[14:26:29.678] [AIWorkerProcess] Token batch: 2 tokens, 10 chars
-[14:26:30.118] [AIWorkerProcess] Token batch: 2 tokens, 1 chars
-[14:26:30.987] [AIWorkerProcess] Generation complete!
-[14:26:30.987] [AIWorkerProcess] Words: 306, Tokens: 535
-[14:26:30.987] [AIWorkerProcess] Time: 229.9s
-[14:26:30.988] [AIWorkerProcess] Summary written to: C:\Users\noahc\Dropbox\Not Work\Data Science\CaseSummarizer\generated_summary.txt
-[14:26:30.991] [AIWorkerProcess] Cleanup complete
-[14:26:30.991] [AIWorkerProcess] Heartbeat received
-[14:26:30.991] [AIWorkerProcess] Worker process shutdown
-[14:26:30.991] [AIWorkerProcess] Cleanup complete
+[16:11:18.455] [OLLAMA] Connection successful
+[16:11:20.561] [OLLAMA] Found 1 models: ['gemma3:1b']
+[16:11:22.606] [OLLAMA] Found 1 models: ['gemma3:1b']
+[16:11:22.607] [WIDGETS] Loading prompts for model 'gemma3:1b' using template set 'phi-3-mini'
+[16:11:22.607] [WIDGETS] Found 2 presets: ['factual-summary', 'strategic-analysis']
+[16:11:24.658] [OLLAMA] Found 1 models: ['gemma3:1b']
+[16:11:24.658] [MAIN WINDOW] [OK] Ollama service is accessible on startup
+[16:11:44.547] 
+[MAIN WINDOW] Windows detected - using thread-based AI worker to avoid DLL issues
+[16:11:44.547] 
+[AIWORKER] *** RUN METHOD STARTED ***
+[16:11:44.547] [16:11:44.547] [AIWORKER] === STARTING AI WORKER THREAD ===
+[16:11:44.547] [16:11:44.547] [AIWORKER] Summary length target: 100 words
+[16:11:44.547] [16:11:44.547] [AIWORKER] Preset ID: factual-summary
+[16:11:44.547] [16:11:44.547] [AIWORKER] Number of documents to process: 1
+[16:11:44.547] [16:11:44.547] [AIWORKER] STEP 1: Starting document text combination...
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Processing document 1/1
+[16:11:44.547] [16:11:44.547] [AIWORKER]     Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf, Text length: 31138 chars
+[16:11:44.547] [16:11:44.547] [AIWORKER] STEP 1 COMPLETE: Combined text length: 31231 chars, 4968 words
+[16:11:44.547] [16:11:44.547] [AIWORKER] STEP 2: Preparing text for model processing...
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Combined document has 4968 words
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Document exceeds max input words (4968 > 1200)
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Truncating to first 1200 words for model input
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Truncated text length: 1200 words
+[16:11:44.547] [16:11:44.547] [AIWORKER] STEP 3: Preparing for model generation...
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Final input length: 1200 words, 7664 chars
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Model manager status: loaded=True, model=gemma3:1b
+[16:11:44.547] [16:11:44.547] [AIWORKER] STEP 4: Starting summary generation...
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Calling model_manager.generate_summary()...
+[16:11:44.547] [16:11:44.547] [AIWORKER]   Parameters: max_words=100, preset_id=factual-summary
+[16:11:44.552] [16:11:44.552] [AIWORKER] Inference started, emitting progress updates every second...
+[16:11:44.552] 
+[OLLAMA GENERATE] Starting text generation
+[16:11:44.552] [OLLAMA GENERATE] Model: gemma3:1b
+[16:11:44.552] [OLLAMA GENERATE] Max tokens: 234
+[16:11:44.552] [OLLAMA GENERATE] Prompt length: 8614 chars
+[16:11:44.552] [OLLAMA GENERATE] Temperature: 0.3, Top P: 0.9
+[16:11:44.552] [OLLAMA GENERATE] ===== COMPLETE PROMPT START =====
+[16:11:44.552] <|system|>
+You are a legal document summarizer. Your role is to provide clear, objective, factual summaries of legal documents without interpretation or speculation.
+<|end|>
+<|user|>
+Summarize the following legal document with these requirements:
+
+WORD COUNT: Between 80 and 120 words (target: 100 words)
+
+FOCUS ON FACTS:
+- Identify all parties involved (plaintiffs, defendants, attorneys, judges)
+- State the claims, charges, or legal issues presented
+- Report procedural status and timeline of events
+- List key facts and evidence mentioned
+- Note any rulings, decisions, or outcomes
+
+OUTPUT STYLE:
+- Write in clear, plain language
+- Present facts objectively without analysis
+- Use active voice and affirmative statements
+- Structure information chronologically when possible
+- Do NOT speculate, interpret motives, or analyze strategy
+- Do NOT include labels, headers, or meta-commentary in your response
+
+DOCUMENT:
+---
+--- Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf --- SUPREME COURT OF THE STATE OF NEW YORK LUIGI NAPOLITANO, Index No. 700321/2022 Plaintiff, VERIFIED ANSWER -againstROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N. and NORTH SHORE Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, by her attorneys, WAGNER, DOMAN, LETO & DI LEO, P.C. answering the complaint of the plaintiff herein, upon information and belief: 1. Denies each and every allegation contained in paragraph designated "1" in the form alleged but admits ROBERT WIGHTON, M.D. was a physician duly licensed to practice medicine in the State of New York. 2. Denies each and every allegation contained in paragraph designated "10" in the form alleged but admits SULMAN MAHOOD, M.D. was a physician duly licensed to practice medicine in the State of New York. 3. Denies any knowledge or information thereof sufficient to form a belief as to the 4. Denies each and every allegation contained in paragraphs designated "9", "18", 5. Answering paragraph “107”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “106”. 6. Answering paragraph “117”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “116”. 7. Answering paragraph “128”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “127”. 8. Answering paragraph “141”, defendant repeats, reiterates, and realleges above denials for paragraphs designated “1” through “140”. 9. Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, demands that the liability, if any, be apportioned. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 10. The alleged cause of action sounding in medical malpractice is barred by the statute of limitations in that the plaintiff failed to bring this action within two and one-half (21/2) years as set forth in Section 214-a of the CPLR. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 11. The cause of action in informed consent alleging a negligent failure to obtain same is barred in that the plaintiff has failed to bring the action within the two and one-half (21/2) years set forth in Section 214-a of the CPLR, and the decision of Murriello v. Crappotta, COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 12. It is alleged upon information and belief that the cause of action asserted by the plaintiff concerning the receipt by the defendant of an informed consent falls within the scope of Section 2805(d) of the Public Health Law, such law having been fully complied with by the defendant, thus barring the assertion of this cause of action. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 13. The alleged cause of action asserted by the plaintiff in paragraphs "1" through “145” fails to state a cause of action in that they do not contain any allegations of injury to the plaintiff for which the answering defendant can be held liable. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 14. Upon information and belief, any damages sustained by the plaintiff was/were caused in whole or in part by the culpable conduct of the plaintiff and/or damages were aggravated by the culpable conduct of the plaintiff. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 15. Defendant will rely upon the provision of Article 16 of the CPLR with regard to the limitation of joint and several liability. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 16. Any award to plaintiff for the cost of medical care, custodial care or rehabilitation services, loss of earnings or other economic loss should be reduced by the amount such expense has been or will be replaced or indemnified in whole or in part from any collateral source in accordance with the provisions and limitations set forth in CPLR § 4545. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 17. Answering defendant will rely upon the New York General Obligations Law § 15-108, and is thereby entitled to a set-off of damages based on any prior settlements regarding the injuries alleged in this lawsuit. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 18. Upon information and belief, the plaintiff failed to mitigate his or her damages. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 19. Answering defendant exercised all care reasonably necessary to prevent and limit the deprivation and injury for which liability is alleged herein by plaintiff. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 20. That pursuant to the “Coronavirus Aid, Relief, and Economic Security Act” signed into law on March 27, 2020, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME is immune from any cause of action arising under the Federal or State law for any harm caused by an act or omission of the professional in the provision of health care services during the COVID19 public health emergency. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 21. That this matter is barred pursuant to the applicable provisions of New York Emergency or Disaster Treatment Act, Art. 30-D, N.Y. Public Health Law, §§3080-82, as enacted on April 3, 2020, New York Executive Order 202.10, and any and all related Executive Orders issued by the Governor of the State of New York. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 22. That this matter is barred pursuant to the applicable provisions of the Public Readiness and Emergency Preparedness Act. COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON 23. That at all times, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME acted within the scope of the crisis standards of care, as well as the standards of care in place in the locality in question at the time of the COVID-19 emergency. WHEREFORE, defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME, demands judgment dismissing the complaint herein together with interest, costs, disbursements, or judgment over, as may be required by law. Dated: January 27, 2022 Mineola, New York Attorneys for Defendant MADELINE FILS-AIME, R.N. s/h/a 227 Mineola Boulevard Mineola, NY 11501 Attorneys for Plaintiff 233 Broadway, Suite 900 New York, NY 10279 SUPREME COURT OF THE STATE OF NEW YORK LUIGI NAPOLITANO, Index No. 700321/2022 Plaintiff, DEMAND FOR VERIFIED -againstROBERT L. WIGHTON, M.D., SULMAN R.N., KARYN CARLSON, R.N. and NORTH SHORE COUNSELORS: PLEASE TAKE NOTICE that pursuant to Section 3041, Rules 3042 and 3043, and Section 3044 of the Civil Practice Law and Rules, you are hereby required to serve a verified bill of particulars upon the undersigned within twenty (20) days after the receipt of this In the event of your failure to comply with this demand for a verified bill of particulars within that time, motion will be made for an order precluding you from offering any evidence on the causes of action alleged in the complaint concerning the following items: 1. The dates and times of day of the alleged negligent acts and/or omissions which will be alleged and claimed against the answering defendant herein. 2. The exact location of the alleged negligent acts and/or omissions charged against the answering defendant herein. 3. A statement of each and every act of negligence or omission, which constituted the alleged malpractice complained of with the date of each if different from the dates in Paragraph 1. 4. State the names of each and every person who performed such acts or failed to act; if the names are not known, describe the physical appearances with sufficient clarity for ready identification. 5. State the occupation of each such person. 6. A statement of the accepted medical practices, customs and medical standards, which it is claimed were violated in each of the above acts or omissions. 7. State whether or not any
+---
+<|end|>
+<|assistant|>
+
+[16:11:44.554] [OLLAMA GENERATE] ===== COMPLETE PROMPT END =====
+[16:13:00.692] [OLLAMA GENERATE] Generation complete: 616 tokens in 76.14s
+[16:13:00.692] [OLLAMA GENERATE] Output length: 2648 chars
+[16:13:00.692] [OLLAMA GENERATE] Output preview (first 100 chars): **Summary of Legal Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf
+[16:13:01.594] [16:13:01.594] [AIWORKER] *** GENERATION COMPLETE! *** 2648 chars received
+[16:13:01.594] [16:13:01.594] [AIWORKER] Summary preview: **Summary of Legal Document: 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf...
+[16:13:01.594] [16:13:01.594] [AIWORKER] STEP 5: Summarization complete, finalizing...
+[16:13:01.594] [16:13:01.594] [AIWORKER]   Final summary: 379 words, 379 tokens
+[16:13:01.594] [16:13:01.594] [AIWORKER]   Generation time: 77.0s
+[16:13:01.594] [16:13:01.594] [AIWORKER]   Total time (including preprocessing): 77.0s
+[16:13:01.594] [16:13:01.594] [AIWORKER]   Average time per token: 0.203s
+[16:13:01.595] [16:13:01.595] [AIWORKER]   Summary written to: C:\Users\noahc\Dropbox\Not Work\Data Science\CaseSummarizer\generated_summary.txt
+[16:13:01.595] [16:13:01.595] [AIWORKER] === AI WORKER COMPLETE ===
+[16:13:01.595] [16:13:01.595] [AIWORKER] STEP 6: Logging performance data...
+[16:13:01.598] [MAIN WINDOW] Summary displayed to user: 379 words

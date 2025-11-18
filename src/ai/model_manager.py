@@ -1,6 +1,18 @@
 """
-AI Model Manager for LocalScribe
-Handles loading and managing Gemma 2 GGUF models for case summarization.
+DEPRECATED: Llama-CPP Model Manager for LocalScribe
+
+⚠️ THIS MODULE IS DEPRECATED AND NO LONGER ACTIVELY USED
+=========================================================
+
+This is a legacy implementation kept for reference only. It used llama-cpp-python
+to manage GGUF format models.
+
+Migration Notes:
+The OllamaModelManager (src/ai/ollama_model_manager.py) is the recommended replacement.
+It provides better cross-platform stability and easier model management.
+
+Original Purpose:
+Handles loading and managing Gemma 2 GGUF models for case summarization via llama-cpp-python.
 """
 
 import os

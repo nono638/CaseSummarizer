@@ -313,20 +313,21 @@ class StatusIndicator(QWidget):
 
 class AIControlsWidget(QGroupBox):
     """
-    AI Controls panel for model selection and summary settings.
+    AI Controls panel for Ollama model selection and summary settings.
 
-    Phase 3 Features:
-    - Model selection (Standard 9B vs Pro 27B)
+    Features:
+    - Dynamic model selection via dropdown (populated from Ollama)
+    - Model pull/download functionality
+    - Service connection status
     - Summary length slider (100-500 words)
     - Prompt template selection with preview
     - Model status indicator
-    - Load/unload model buttons
     """
 
     # Signals
-    model_changed = Signal(str)  # Emits 'standard' or 'pro'
+    model_changed = Signal(str)  # Emits model name when selection changes
     summary_length_changed = Signal(int)  # Emits word count
-    load_model_requested = Signal(str)  # Emits model type to load
+    pull_model_requested = Signal(str)  # Emits model name to pull from Ollama
     prompt_changed = Signal(str)  # Emits preset_id when prompt selection changes
     set_default_requested = Signal(str, str)  # Emits (model_name, preset_id) to save as default
 
@@ -334,6 +335,7 @@ class AIControlsWidget(QGroupBox):
         super().__init__("AI Settings")
         self.model_manager = model_manager
         self.prompt_config = get_prompt_config()
+        self.current_model_name = None
         self._init_ui()
         self._update_model_status()
 
@@ -342,36 +344,48 @@ class AIControlsWidget(QGroupBox):
         layout = QVBoxLayout()
 
         # Model Selection Section
-        model_label = QLabel("<b>Model Selection:</b>")
+        model_label = QLabel("<b>Model Selection (Ollama):</b>")
         layout.addWidget(model_label)
 
-        # Radio buttons for model selection
-        self.standard_radio = QRadioButton("Standard (Phi-3 3.8B) - CPU-optimized")
-        self.standard_radio.setChecked(True)
-        self.standard_radio.setToolTip(
-            "Phi-3 Mini 3.8B: Fast on CPU (30-90 sec), good quality\n"
-            "Recommended for most users"
-        )
-        self.standard_radio.toggled.connect(self._on_model_selection_changed)
-        layout.addWidget(self.standard_radio)
+        # Service status indicator
+        self.service_status_label = QLabel()
+        self.service_status_label.setStyleSheet("color: #666; font-size: 10px; font-style: italic;")
+        layout.addWidget(self.service_status_label)
 
-        self.pro_radio = QRadioButton("Pro (Gemma 2 9B) - GPU recommended")
-        self.pro_radio.setToolTip(
-            "Gemma 2 9B: Best quality but slow on CPU (5-10 min)\n"
-            "Recommended only for GPU users"
-        )
-        self.pro_radio.toggled.connect(self._on_model_selection_changed)
-        layout.addWidget(self.pro_radio)
+        # Model dropdown
+        self.model_selector = QComboBox()
+        self.model_selector.setToolTip("Select an Ollama model to use for summarization")
+        self.model_selector.currentTextChanged.connect(self._on_model_selection_changed)
+        layout.addWidget(self.model_selector)
+
+        # Pull model section
+        pull_label = QLabel("<b>Download Model:</b>")
+        pull_label.setStyleSheet("font-size: 10px;")
+        layout.addWidget(pull_label)
+
+        pull_layout = QHBoxLayout()
+        self.pull_input = QComboBox()
+        self.pull_input.setEditable(True)
+        self.pull_input.setPlaceholderText("e.g., qwen2.5:7b-instruct, llama3.2:3b")
+        self.pull_input.addItems([
+            "qwen2.5:7b-instruct",
+            "llama3.2:3b-instruct",
+            "phi3:3.8b",
+            "tinyllama:1.1b"
+        ])
+        pull_layout.addWidget(self.pull_input)
+
+        self.pull_model_btn = QPushButton("Pull Model")
+        self.pull_model_btn.clicked.connect(self._on_pull_model_clicked)
+        self.pull_model_btn.setMaximumWidth(100)
+        pull_layout.addWidget(self.pull_model_btn)
+
+        layout.addLayout(pull_layout)
 
         # Model status indicator
         self.model_status_label = QLabel()
         self.model_status_label.setWordWrap(True)
         layout.addWidget(self.model_status_label)
-
-        # Load model button
-        self.load_model_btn = QPushButton("Load Model")
-        self.load_model_btn.clicked.connect(self._on_load_model_clicked)
-        layout.addWidget(self.load_model_btn)
 
         # Separator
         layout.addSpacing(15)
@@ -469,11 +483,12 @@ class AIControlsWidget(QGroupBox):
 
         self.setLayout(layout)
 
-    def _on_model_selection_changed(self):
+    def _on_model_selection_changed(self, model_name):
         """Handle model selection change."""
-        model_type = 'standard' if self.standard_radio.isChecked() else 'pro'
-        self.model_changed.emit(model_type)
-        self._update_model_status()
+        if model_name:
+            self.current_model_name = model_name
+            self.model_changed.emit(model_name)
+            self._update_model_status()
 
     def _on_slider_changed(self, value):
         """Handle slider value change and snap to increment."""
@@ -506,48 +521,111 @@ class AIControlsWidget(QGroupBox):
 
         self.summary_length_changed.emit(value)
 
-    def _on_load_model_clicked(self):
-        """Handle load model button click."""
-        model_type = 'standard' if self.standard_radio.isChecked() else 'pro'
-        self.load_model_requested.emit(model_type)
+    def _on_pull_model_clicked(self):
+        """Handle pull model button click."""
+        model_name = self.pull_input.currentText().strip()
+        if model_name:
+            self.pull_model_requested.emit(model_name)
+            self.pull_model_btn.setText("Pulling...")
+            self.pull_model_btn.setEnabled(False)
 
     def _update_model_status(self):
-        """Update the model status label based on current state."""
+        """Update the model status label and dropdown based on current state."""
         if self.model_manager is None:
-            self.model_status_label.setText("Status: No model manager")
+            self.model_status_label.setText("<font color='#d9534f'>Error: No model manager available</font>")
+            self.service_status_label.setText("")
             return
 
-        # Get available models
-        models = self.model_manager.get_available_models()
-        current_model = 'standard' if self.standard_radio.isChecked() else 'pro'
-        model_info = models[current_model]
+        # Check service connection
+        try:
+            self.model_manager.health_check()
+            self.service_status_label.setText("<font color='#5cb85c'>✓ Ollama service connected</font>")
+        except Exception as e:
+            self.service_status_label.setText("<font color='#d9534f'>✗ Ollama service not accessible</font>")
+            self.model_status_label.setText(
+                f"<font color='#d9534f'>Cannot connect to Ollama. Start the service and try again.</font>"
+            )
+            self.model_selector.setEnabled(False)
+            return
 
-        # Check if selected model is available
-        if not model_info['available']:
-            self.model_status_label.setText(
-                f"<font color='#d9534f'>Status: Model not downloaded "
-                f"({model_info['size_gb']} GB required)</font>"
-            )
-            self.load_model_btn.setEnabled(False)
-            self.load_model_btn.setToolTip("Model file not found. Download required.")
-        elif self.model_manager.is_model_loaded() and self.model_manager.current_model_name == current_model:
-            self.model_status_label.setText(
-                f"<font color='#5cb85c'>Status: {model_info['name']} loaded and ready</font>"
-            )
-            self.load_model_btn.setEnabled(False)
-            self.load_model_btn.setText("Model Loaded")
-        else:
-            self.model_status_label.setText(
-                f"<font color='#f0ad4e'>Status: {model_info['name']} available "
-                f"({model_info['size_gb']} GB)</font>"
-            )
-            self.load_model_btn.setEnabled(True)
-            self.load_model_btn.setText("Load Model")
-            self.load_model_btn.setToolTip(f"Load the {model_info['name']} model into memory")
+        # Get available models from Ollama
+        try:
+            available_models = self.model_manager.get_available_models()
+            current_model = self.model_selector.currentText()
+
+            # Update dropdown if different from current
+            if not current_model or current_model not in available_models:
+                self.model_selector.blockSignals(True)
+                self.model_selector.clear()
+                self.model_selector.addItems(available_models)
+
+                # Set to primary model if available, otherwise first available
+                if "qwen2.5:7b-instruct" in available_models:
+                    self.model_selector.setCurrentText("qwen2.5:7b-instruct")
+                elif available_models:
+                    self.model_selector.setCurrentIndex(0)
+
+                self.model_selector.blockSignals(False)
+                current_model = self.model_selector.currentText()
+
+            # Update status
+            if current_model:
+                # For Ollama, models are ready as soon as they appear in available_models
+                self.model_status_label.setText(
+                    f"<font color='#5cb85c'>✓ {current_model} loaded and ready</font>"
+                )
+                # Always populate prompts for Ollama models (they don't need explicit loading)
+                self._populate_prompts_for_model(current_model)
+            else:
+                self.model_status_label.setText(
+                    "<font color='#f0ad4e'>⚠ No models available. Download one using 'Pull Model'.</font>"
+                )
+                self.model_selector.setEnabled(False)
+
+        except Exception as e:
+            self.model_status_label.setText(f"<font color='#d9534f'>Error: {str(e)}</font>")
+
+    def _populate_prompts_for_model(self, model_name: str):
+        """Populate the prompt selector with presets for the given model."""
+        try:
+            from ..prompt_template_manager import PromptTemplateManager
+            from ..config import PROMPTS_DIR
+            from ..debug_logger import debug_log
+
+            manager = PromptTemplateManager(PROMPTS_DIR)
+
+            # All Ollama models use the same prompt templates (phi-3-mini directory)
+            # These templates are model-agnostic and work with any LLM
+            template_model_id = "phi-3-mini"  # Universal template directory
+
+            debug_log(f"[WIDGETS] Loading prompts for model '{model_name}' using template set '{template_model_id}'")
+            presets = manager.get_available_presets(template_model_id)
+            debug_log(f"[WIDGETS] Found {len(presets)} presets: {[p['id'] for p in presets]}")
+
+            if presets:
+                self.prompt_selector.blockSignals(True)
+                self.prompt_selector.clear()
+                for preset in presets:
+                    self.prompt_selector.addItem(preset['name'], preset['id'])
+                self.prompt_selector.setEnabled(True)
+                self.prompt_selector.setToolTip("Select a prompt template for summarization")
+                self.preview_toggle_btn.setEnabled(True)
+                self.set_default_btn.setEnabled(True)
+                self.prompt_selector.blockSignals(False)
+
+                self._update_prompt_preview()
+        except Exception as e:
+            from ..debug_logger import debug_log
+            debug_log(f"[WIDGETS] ERROR loading prompts for '{model_name}': {str(e)}")
+            import traceback
+            debug_log(f"[WIDGETS] Traceback: {traceback.format_exc()}")
+            self.prompt_selector.setEnabled(False)
+            self.prompt_selector.clear()
+            self.prompt_selector.addItem(f"Error loading presets: {str(e)}")
 
     def get_selected_model(self) -> str:
-        """Get the currently selected model type."""
-        return 'standard' if self.standard_radio.isChecked() else 'pro'
+        """Get the currently selected model name."""
+        return self.model_selector.currentText()
 
     def get_summary_length(self) -> int:
         """Get the current summary length setting."""
@@ -569,7 +647,7 @@ class AIControlsWidget(QGroupBox):
         Populate the prompt selector dropdown with available presets.
 
         Args:
-            model_name: Name of the loaded model (e.g., 'phi-3-mini')
+            model_name: Name of the loaded model (e.g., 'qwen2.5:7b-instruct')
             presets: List of preset dicts with 'name' and 'id' keys
             default_preset_id: Optional preset ID to select by default
         """
@@ -639,9 +717,9 @@ class AIControlsWidget(QGroupBox):
             from ..config import PROMPTS_DIR
 
             manager = PromptTemplateManager(PROMPTS_DIR)
-            model_id = "phi-3-mini"  # Hardcoded for now
+            template_model_id = "phi-3-mini"  # Universal template directory
 
-            template = manager.load_template(model_id, preset_id)
+            template = manager.load_template(template_model_id, preset_id)
             formatted_prompt = manager.format_template(
                 template=template,
                 min_words=min_words,
@@ -662,7 +740,7 @@ class AIControlsWidget(QGroupBox):
             return
 
         # Get current model name
-        model_name = "phi-3-mini"  # Hardcoded for now, will be made dynamic
+        model_name = self.get_selected_model()
 
         # Emit signal to save preference
         self.set_default_requested.emit(model_name, preset_id)
@@ -679,6 +757,12 @@ class AIControlsWidget(QGroupBox):
         """Reset the 'Set as Default' button."""
         self.set_default_btn.setText(original_text)
         self.set_default_btn.setEnabled(True)
+
+    def pull_model_complete(self):
+        """Called when model pulling is complete."""
+        self.pull_model_btn.setText("Pull Model")
+        self.pull_model_btn.setEnabled(True)
+        self._update_model_status()
 
     def refresh_status(self):
         """Refresh the model status display."""
@@ -924,10 +1008,7 @@ class SummaryResultsWidget(QGroupBox):
             seconds = int(elapsed % 60)
             time_str = f"{hours}:{minutes:02d}:{seconds:02d}"
 
-        # Get current word count
-        word_count = len(self.summary_text.toPlainText().split())
-
-        # Update status with timer and word count
+        # Update status with timer only
         # Extract target words from current status (if it exists)
         current_status = self.progress_status.text()
         if "Generating" in current_status and "-word" in current_status:
@@ -937,11 +1018,11 @@ class SummaryResultsWidget(QGroupBox):
             if match:
                 target = match.group(1)
                 self.progress_status.setText(
-                    f"Generating {target}-word summary... ({time_str} elapsed, {word_count} words so far)"
+                    f"Generating {target}-word summary... ({time_str} elapsed)"
                 )
         else:
             self.progress_status.setText(
-                f"Generating summary... ({time_str} elapsed, {word_count} words so far)"
+                f"Generating summary... ({time_str} elapsed)"
             )
 
     def set_generation_time(self, seconds: float):

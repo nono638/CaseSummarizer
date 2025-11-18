@@ -1,0 +1,34 @@
+PLAINTIFF: Jane Doe
+DEFENDANT: ABC Manufacturing Corp
+COURT: State District Court, County
+CASE NUMBER: 2024-CV-001234
+DATE FILED: March 15, 2024
+
+BACKGROUND:
+Jane Doe was employed by ABC Manufacturing Corp as a quality control supervisor for five years. On February 20, 2024, Doe reported a safety violation to OSHA regarding inadequate ventilation in the manufacturing facility. The violation posed significant health risks to workers, particularly respiratory hazards from chemical fumes.
+
+FACTS:
+1. Doe's employment began on March 1, 2019, and her performance evaluations were consistently positive until the safety report.
+2. Three weeks after filing the OSHA complaint, Doe was terminated. The company cited "restructuring" as the reason.
+3. During discovery, it was revealed that no other quality control positions were eliminated in the restructuring.
+4. Doe was replaced by a less experienced worker hired at a lower salary.
+5. Company emails indicate discussions about "problematic employees" that included references to the OSHA complaint.
+
+CLAIMS:
+Retaliatory termination in violation of the Occupational Safety and Health Act (OSHA). Plaintiff alleges that her termination was motivated by her protected activity in reporting safety violations rather than legitimate business reasons.
+
+LEGAL STANDARD:
+Under the OSHA whistleblower protection statute, an employer may not discharge or in any manner discriminate against any employee because the employee has filed a charge or complaint with OSHA or has participated in any manner in proceedings under OSHA.
+
+EVIDENCE SUBMITTED:
+- Employment records showing positive performance evaluations
+- OSHA complaint filed on February 20, 2024
+- Termination notice dated March 12, 2024
+- Email correspondence discussing the safety complaint
+- Witness testimony from other employees
+- Salary comparison data showing replacement hired at lower pay
+
+ARGUMENTS:
+The plaintiff argues that the temporal proximity between the OSHA complaint and termination, combined with no legitimate restructuring, demonstrates retaliatory intent. The defendant argues that restructuring was necessary and the termination was coincidental.
+
+This case involves important principles regarding worker protections and employer retaliation in response to safety complaints.

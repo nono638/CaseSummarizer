@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction
 import os
+import sys
+import platform
 from pathlib import Path
 
 from src.ui.widgets import FileReviewTable, AIControlsWidget, SummaryResultsWidget
@@ -20,6 +22,7 @@ from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker, AIWorker
 from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
+from src.debug_logger import debug_log
 
 
 class MainWindow(QMainWindow):
@@ -57,6 +60,52 @@ class MainWindow(QMainWindow):
 
         # Apply styling
         self._apply_styles()
+
+        # Check Ollama service on startup
+        self._check_ollama_service()
+
+    def _create_ai_worker(self, model_manager, processing_results, summary_length, preset_id):
+        """
+        Create the appropriate AI worker for the current platform.
+
+        On Windows, ONNX Runtime has known issues with multiprocessing DLL reinitialization.
+        This method detects the platform and uses the thread-based worker on Windows,
+        or the multiprocessing-based worker on other platforms.
+
+        Args:
+            model_manager: The ModelManager instance
+            processing_results: List of processing result dicts
+            summary_length: Target summary length in words
+            preset_id: Prompt template preset to use
+
+        Returns:
+            Either AIWorker (thread-based) or AIWorkerProcess (multiprocessing-based)
+        """
+        is_windows = sys.platform == 'win32' or platform.system() == 'Windows'
+
+        if is_windows:
+            # On Windows, use thread-based worker to avoid ONNX Runtime multiprocessing DLL issues
+            # (WinError 1114: DLL initialization routine failed)
+            # See: https://github.com/microsoft/onnxruntime-genai/issues/...
+            from src.debug_logger import debug_log
+            debug_log("\n[MAIN WINDOW] Windows detected - using thread-based AI worker to avoid DLL issues")
+            return AIWorker(
+                model_manager=model_manager,
+                processing_results=processing_results,
+                summary_length=summary_length,
+                preset_id=preset_id
+            )
+        else:
+            # On non-Windows platforms (Linux, macOS), use multiprocessing for better performance
+            # since ONNX Runtime DLL issues don't apply
+            from src.debug_logger import debug_log
+            debug_log("\n[MAIN WINDOW] Non-Windows platform detected - using multiprocessing AI worker")
+            return AIWorkerProcess(
+                model_manager=model_manager,
+                processing_results=processing_results,
+                summary_length=summary_length,
+                preset_id=preset_id
+            )
 
     def _create_menus(self):
         """Create menu bar with File and Help menus."""
@@ -186,9 +235,11 @@ class MainWindow(QMainWindow):
         left_widget.setLayout(layout)
         main_layout.addWidget(left_widget, stretch=3)
 
-        # Right side: AI Controls (Phase 3)
+        # Right side: AI Controls (Phase 3 - Ollama integration)
         self.ai_controls = AIControlsWidget(self.model_manager)
-        self.ai_controls.load_model_requested.connect(self.load_ai_model)
+        # Connect Ollama-specific signals
+        self.ai_controls.pull_model_requested.connect(self.pull_ai_model)
+        self.ai_controls.model_changed.connect(self.on_model_changed)
         self.ai_controls.set_default_requested.connect(self.save_default_prompt)
         self.ai_controls.setMaximumWidth(300)
         main_layout.addWidget(self.ai_controls, stretch=1)
@@ -381,6 +432,47 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage("Ready")
 
     @Slot(str)
+    def pull_ai_model(self, model_name: str):
+        """
+        Pull/download a new Ollama model.
+
+        Args:
+            model_name: Ollama model name (e.g., 'qwen2.5:7b-instruct')
+        """
+        self.status_bar.showMessage(f"Pulling model: {model_name}... (this may take several minutes)")
+
+        try:
+            # Call Ollama API to pull model
+            # Note: This is a blocking call, but Ollama runs as a separate service
+            self.model_manager.load_model(model_name)
+
+            self.status_bar.showMessage(f"Model {model_name} pulled successfully!", 5000)
+
+            # Update UI
+            self.ai_controls.pull_model_complete()
+            self.ai_controls.refresh_status()
+
+        except Exception as e:
+            self.status_bar.showMessage(f"Failed to pull model: {str(e)}")
+            QMessageBox.critical(
+                self,
+                "Model Pull Failed",
+                f"Could not pull model '{model_name}':\n\n{str(e)}\n\n"
+                f"Make sure Ollama service is running and the model name is correct."
+            )
+            self.ai_controls.pull_model_complete()
+
+    def on_model_changed(self, model_name: str):
+        """
+        Handle model selection change from dropdown.
+
+        Args:
+            model_name: Selected Ollama model name
+        """
+        self.status_bar.showMessage(f"Selected model: {model_name}")
+        # Model is already available (from get_available_models), just refresh status
+        self.ai_controls.refresh_status()
+
     def load_ai_model(self, model_type):
         """
         Load an AI model in a background thread with progress dialog.
@@ -546,8 +638,8 @@ class MainWindow(QMainWindow):
         self.process_btn.setEnabled(False)
         self.status_bar.showMessage(f"Generating {summary_length}-word summary from {len(selected_results)} file(s)...")
 
-        # Create and configure AI worker (multiprocessing-based)
-        self.ai_worker = AIWorkerProcess(
+        # Create and configure AI worker (platform-specific: thread-based on Windows, multiprocessing on others)
+        self.ai_worker = self._create_ai_worker(
             model_manager=self.model_manager,
             processing_results=selected_results,
             summary_length=summary_length,
@@ -582,26 +674,50 @@ class MainWindow(QMainWindow):
     def _on_summary_complete(self, summary: str):
         """Handle completed summary from AI worker."""
         import time
+        import traceback
 
-        # Hide progress indicator
-        self.summary_results.hide_progress()
+        try:
+            # CRITICAL: Display the summary text in the results widget
+            print("[MAIN WINDOW] Attempting to display summary...")
+            self.summary_results.set_summary(summary)
+            print(f"[MAIN WINDOW] Summary displayed successfully ({len(summary)} chars)")
 
-        # Calculate generation time
-        if hasattr(self, '_ai_start_time'):
-            elapsed = time.time() - self._ai_start_time
-            self.summary_results.set_generation_time(elapsed)
+            # Hide progress indicator
+            print("[MAIN WINDOW] Hiding progress indicator...")
+            self.summary_results.hide_progress()
+            print("[MAIN WINDOW] Progress indicator hidden")
 
-        # Update status
-        word_count = len(summary.split())
-        self.status_bar.showMessage(
-            f"Summary complete! Generated {word_count} words.", 5000
-        )
+            # Calculate generation time
+            if hasattr(self, '_ai_start_time'):
+                elapsed = time.time() - self._ai_start_time
+                print(f"[MAIN WINDOW] Setting generation time: {elapsed:.1f}s")
+                self.summary_results.set_generation_time(elapsed)
+                print("[MAIN WINDOW] Generation time set")
 
-        # Re-enable process button and cleanup
-        self.process_btn.setEnabled(True)
-        if self.ai_worker:
-            self.ai_worker.deleteLater()
-            self.ai_worker = None
+            # Update status
+            word_count = len(summary.split())
+            print(f"[MAIN WINDOW] Updating status bar with {word_count} words...")
+            self.status_bar.showMessage(
+                f"Summary complete! Generated {word_count} words.", 5000
+            )
+            print("[MAIN WINDOW] Status bar updated")
+
+            debug_log(f"[MAIN WINDOW] Summary displayed to user: {word_count} words")
+
+            # Re-enable process button and cleanup
+            print("[MAIN WINDOW] Re-enabling process button...")
+            self.process_btn.setEnabled(True)
+            if self.ai_worker:
+                self.ai_worker.deleteLater()
+                self.ai_worker = None
+            print("[MAIN WINDOW] Summary complete handler finished successfully")
+
+        except Exception as e:
+            error_details = f"Exception in _on_summary_complete: {str(e)}\n{traceback.format_exc()}"
+            print(f"[MAIN WINDOW] {error_details}")
+            debug_log(f"[MAIN WINDOW] ERROR IN SUMMARY COMPLETE HANDLER: {error_details}")
+            # Show error to user
+            self.status_bar.showMessage(f"Error displaying summary: {str(e)}", 5000)
 
     @Slot(str)
     def _on_ai_error(self, error_message: str):
@@ -704,13 +820,65 @@ class MainWindow(QMainWindow):
         <p><b>100% Offline Legal Document Processor</b></p>
         <p>LocalScribe processes legal documents entirely on your computer,
         ensuring complete privacy and PII/PHI protection.</p>
-        <p><i>Powered by Google Gemma 2 models</i></p>
+        <p><i>Powered by Ollama (qwen2.5:7b-instruct)</i></p>
         <hr>
-        <p><b>Current Phase:</b> Phase 3 - AI Integration (In Progress)</p>
-        <p><b>Status:</b> Pre-processing engine active, AI model loading enabled</p>
+        <p><b>Current Phase:</b> Phase 3 - AI Integration (Ollama)</p>
+        <p><b>Status:</b> Pre-processing engine active, Ollama integration enabled</p>
         """
 
         QMessageBox.about(self, "About LocalScribe", about_text)
+
+    def _check_ollama_service(self):
+        """
+        Check if Ollama service is running on startup.
+
+        Shows a helpful warning dialog if service is not accessible,
+        with instructions for starting it.
+        """
+        try:
+            self.model_manager.health_check()
+            debug_log("[MAIN WINDOW] [OK] Ollama service is accessible on startup")
+        except Exception as e:
+            debug_log(f"[MAIN WINDOW] [ERROR] Ollama service not accessible: {str(e)}")
+
+            # Build platform-specific instructions
+            start_command = "ollama serve"  # Default command
+            if sys.platform == 'win32' or platform.system() == 'Windows':
+                instructions = (
+                    "1. Install Ollama from https://ollama.ai\n"
+                    "2. Open Command Prompt or PowerShell\n"
+                    f"3. Run: {start_command}\n"
+                    "4. Wait for the service to start, then restart this application"
+                )
+            elif sys.platform == 'darwin':  # macOS
+                instructions = (
+                    "1. Install Ollama from https://ollama.ai\n"
+                    "2. The Ollama service typically starts automatically\n"
+                    "3. If not running, you may need to start it via the menu bar or:\n"
+                    f"   {start_command}\n"
+                    "4. Restart this application"
+                )
+            else:  # Linux
+                instructions = (
+                    "1. Install Ollama: curl https://ollama.ai/install.sh | sh\n"
+                    "2. Start the service:\n"
+                    f"   {start_command}\n"
+                    "3. Restart this application"
+                )
+
+            warning_text = (
+                "Ollama service is not accessible.\n\n"
+                "LocalScribe requires Ollama to be running in the background.\n\n"
+                f"{instructions}\n\n"
+                "You can continue using LocalScribe to prepare documents, "
+                "but you won't be able to generate summaries until Ollama is running."
+            )
+
+            QMessageBox.warning(
+                self,
+                "Ollama Service Not Found",
+                warning_text
+            )
 
     def closeEvent(self, event):
         """Handle window close event."""

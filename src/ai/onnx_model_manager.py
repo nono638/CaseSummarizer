@@ -1,16 +1,32 @@
 """
-ONNX Model Manager for LocalScribe
-Handles loading and managing Phi-3 ONNX models with DirectML acceleration.
+DEPRECATED: ONNX Model Manager for LocalScribe
 
-This is the next-generation model manager optimized for Windows with:
-- DirectML GPU acceleration (works with integrated GPUs)
-- INT4-AWQ quantization (better quality than Q4_K_M)
-- 5-10x faster generation than llama-cpp-python
+⚠️ THIS MODULE IS DEPRECATED AND NO LONGER ACTIVELY USED
+=========================================================
+
+This file is kept for reference only. See development_log.md for details on why ONNX
+was replaced with Ollama:
+
+1. **Token Corruption Bug**: Phi-3 ONNX implementation had intermittent token
+   generation errors producing garbled summaries in production.
+
+2. **Platform Fragility**: ONNX Runtime GenAI requires:
+   - Careful DLL initialization on Windows
+   - Environment-specific setup and troubleshooting
+   - Complex error handling for subprocess contexts
+
+3. **Better Alternative**: Ollama provides:
+   - Cross-platform stability (Windows/macOS/Linux identical behavior)
+   - No compilation or DLL issues
+   - Easier model management and switching
+   - Better commercial viability (MIT license, no conflicts)
+
+The OllamaModelManager in this module is the recommended replacement.
 """
 
 import os
 from pathlib import Path
-from typing import Optional, Iterator
+from typing import Optional
 import time
 
 from ..config import MODELS_DIR, MAX_CONTEXT_TOKENS, PROMPTS_DIR
@@ -22,8 +38,13 @@ from ..debug_logger import debug_log
 
 class ONNXModelManager:
     """
-    Manages ONNX-based AI models for case summarization.
+    **DEPRECATED**: Manages ONNX-based AI models.
 
+    ⚠️ **DO NOT USE** - Use OllamaModelManager instead.
+
+    This class is kept for reference only. See module docstring for migration details.
+
+    Original Purpose:
     Uses ONNX Runtime GenAI with DirectML for hardware-accelerated inference.
     Automatically detects and uses available GPU (integrated or dedicated).
     """
@@ -45,11 +66,15 @@ class ONNXModelManager:
                 import onnxruntime_genai as og
                 self._onnxruntime_genai = og
                 debug("ONNX Runtime GenAI imported successfully")
-            except ImportError as e:
+            except (ImportError, OSError) as e:
+                # ImportError: Module not found
+                # OSError: WinError 1114 on Windows - DLL initialization failed
+                # Both are expected failures when ONNX Runtime is not available or misconfigured
                 debug(f"Failed to import onnxruntime_genai: {e}")
                 raise RuntimeError(
-                    "ONNX Runtime GenAI not installed. "
-                    "Install with: pip install onnxruntime-genai-directml"
+                    "ONNX Runtime GenAI not available. "
+                    "This can happen due to: (1) Package not installed, (2) DLL initialization failure on Windows, "
+                    "or (3) Incompatible versions. Install with: pip install onnxruntime-genai-directml --pre"
                 )
         return self._onnxruntime_genai
 
@@ -179,24 +204,22 @@ class ONNXModelManager:
         prompt: str,
         max_tokens: int = 500,
         temperature: float = None,
-        top_p: float = None,
-        stream: bool = True
-    ) -> Iterator[str]:
+        top_p: float = None
+    ) -> str:
         """
-        Generate text using the loaded ONNX model with streaming.
+        Generate text using the loaded ONNX model (non-streaming).
+
+        Uses non-streaming generation to avoid tokenizer UTF-8 alignment issues.
+        Returns complete text when generation finishes.
 
         Args:
             prompt: The input prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0.0-1.0, lower = more deterministic)
             top_p: Nucleus sampling parameter
-            stream: Whether to stream output (yields tokens as they're generated)
-
-        Yields:
-            str: Generated text tokens (if stream=True)
 
         Returns:
-            str: Complete generated text (if stream=False)
+            str: Complete generated text
 
         Raises:
             RuntimeError: If no model is loaded
@@ -213,11 +236,12 @@ class ONNXModelManager:
             top_p = self.prompt_config.top_p
 
         debug(f"Generating text (max_tokens={max_tokens}, temp={temperature}, top_p={top_p})")
-        debug_log("\n[ONNX MODEL] Starting generation...")
-        debug_log(f"[ONNX MODEL] Stream mode: {stream}")
+        debug_log("\n[ONNX MODEL] Starting generation (non-streaming)...")
         debug_log(f"[ONNX MODEL] Max tokens: {max_tokens}")
         debug_log(f"[ONNX MODEL] Prompt length: {len(prompt)} chars")
-        debug_log(f"[ONNX MODEL] First 200 chars of prompt:\n{prompt[:200]}")
+        debug_log("[ONNX MODEL] ===== COMPLETE PROMPT START =====")
+        debug_log(prompt)
+        debug_log("[ONNX MODEL] ===== COMPLETE PROMPT END =====")
 
         try:
             # Create tokenizer and encode prompt
@@ -227,8 +251,18 @@ class ONNXModelManager:
             debug_log(f"[ONNX MODEL] Prompt tokenized: {len(input_tokens)} tokens")
 
             # Set up generation parameters
+            # CRITICAL: Phi-3 Mini has 4096 token context window
+            # max_length is total sequence length (input + output), so it cannot exceed context_length
+            MODEL_CONTEXT_LENGTH = 4096
+            safe_max_length = min(len(input_tokens) + max_tokens, MODEL_CONTEXT_LENGTH)
+
+            # If input alone exceeds context, we have a problem
+            if len(input_tokens) >= MODEL_CONTEXT_LENGTH:
+                debug_log(f"[ONNX MODEL] WARNING: Input tokens ({len(input_tokens)}) >= context length ({MODEL_CONTEXT_LENGTH})")
+                debug_log(f"[ONNX MODEL] Reducing max_length to {MODEL_CONTEXT_LENGTH}")
+
             search_options = {
-                'max_length': len(input_tokens) + max_tokens,
+                'max_length': safe_max_length,
                 'temperature': temperature,
                 'top_p': top_p,
                 'do_sample': True  # Enable sampling for temperature/top_p to work
@@ -249,65 +283,74 @@ class ONNXModelManager:
 
             debug_log("[ONNX MODEL] Starting token generation...")
 
-            if stream:
-                # Stream mode: yield tokens as they're generated
-                token_num = 0
-                tokenizer_stream = tokenizer.create_stream()
+            # Generate all tokens (non-streaming)
+            token_count = 0
+            while not generator.is_done():
+                generator.generate_next_token()
+                token_count += 1
 
-                while not generator.is_done():
-                    generator.generate_next_token()
+                # Log every 50 tokens
+                if token_count % 50 == 0:
+                    debug_log(f"[ONNX MODEL] Generated {token_count} tokens so far...")
 
-                    # Decode the new token using streaming decoder
-                    new_token_id = generator.get_next_tokens()[0]
-                    new_token_text = tokenizer_stream.decode(new_token_id)
+            # Decode complete output
+            output_tokens = generator.get_sequence(0)
 
-                    token_num += 1
+            # CRITICAL FIX: Use token indices to extract output, not string matching
+            # The complete sequence is: [input_tokens] + [output_tokens]
+            # We need to extract output_tokens without UTF-8 alignment issues
 
-                    if token_num <= 5 or token_num % 20 == 0:
-                        debug_log(f"[ONNX MODEL] Token #{token_num}: '{new_token_text}'")
+            num_input_tokens = len(input_tokens)
+            num_output_tokens = len(output_tokens) - num_input_tokens
 
-                    yield new_token_text
+            # Extract only the output token IDs (skip the input tokens)
+            output_token_ids = output_tokens[num_input_tokens:]
 
-                debug_log(f"[ONNX MODEL] Generation complete: {token_num} tokens")
+            debug_log(f"[ONNX MODEL] First 50 output token IDs: {output_token_ids[:50]}")
+            debug_log(f"[ONNX MODEL] Last 20 output token IDs: {output_token_ids[-20:]}")
 
-            else:
-                # Non-stream mode: generate all tokens then return complete text
-                while not generator.is_done():
-                    generator.generate_next_token()
+            # Decode ONLY the output tokens
+            output_text = tokenizer.decode(output_token_ids)
 
-                output_tokens = generator.get_sequence(0)
-                # Decode only the new tokens (excluding input)
-                output_text = tokenizer.decode(output_tokens[len(input_tokens):])
+            # Also decode the complete sequence for diagnostics
+            complete_text = tokenizer.decode(output_tokens)
+            input_text = tokenizer.decode(input_tokens)
 
-                debug_log(f"[ONNX MODEL] Generation complete: {len(output_tokens) - len(input_tokens)} tokens")
-                return output_text
+            debug_log(f"[ONNX MODEL] Generation complete: {num_output_tokens} output tokens")
+            debug_log(f"[ONNX MODEL] Input tokens: {num_input_tokens}, Output tokens: {num_output_tokens}")
+            debug_log(f"[ONNX MODEL] Input text length: {len(input_text)} chars")
+            debug_log(f"[ONNX MODEL] Complete sequence length: {len(complete_text)} chars")
+            debug_log(f"[ONNX MODEL] Decoded output text length: {len(output_text)} chars")
+            debug_log(f"[ONNX MODEL] Output preview (first 100 chars): {output_text[:100]}")
+
+            return output_text.strip()
 
         except Exception as e:
             debug(f"Text generation failed: {str(e)}")
             debug_log(f"[ONNX MODEL] ERROR: {str(e)}")
+            import traceback
+            debug_log(f"[ONNX MODEL] Traceback:\n{traceback.format_exc()}")
             raise RuntimeError(f"Text generation failed: {str(e)}")
 
     def generate_summary(
         self,
         case_text: str,
         max_words: int = 200,
-        preset_id: str = "factual-summary",
-        stream: bool = True
-    ) -> Iterator[str]:
+        preset_id: str = "factual-summary"
+    ) -> str:
         """
         Generate a case summary from cleaned document text.
+
+        Returns complete summary text in one go. For UI feedback, use a
+        progress indicator in the GUI rather than streaming output.
 
         Args:
             case_text: The cleaned case document text
             max_words: Target summary length in words (100-500)
             preset_id: Template preset to use (e.g., 'factual-summary', 'strategic-analysis')
-            stream: Whether to stream output
-
-        Yields:
-            str: Summary text tokens (if stream=True)
 
         Returns:
-            str: Complete summary (if stream=False)
+            str: Complete summary text
         """
         # Get word count range from config
         min_words, max_words_range = self.prompt_config.get_word_count_range(max_words)
@@ -345,8 +388,7 @@ class ONNXModelManager:
         # Generate summary (temperature and top_p will use config defaults)
         return self.generate_text(
             prompt=prompt,
-            max_tokens=max_tokens,
-            stream=stream
+            max_tokens=max_tokens
         )
 
     def unload_model(self):
