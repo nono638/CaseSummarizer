@@ -103,10 +103,6 @@ load_model_configs()
 # --- End New Model Configuration System ---
 
 
-# Legacy model constants (for backwards compatibility)
-STANDARD_MODEL_NAME = "Phi-3-mini-4k-instruct-q4.gguf"  # DEPRECATED
-PRO_MODEL_NAME = "gemma-2-9b-it-q4_k_m.gguf"  # DEPRECATED
-
 # Default Processing Settings
 DEFAULT_SUMMARY_WORDS = 200
 MIN_SUMMARY_WORDS = 100
@@ -119,7 +115,6 @@ LEGAL_KEYWORDS_CA = Path(__file__).parent.parent / "data" / "keywords" / "legal_
 
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
-SUMMARY_PROMPT_TEMPLATE = Path(__file__).parent.parent / "config" / "summary_prompt_template.txt"  # Legacy, deprecated
 LEGAL_KEYWORDS_FEDERAL = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_federal.txt"
 
 # License Configuration

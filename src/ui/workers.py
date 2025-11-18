@@ -265,9 +265,11 @@ class AIWorker(QThread):
 
                     if file_path.suffix.lower() == '.pdf':
                         log_step(f"  Processing PDF with semantic chunker: {filename}")
+                        self.progress_updated.emit(f"Chunking '{filename}' with semantic splitter...")
                         pdf_chunks = chunking_engine.chunk_pdf(file_path, max_tokens=max_tokens)
                         if pdf_chunks:
                             log_step(f"    - Found {len(pdf_chunks)} chunks.")
+                            self.progress_updated.emit(f"Broke '{filename}' into {len(pdf_chunks)} semantic chunks.")
                             all_chunks.extend(pdf_chunks)
                     elif result.get('cleaned_text'):
                         log_step(f"  Adding text from non-PDF for classic chunking: {filename}")
@@ -1039,3 +1041,4 @@ class AIWorkerProcess(QObject):
             if self.process.is_alive():
                 debug_log("[AIWorkerProcess] Force killing worker process")
                 self.process.kill()
+
