@@ -59,3 +59,14 @@
     *   `tests/test_vocabulary_extractor.py` (updated expected relevance values)
 *   **Verification:** All 5 tests in `tests/test_vocabulary_extractor.py` passed successfully.
 *   **Next:** Implement Meta-Summary Logic.
+
+### 2025-11-20 - Feature: Hierarchical Meta-Summary Logic
+
+*   **Action:** Implemented iterative/hierarchical summarization for meta-summaries.
+    *   Introduced `MetaSummaryWorker` (`src/ui/workers.py`) to orchestrate generation of individual summaries followed by a meta-summary.
+    *   Refactored `_generate_meta_summary` in `src/ui/main_window.py` to use `MetaSummaryWorker`.
+    *   Added logic to manage multiple concurrent AI processes for individual summaries and their cleanup.
+*   **Module(s) Modified:**
+    *   `src/ui/main_window.py`
+    *   `src/ui/workers.py`
+*   **Next:** Consider options for selecting relevant documents for meta-summary (if required by user feedback) and overall refinement.
