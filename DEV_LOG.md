@@ -26,3 +26,14 @@
     *   `tests/test_vocabulary_extractor.py` (New test file)
 *   **Verification:** All 5 tests in `tests/test_vocabulary_extractor.py` passed successfully.
 *   **Next:** Integration into UI and refining "Relevance to Case" logic.
+
+### 2025-11-20 - UI Integration: Vocabulary Extractor
+
+*   **Action:** Integrated `VocabularyExtractor` module into the main application UI.
+    *   Added a "Generate Vocabulary List (CSV)" checkbox to the main window.
+    *   Modified `process_with_ai` to trigger vocabulary extraction and CSV export if the checkbox is selected.
+    *   Added `_save_vocabulary_csv` method to handle CSV file saving.
+*   **Module(s) Modified:**
+    *   `src/ui/main_window.py`
+    *   `src/config.py` (added paths for exclude and medical terms lists)
+*   **Next:** Refine "Relevance to Case" logic and implement meta-summary options.
