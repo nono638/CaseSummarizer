@@ -27,12 +27,10 @@ LocalScribe is a private, secure Windows desktop application that processes lega
 - ✅ 24 passing unit tests
 
 ### Phase 2: Desktop UI (Current)
-- ✅ PySide6 main window with file selection
-- ✅ File Review Table showing processing results
-- ✅ Background processing with progress indicators
-- ✅ Status indicators (Ready/Warning/Failed)
-- ✅ Integration with DocumentCleaner
-- ✅ Error dialogs and user feedback
+- ✅ UI skeleton built with CustomTkinter, resolving system-level DLL conflicts
+- ✅ Native-looking dropdown menus for a standard user experience
+- ✅ File selection and processing initiated from the UI
+- ✅ UI framework refactored for stability and cross-platform compatibility
 
 ### What's Next
 - Phase 3: AI model integration (summary generation)

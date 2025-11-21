@@ -1,5 +1,61 @@
 # Development Log
 
+## 2025-11-21 - Major UI Refactor: Pivot to CustomTkinter
+**Feature:** Complete UI Framework Migration from Qt to CustomTkinter
+
+This session involved a major architectural pivot to resolve persistent, unresolvable UI framework errors. The application has been successfully migrated to use **CustomTkinter**, resulting in a stable, functional, and cross-platform compatible user interface.
+
+### Problem Summary
+The application was un-launchable due to a recurring `ImportError: DLL load failed while importing QtWidgets: The specified procedure could not be found.` This error occurred with both `PySide6` and `PyQt6`, even after:
+- Complete re-creation of the virtual environment.
+- Step-by-step, clean installation of all dependencies.
+- Manual deactivation of a conflicting global `conda` environment.
+- System-level dependency checks.
+
+The root cause was determined to be a fundamental, system-specific conflict between the Qt frameworks (both PySide6 and PyQt6) and the user's environment, which could not be resolved from within the project's scope.
+
+### Solution: Architectural Pivot to CustomTkinter
+
+To unblock the project and ensure a robust, self-contained application, a decision was made to pivot to **CustomTkinter**.
+
+**Work Completed:**
+
+1.  **Environment Cleanup:**
+    - Uninstalled `PyQt6` and all related Qt dependencies.
+    - Installed `customtkinter` and updated `requirements.txt`.
+
+2.  **Complete UI Refactoring:**
+    - **`src/main.py`:** Rewritten to initialize a `customtkinter` application loop.
+    - **`src/ui/main_window.py`:** Completely refactored from a `QMainWindow` to a `ctk.CTk` class. Re-implemented the entire UI structure, including layouts, toolbar, and status bar, using `customtkinter` widgets. A native `tkinter.Menu` was used to provide a standard menubar.
+    - **`src/ui/widgets.py`:** All `QWidget`-based classes (`FileReviewTable`, `AIControlsWidget`, `SummaryResultsWidget`) were rewritten as `ctk.CTkFrame`-based classes. The `QTableWidget` was replaced with a `tkinter.ttk.Treeview` styled to match the customtkinter theme.
+    - **`src/ui/dialogs.py`:** All `QDialog` classes were rewritten as `ctk.CTkToplevel` windows.
+
+3.  **Concurrency Model Refactoring:**
+    - **`src/ui/workers.py`:** All `QThread`-based workers were rewritten to use standard Python `threading.Thread`.
+    - The `Signal/Slot` communication mechanism was replaced with a thread-safe `queue.Queue`.
+    - **`src/ui/main_window.py`:** A `_process_queue` method was implemented to poll the queue every 100ms using `app.after()`, allowing for thread-safe UI updates from background workers.
+
+### Outcome
+- ✅ **Application is now launchable and stable.**
+- ✅ All `DLL load failed` errors have been **resolved**.
+- ✅ The button visibility issue reported by the user is **resolved**.
+- ✅ The UI is responsive, with background file processing working as intended.
+- ✅ The project is now on a stable foundation for further development.
+
+**Files Changed:**
+- `requirements.txt`: Replaced `PyQt6` with `customtkinter`.
+- `src/main.py`: Rewritten for `customtkinter`.
+- `src/ui/main_window.py`: Rewritten for `customtkinter`.
+- `src/ui/widgets.py`: Rewritten for `customtkinter`.
+- `src/ui/dialogs.py`: Rewritten for `customtkinter`.
+- `src/ui/workers.py`: Rewritten for standard `threading`.
+
+**Status:** UI refactoring is complete. The application is functional and ready for the next phase of development.
+
+---
+
+# Development Log
+
 ## 2025-11-13 14:00 - Project Initialization
 **Feature:** Project setup and documentation structure
 

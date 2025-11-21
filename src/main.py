@@ -1,21 +1,19 @@
 """
 LocalScribe - Main Application Entry Point
-Phase 2: PySide6 Desktop UI
+Phase 2.1: CustomTkinter UI
 
-This module initializes the PySide6 application and launches the main window.
+This module initializes the CustomTkinter application and launches the main window.
 """
 
 import sys
 import multiprocessing
+import customtkinter as ctk
 
-# CRITICAL: Import src.ai BEFORE PySide6 to avoid DirectML DLL conflicts on Windows
-# This pre-loads onnxruntime_genai before Qt/PySide6 initializes its DLLs
+# CRITICAL: Import src.ai BEFORE UI framework to avoid DirectML DLL conflicts on Windows
+# This pre-loads onnxruntime_genai before UI framework initializes
 import src.ai  # noqa: F401
 
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
 from src.ui.main_window import MainWindow
-
 
 def main():
     """
@@ -24,23 +22,13 @@ def main():
     # Enable multiprocessing support for Windows frozen executables
     multiprocessing.freeze_support()
 
-    # Enable High DPI scaling for better display on modern monitors
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
+    # Set appearance mode (light/dark/system)
+    ctk.set_appearance_mode("System")  # Options: "System", "Dark", "Light"
+    ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
-    # Create the application
-    app = QApplication(sys.argv)
-    app.setApplicationName("LocalScribe")
-    app.setOrganizationName("LocalScribe")
-    app.setApplicationVersion("2.0")
-
-    # Create and show the main window
-    window = MainWindow()
-    window.show()
-
-    # Run the application event loop
-    sys.exit(app.exec())
+    # Create and run the application
+    app = MainWindow()
+    app.mainloop()
 
 
 if __name__ == "__main__":

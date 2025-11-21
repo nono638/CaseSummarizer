@@ -23,7 +23,7 @@ The app executes a 4-step process:
 
 ### 3.1 Required Technologies
 * **Language:** Python 3.10+
-* **UI Framework:** **PySide6** (Qt for Python - LGPL-licensed for commercial use)
+* **UI Framework:** **CustomTkinter** (Modern and robust Tkinter UI library)
 * **Local AI Engine:** **`llama-cpp-python`** (to run GGUF models on CPU with streaming support)
 * **Local OCR Engine:** **Tesseract** (via `pytesseract`). Must be bundled with the application.
 * **PDF Handling:** **`pdfplumber`** (MIT license - safe for commercial use)
@@ -41,7 +41,6 @@ The app executes a 4-step process:
 ### 3.3 License Compliance
 * **Tesseract:** Apache 2.0 ✓
 * **pdfplumber:** MIT ✓
-* **PySide6:** LGPL ✓ (commercial use allowed)
 * **Gemma 2 Models:** Google's terms allow commercial use with attribution ✓
 * **Attribution requirement:** Display in About dialog: "Powered by Google Gemma 2 models"
 
@@ -740,138 +739,6 @@ def get_definition(term, cache, model, use_ai=True):
 
 **Purpose:** Display generated text in real-time so users see progress and can cancel if output is incorrect.
 
-**Implementation with PySide6 + llama-cpp:**
-
-```python
-from PySide6.QtCore import QThread, Signal
-from llama_cpp import Llama
-
-class AIWorkerThread(QThread):
-    """
-    Worker thread for AI processing with streaming output.
-    """
-    # Signals
-    token_generated = Signal(str)  # Emits each new token
-    progress_update = Signal(int, str)  # Emits (percentage, status_message)
-    finished = Signal(str)  # Emits complete output
-    error = Signal(str)  # Emits error message
-    
-    def __init__(self, model_path, prompt, max_tokens=500):
-        super().__init__()
-        self.model_path = model_path
-        self.prompt = prompt
-        self.max_tokens = max_tokens
-        self.cancelled = False
-    
-    def run(self):
-        try:
-            # Load model
-            self.progress_update.emit(0, "Loading model...")
-            llm = Llama(model_path=self.model_path, n_ctx=8192, verbose=False)
-            
-            # Generate with streaming
-            self.progress_update.emit(10, "Generating response...")
-            
-            full_response = ""
-            token_count = 0
-            
-            # Stream tokens one by one
-            for output in llm(
-                self.prompt,
-                max_tokens=self.max_tokens,
-                stream=True,
-                temperature=0.7,
-                top_p=0.9
-            ):
-                if self.cancelled:
-                    self.error.emit("Generation cancelled by user")
-                    return
-                
-                # Extract token from output
-                token = output['choices'][0]['text']
-                full_response += token
-                token_count += 1
-                
-                # Emit token for real-time display
-                self.token_generated.emit(token)
-                
-                # Update progress
-                progress_pct = min(95, int((token_count / self.max_tokens) * 100))
-                self.progress_update.emit(progress_pct, f"Generating... ({token_count} tokens)")
-            
-            # Finished
-            self.progress_update.emit(100, "Complete")
-            self.finished.emit(full_response)
-            
-        except Exception as e:
-            self.error.emit(f"Error during generation: {str(e)}")
-    
-    def cancel(self):
-        self.cancelled = True
-
-# In main window
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.worker = None
-        # ... UI setup ...
-    
-    def start_generation(self):
-        # Disable UI elements
-        self.generate_button.setEnabled(False)
-        self.cancel_button.setEnabled(True)
-        
-        # Clear previous output
-        self.summary_text_edit.clear()
-        
-        # Create worker thread
-        self.worker = AIWorkerThread(
-            model_path=self.model_path,
-            prompt=self.build_prompt(),
-            max_tokens=self.calculate_max_tokens()
-        )
-        
-        # Connect signals
-        self.worker.token_generated.connect(self.append_token)
-        self.worker.progress_update.connect(self.update_progress)
-        self.worker.finished.connect(self.on_generation_complete)
-        self.worker.error.connect(self.on_generation_error)
-        
-        # Start thread
-        self.worker.start()
-    
-    def append_token(self, token):
-        """Append token to text display in real-time."""
-        cursor = self.summary_text_edit.textCursor()
-        cursor.movePosition(cursor.End)
-        cursor.insertText(token)
-        self.summary_text_edit.setTextCursor(cursor)
-        # Auto-scroll to bottom
-        scrollbar = self.summary_text_edit.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
-    
-    def update_progress(self, percentage, message):
-        self.progress_bar.setValue(percentage)
-        self.status_label.setText(message)
-    
-    def on_generation_complete(self, full_text):
-        self.generate_button.setEnabled(True)
-        self.cancel_button.setEnabled(False)
-        self.status_label.setText("✓ Generation complete")
-        # Save to results
-        self.current_summary = full_text
-    
-    def on_generation_error(self, error_msg):
-        self.generate_button.setEnabled(True)
-        self.cancel_button.setEnabled(False)
-        QMessageBox.critical(self, "Error", error_msg)
-    
-    def cancel_generation(self):
-        if self.worker and self.worker.isRunning():
-            self.worker.cancel()
-            self.status_label.setText("Cancelling...")
-```
-
 **Benefits of Streaming:**
 * Users see immediate feedback (text appearing word-by-word)
 * Can cancel generation early if output is wrong
@@ -1106,7 +973,7 @@ if __name__ == "__main__":
 **Deliverable:** Command-line `cleaner.py` module
 
 ### Phase 2: Basic UI Shell (2 weeks)
-**Deliverable:** PySide6 main window with file selection and preprocessing integration
+**Deliverable:** CustomTkinter main window with file selection and preprocessing integration
 
 ### Phase 3: AI Integration (2-3 weeks)
 **Deliverable:** Model loading, streaming generation, summary display

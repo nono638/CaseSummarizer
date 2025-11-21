@@ -1,6 +1,13 @@
 onnxruntime-genai-directml
 huggingface-hub
 numpy<2.0
-PySide6
+customtkinter
 spacy
 nltk
+langchain-text-splitters
+langchain-experimental
+pdfplumber
+pdf2image
+pytesseract
+requests
+PyYAML

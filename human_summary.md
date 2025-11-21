@@ -1,13 +1,13 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 3 - Complete and Production-Ready:** Application fully migrated to Ollama backend with stable, reliable GUI. All critical issues fixed. Ready for production deployment.
+**Phase 2.1 - UI Refactor Complete:** Application UI has been successfully migrated from Qt (PySide6/PyQt6) to **CustomTkinter**. This has resolved all critical, system-level DLL and threading issues, resulting in a stable and functional application.
 
-**Current Branch:** `phase3-enhancements`
-**Status:** ✅ **PHASE 3 COMPLETE** - All critical issues resolved, application stable and production-ready
+**Current Branch:** `main`
+**Status:** ✅ **MAIN BRANCH: PHASE 3 MERGED** - All critical issues resolved, application stable and production-ready
 
-**Latest Session (2025-11-17 - Critical GUI Crash Fix):**
-Diagnosed and resolved the critical GUI crash that prevented summaries from being displayed after generation.
+**Latest Session (2025-11-20 - Vocabulary Extractor Implementation):**
+Implemented and tested the core logic for extracting unusual vocabulary, categorizing terms, and providing definitions for court reporters.
 
 **CRITICAL BUG FIXES (Session 2025-11-17):**
 
@@ -34,6 +34,14 @@ Created comprehensive test_ollama_workflow.py with 4 automated tests:
 - Test 3: Prompt Templates ✓ PASS (found 2 presets)
 - Test 4: Summary Generation ✓ PASS (171 words in 20.6s)
 
+**Vocabulary Extractor Verification:**
+Created tests/test_vocabulary_extractor.py with 5 automated tests:
+- test_load_word_list ✓ PASS
+- test_is_unusual ✓ PASS
+- test_get_category ✓ PASS
+- test_get_definition ✓ PASS
+- test_extract ✓ PASS
+
 All integration tests passing. **Complete workflow now functional:**
 1. Select documents → Processing
 2. Choose prompt template
@@ -42,6 +50,10 @@ All integration tests passing. **Complete workflow now functional:**
 5. User can copy to clipboard or save to file
 
 **What Works ✅:**
+- ✅ **Hierarchical Meta-Summary Generation** - Generates an overall summary from individual document summaries to handle large inputs.
+- ✅ **Summary Options UI** - Controls for generating overall (meta) and per-document summaries with configurable lengths.
+- ✅ **Vocabulary Extraction UI Integration** - A checkbox to enable CSV export of unusual terms.
+- ✅ **Keyboard Shortcut for Generate Summaries** - Ctrl+G now triggers summary generation.
 - ✅ **Ollama service integration** with REST API calls
 - ✅ **Dynamic model dropdown** populated from Ollama available models
 - ✅ **Model pull functionality** - Download new models via UI (qwen2.5:7b, llama3.2:3b, etc.)
@@ -58,15 +70,13 @@ All integration tests passing. **Complete workflow now functional:**
 - ✅ **Comprehensive error handling** with user-friendly messages
 - ✅ **Process isolation** (worker crashes don't affect GUI)
 - ✅ **Cross-platform stability** (Windows, macOS, Linux - no DLL issues)
+- ✅ **Vocabulary Extraction Module** - Extracts unusual terms, categorizes, defines them, and assigns relevance based on category and frequency.
 
 **Issues Resolved This Session (2025-11-16):**
 - ✅ **Generate Summary button** - Now enables intuitively after file selection
 - ✅ **File size/page display** - Fixed key name mismatch (pages→page_count, size_mb→file_size)
 - ⚠️ **Progress dialog responsiveness** - Improved with event loop fix, may need further refinement
 - ✅ **Signal delivery** - Fixed checkbox state change signal timing in file table
-
-**Technical Achievement:**
-Implemented complete architectural redesign using `multiprocessing.Process` instead of `QThread`. This provides true process isolation, ensuring ONNX Runtime operations cannot block the Qt event loop regardless of execution time.
 
 **Local Development:** Activate the virtual environment: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
 
@@ -81,7 +91,7 @@ Implemented complete architectural redesign using `multiprocessing.Process` inst
 - **ONNX_MIGRATION_LOG.md** - Comprehensive technical log of ONNX Runtime migration (historical reference)
 
 ### Source Code
-- **src/main.py** - Desktop GUI application entry point (imports src.ai before PySide6 for DLL fix, multiprocessing.freeze_support())
+- **src/main.py** - Desktop GUI application entry point (uses CustomTkinter).
 - **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
@@ -118,16 +128,6 @@ Implemented complete architectural redesign using `multiprocessing.Process` inst
 - **venv/** - Virtual environment (NOT in git, auto-created by session-start hook)
 - **.claude/hooks/session-start.sh** - Auto-setup script (browser only, skips on Windows)
 - **.claude/settings.local.json** - Local permissions configuration (not committed)
-
-### Git Repository
-- **Repository:** https://github.com/nono638/CaseSummarizer
-- **Current Branch:** phase3-enhancements (ready to merge)
-- **Status:** All features working, GUI issues resolved
-- **Latest PRs:**
-  - Phase 3 Enhancements (configurable summaries & threaded loading) - READY TO MERGE
-  - #10 (Phase 3 AI infrastructure) - MERGED
-  - Phase 2 (Desktop UI) - MERGED
-  - #5 (Phase 1 enhancements) - MERGED
 
 ### Claude Code Browser Environment
 - **Session-Start Hook:** Automatically installs Tesseract OCR, creates venv, installs all dependencies, downloads NLTK data
@@ -167,104 +167,18 @@ Implemented complete architectural redesign using `multiprocessing.Process` inst
 ✅ Complete documentation
 ✅ All code on GitHub
 
-## Phase 2 Accomplishments
+<h2>Phase 2.1 - UI Refactor Accomplishments</h2>
 
-### Desktop Application ✅
-✅ PySide6 main application window
-✅ Menu bar (File, Settings, Help)
-✅ File selection dialog (multi-file support)
-✅ About dialog with model attribution
+<h3>Desktop Application ✅</h3>
+✅ Refactored main application window to use CustomTkinter
+✅ Created a native-style menubar with File and Help dropdowns
+✅ File selection dialog is functional
 
-### File Review Table ✅
-✅ 7-column table (Include, Filename, Status, Method, Confidence, Pages, Size)
-✅ Color-coded status indicators (✓ Ready, ⚠ Warning, ✗ Failed)
-✅ Sortable columns
-✅ Auto-check high confidence files (≥70%)
-✅ Select/Deselect All controls
-✅ Human-readable file sizes
+<h3>UI Widgets ✅</h3>
+✅ Refactored `FileReviewTable`, `AIControlsWidget`, and `SummaryResultsWidget` to use CustomTkinter components
+✅ Integrated the new widgets into the main window layout
 
-### Processing Features ✅
-✅ Background thread processing (non-blocking UI)
-✅ Real-time progress bar and status updates
-✅ Automatic processing on file selection
-✅ Warning banner for low confidence files
-✅ Failed file dialog with detailed errors
-✅ Processing summary statistics
-
-### Integration ✅
-✅ Seamless DocumentCleaner integration
-✅ Progress callbacks displayed in UI
-✅ Qt signals/slots for thread-safe communication
-✅ Professional styling and responsive design
-
-## Phase 3 - AI Integration (COMPLETE ✅)
-
-**Status:** 100% Complete - All features working, GUI issues resolved
-
-**Completed Features:**
-- ✅ ONNX Runtime installation with DirectML (GPU acceleration)
-- ✅ ONNXModelManager with streaming generation
-- ✅ AI Controls sidebar (model selection, summary length slider)
-- ✅ Multiprocessing architecture for GUI responsiveness
-- ✅ Streaming token display with batching (15-char batches)
-- ✅ Heartbeat monitoring (5-second pulses, 15-second timeout warnings)
-- ✅ Live timestamp display ("Updated: HH:MM:SS")
-- ✅ Comprehensive error handling (worker crashes, invalid input, timeouts)
-- ✅ Background model loading with progress dialog
-- ✅ Summary results display panel
-- ✅ Generate Summaries button (works perfectly!)
-
-**Performance:**
-- Model load time: 2.3 seconds
-- 100-word summary: ~103 seconds
-- 300-word summary: ~132 seconds
-- Token generation: 3.21 tokens/sec (5.4x faster than original)
-- GUI: 100% responsive throughout
-
-**Model Status (Ollama):**
-- ✅ **Primary Model:** Qwen2.5:7b-instruct (4.7 GB)
-  - Excellent instruction-following for legal documents
-  - Good balance of quality and speed
-  - Recommended for most use cases
-- ✅ **Fallback Model:** Llama3.2:3b-instruct (2.0 GB)
-  - Faster alternative for resource-constrained machines
-  - Still maintains good instruction-following
-  - Option to switch via dropdown if needed
-- **Installation:** Models are pulled dynamically from Ollama (no manual download needed)
-- **Location:** Ollama manages models automatically in its data directory
-- **Service:** Must have Ollama service running (`ollama serve` in terminal)
-
-**To Launch GUI:**
-```bash
-# FIRST: Ensure Ollama is running in a separate terminal
-ollama serve
-
-# THEN: In another terminal, activate venv and run app
-venv\Scripts\activate   # Activate virtual environment (Windows)
-# or: source venv/bin/activate  (Mac/Linux)
-
-python -m src.main      # Launch GUI
-```
-
-**First-Time Setup Workflow:**
-1. Start Ollama service: `ollama serve` (takes ~2 seconds to startup)
-2. Start LocalScribe: `python -m src.main`
-3. App detects Ollama running, shows "Service connected ✓"
-4. Choose model from dropdown or pull new model:
-   - Select "Pull Model" input → type model name (e.g., `qwen2.5:7b-instruct`)
-   - Click "Pull Model" button (first download takes 5-10 minutes depending on model size)
-   - Model appears in dropdown once download complete
-
-**User Workflow (Once Model is Downloaded):**
-1. Select legal documents (PDF/TXT/RTF)
-2. Review processing results in file table
-3. Select model from dropdown (shows ✓ connected models)
-4. Select prompt template (Factual Summary or Strategic Analysis)
-5. Preview formatted prompt (optional - click "Show Prompt Preview")
-6. Adjust summary length slider (100-500 words)
-7. Set as default prompt for this model (optional)
-8. Click "Generate Summaries"
-9. Watch streaming text appear with live timestamps
-10. Save or copy generated summary
-
-**Status:** Application is production-ready for Phase 3 merge to main. Ollama backend provides cross-platform stability with zero DLL issues.
+<h3>Concurrency ✅</h3>
+✅ Refactored background workers to use standard Python `threading` and `queue`
+✅ UI remains responsive during background file processing
+✅ Progress updates are successfully sent from worker threads to the UI
