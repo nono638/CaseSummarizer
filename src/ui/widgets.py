@@ -478,6 +478,42 @@ class AIControlsWidget(QGroupBox):
         )
         layout.addWidget(self.length_value_label)
 
+        # New: Summary Generation Options (Meta and Individual)
+        layout.addSpacing(15)
+        summary_options_label = QLabel("<b>Summary Options:</b>")
+        layout.addWidget(summary_options_label)
+
+        # Meta-summary checkbox and length
+        self.meta_summary_checkbox = QCheckBox("Generate Overall Summary")
+        self.meta_summary_checkbox.setToolTip("Generate a single summary covering all selected documents.")
+        layout.addWidget(self.meta_summary_checkbox)
+
+        meta_length_layout = QHBoxLayout()
+        meta_length_layout.addWidget(QLabel("Overall Summary Length (words):"))
+        self.meta_summary_length_input = QSpinBox()
+        self.meta_summary_length_input.setMinimum(min_words)
+        self.meta_summary_length_input.setMaximum(max_words)
+        self.meta_summary_length_input.setValue(default_words)
+        self.meta_summary_length_input.setSingleStep(increment)
+        meta_length_layout.addWidget(self.meta_summary_length_input)
+        layout.addLayout(meta_length_layout)
+
+        # Individual summaries checkbox and length
+        self.individual_summary_checkbox = QCheckBox("Generate Per-Document Summaries")
+        self.individual_summary_checkbox.setToolTip("Generate a separate summary for each selected document.")
+        self.individual_summary_checkbox.setChecked(True) # Default to true for now, matches existing behavior
+        layout.addWidget(self.individual_summary_checkbox)
+
+        individual_length_layout = QHBoxLayout()
+        individual_length_layout.addWidget(QLabel("Per-Document Summary Length (words):"))
+        self.individual_summary_length_input = QSpinBox()
+        self.individual_summary_length_input.setMinimum(min_words)
+        self.individual_summary_length_input.setMaximum(max_words)
+        self.individual_summary_length_input.setValue(default_words)
+        self.individual_summary_length_input.setSingleStep(increment)
+        individual_length_layout.addWidget(self.individual_summary_length_input)
+        layout.addLayout(individual_length_layout)
+
         # Add stretch to push everything to top
         layout.addStretch()
 
@@ -757,6 +793,22 @@ class AIControlsWidget(QGroupBox):
         """Reset the 'Set as Default' button."""
         self.set_default_btn.setText(original_text)
         self.set_default_btn.setEnabled(True)
+
+    def get_generate_meta_summary(self) -> bool:
+        """Returns True if meta-summary generation is requested."""
+        return self.meta_summary_checkbox.isChecked()
+
+    def get_meta_summary_length(self) -> int:
+        """Returns the requested length for meta-summaries."""
+        return self.meta_summary_length_input.value()
+
+    def get_generate_individual_summaries(self) -> bool:
+        """Returns True if individual summary generation is requested."""
+        return self.individual_summary_checkbox.isChecked()
+
+    def get_individual_summary_length(self) -> int:
+        """Returns the requested length for individual summaries."""
+        return self.individual_summary_length_input.value()
 
     def pull_model_complete(self):
         """Called when model pulling is complete."""

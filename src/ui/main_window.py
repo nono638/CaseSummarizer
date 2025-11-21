@@ -51,7 +51,8 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.model_load_worker = None
         self.model_load_dialog = None
-        self.ai_worker = None
+        self.ai_worker = None # Single AI worker for meta-summary or initial phase
+        self.individual_ai_workers = [] # List for individual document summaries
 
         # AI Model Manager (Phase 3)
         self.model_manager = ModelManager()
@@ -625,6 +626,22 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Model Loaded", "Please load a model first.")
             return
 
+        # Get summary and vocabulary generation options
+        generate_vocab = self.generate_vocab_checkbox.isChecked()
+        generate_meta_summary = self.ai_controls.get_generate_meta_summary()
+        meta_summary_length = self.ai_controls.get_meta_summary_length()
+        generate_individual_summaries = self.ai_controls.get_generate_individual_summaries()
+        individual_summary_length = self.ai_controls.get_individual_summary_length()
+        preset_id = self.ai_controls.get_selected_preset_id()
+
+        if not (generate_vocab or generate_meta_summary or generate_individual_summaries):
+            QMessageBox.information(
+                self,
+                "No Actions Selected",
+                "Please select at least one action: 'Generate Vocabulary List', 'Generate Overall Summary', or 'Generate Per-Document Summaries'."
+            )
+            return
+
         # Filter processing_results to only include selected files
         # Match by file path
         selected_results = []
@@ -640,16 +657,9 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Get summary settings
-        summary_length = self.ai_controls.get_summary_length()
-        preset_id = self.ai_controls.get_selected_preset_id()
-
-        # Check if vocabulary extraction is requested
-        generate_vocab = self.generate_vocab_checkbox.isChecked()
-
         # --- Vocabulary Extraction Logic ---
         if generate_vocab:
-            self.status_bar.showMessage("Extracting vocabulary terms...")
+            self.status_bar.showMessage("Extracting vocabulary terms...", 0)
             try:
                 # Combine all cleaned text from selected documents
                 all_cleaned_text = "\n\n".join([
@@ -680,37 +690,147 @@ class MainWindow(QMainWindow):
                 # Continue with summary generation even if vocab extraction fails
                 generate_vocab = False # Prevent further attempts in this run
 
+        # --- Summary Generation Logic ---
+        if generate_meta_summary:
+            self.status_bar.showMessage(f"Generating overall summary ({meta_summary_length} words)...", 0)
+            self._generate_meta_summary(selected_results, meta_summary_length, preset_id)
+        
+        if generate_individual_summaries:
+            self.status_bar.showMessage(f"Generating individual summaries ({individual_summary_length} words)...", 0)
+            self._generate_individual_summaries(selected_results, individual_summary_length, preset_id)
+
+    def _generate_meta_summary(self, selected_results: list, summary_length: int, preset_id: str):
+        """
+        Generate a single meta-summary for all selected documents.
+        """
         # Clear previous summary
         self.summary_results.clear_summary()
-
-        # Start progress display in summary widget
         self.summary_results.start_generation(summary_length)
+        self.process_btn.setEnabled(False) # Disable button while processing
 
-        # Update UI
-        self.process_btn.setEnabled(False)
-        self.status_bar.showMessage(f"Generating {summary_length}-word summary from {len(selected_results)} file(s)...")
+        # Combine all cleaned text from selected documents
+        all_cleaned_text = "\n\n".join([
+            res['cleaned_text'] for res in selected_results if res.get('cleaned_text')
+        ])
+        
+        # Here you would typically feed the all_cleaned_text to a summarizer
+        # For now, let's mock it or adapt the existing AIWorker process
+        
+        # The existing AIWorkerProcess is designed for a list of processing results,
+        # where each result has a 'cleaned_text'. For a meta-summary, we effectively
+        # want to treat the combined text as a single document.
+        
+        # Create a dummy processing result for the combined text
+        meta_result = {
+            'file_path': 'meta_summary_combined_docs',
+            'cleaned_text': all_cleaned_text,
+            'status': 'success',
+            'filename': 'Combined Documents'
+        }
 
-        # Create and configure AI worker (platform-specific: thread-based on Windows, multiprocessing on others)
         self.ai_worker = self._create_ai_worker(
             model_manager=self.model_manager,
-            processing_results=selected_results,
+            processing_results=[meta_result], # Pass as a list of one result
             summary_length=summary_length,
             preset_id=preset_id
         )
 
-        # Store start time for timing
-        self._ai_start_time = time.time()
+        self._ai_start_time = time.time() # Need to import time again or move up
 
         # Connect signals
         self.ai_worker.progress_updated.connect(self._on_ai_progress)
-        # Re-enabled streaming token display (now uses batching to prevent freezing)
         self.ai_worker.token_generated.connect(self._on_token_generated)
         self.ai_worker.summary_complete.connect(self._on_summary_complete)
         self.ai_worker.error.connect(self._on_ai_error)
         self.ai_worker.heartbeat_lost.connect(self._on_heartbeat_lost)
+        self.ai_worker.finished.connect(self._on_ai_finished) # Make sure to re-enable button on finish
 
-        # Start worker
         self.ai_worker.start()
+
+    def _generate_individual_summaries(self, selected_results: list, summary_length: int, preset_id: str):
+        """
+        Generate individual summaries for each selected document.
+        """
+        if not selected_results:
+            return
+
+        self.status_bar.showMessage(f"Starting individual summary generation for {len(selected_results)} documents...", 0)
+        self.process_btn.setEnabled(False) # Disable button while processing
+
+        self.individual_ai_workers = [] # Clear previous workers
+        for i, result in enumerate(selected_results):
+            # Create a separate worker for each document
+            worker = self._create_ai_worker(
+                model_manager=self.model_manager,
+                processing_results=[result], # Pass single result
+                summary_length=summary_length,
+                preset_id=preset_id
+            )
+            worker.summary_complete.connect(
+                lambda summary, filename=result['filename']: self._on_individual_summary_complete(summary, filename)
+            )
+            worker.error.connect(
+                lambda error_msg, filename=result['filename']: self._on_individual_summary_error(error_msg, filename)
+            )
+            worker.finished.connect(self._on_individual_summary_finished)
+            
+            self.individual_ai_workers.append(worker)
+            worker.start()
+            self.status_bar.showMessage(f"Generating summary for {result['filename']}...", 0)
+
+        # Re-enable button when all workers are done (handled by _on_individual_summary_finished)
+
+    def _on_individual_summary_complete(self, summary: str, filename: str):
+        """Handle completed individual summary from AI worker."""
+        # For now, save individual summaries to separate files
+        self.status_bar.showMessage(f"Summary for {filename} completed. Saving...", 3000)
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"individual_summary_{Path(filename).stem}_{timestamp}.txt"
+            
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                f"Save Summary for {filename}",
+                default_filename,
+                "Text Files (*.txt);;All Files (*.*)"
+            )
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(summary)
+                QMessageBox.information(
+                    self,
+                    "Summary Saved",
+                    f"Individual summary for '{filename}' successfully saved to:\n{file_path}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Save Error",
+                f"Failed to save individual summary for '{filename}':\n{str(e)}"
+            )
+
+    def _on_individual_summary_error(self, error_message: str, filename: str):
+        """Handle errors for individual summary generation."""
+        QMessageBox.critical(
+            self,
+            "Individual Summary Generation Error",
+            f"An error occurred while generating summary for '{filename}':\n\n{error_message}"
+        )
+        self.status_bar.showMessage(f"Individual summary generation failed for {filename}")
+
+    def _on_individual_summary_finished(self):
+        """Handle cleanup when an individual AI worker finishes."""
+        # Check if all individual workers have finished
+        all_finished = True
+        for worker in self.individual_ai_workers:
+            if worker.isRunning():
+                all_finished = False
+                break
+        
+        if all_finished:
+            self.status_bar.showMessage("All individual summaries generated.", 5000)
+            self.process_btn.setEnabled(True) # Re-enable the main process button
+            self.individual_ai_workers = [] # Clear the list of workers
 
     def _save_vocabulary_csv(self, vocabulary_data):
         """
@@ -950,3 +1070,47 @@ class MainWindow(QMainWindow):
                     "2. The Ollama service typically starts automatically\n"
                     "3. If not running, you may need to start it via the menu bar or:\n"
                     f"   {start_command}\n"
+                    "4. Restart this application"
+                )
+            else:  # Linux
+                instructions = (
+                    "1. Install Ollama: curl https://ollama.ai/install.sh | sh\n"
+                    "2. Start the service:\n"
+                    f"   {start_command}\n"
+                    "3. Restart this application"
+                )
+
+            warning_text = (
+                "Ollama service is not accessible.\n\n"
+                "LocalScribe requires Ollama to be running in the background.\n\n"
+                f"{instructions}\n\n"
+                "You can continue using LocalScribe to prepare documents, "
+                "but you won't be able to generate summaries until Ollama is running."
+            )
+
+            QMessageBox.warning(
+                self,
+                "Ollama Service Not Found",
+                warning_text
+            )
+
+    def closeEvent(self, event):
+        """Handle window close event."""
+        # Stop worker thread if running
+        if self.worker and self.worker.isRunning():
+            reply = QMessageBox.question(
+                self,
+                "Processing in Progress",
+                "Document processing is still running. Are you sure you want to quit?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                self.worker.terminate()
+                self.worker.wait()
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
