@@ -15,18 +15,18 @@ from PySide6.QtGui import QAction
 import os
 import sys
 import platform
-import csv # New: For CSV writing
-from datetime import datetime # Already imported, but noting its relevance
+import csv
+from datetime import datetime
 from pathlib import Path
 
 from src.ui.widgets import FileReviewTable, AIControlsWidget, SummaryResultsWidget
-from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker, AIWorkerProcess
+from src.ui.workers import ProcessingWorker, ModelLoadWorker, AIWorker, AIWorkerProcess, MetaSummaryWorker
 from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
-from src.vocabulary_extractor import VocabularyExtractor # New: For vocabulary extraction
-from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH # New: For vocabulary extractor config
+from src.vocabulary_extractor import VocabularyExtractor
+from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH
 
 
 class MainWindow(QMainWindow):
@@ -48,11 +48,16 @@ class MainWindow(QMainWindow):
         # State
         self.selected_files = []
         self.processing_results = []
-        self.worker = None
+        self.worker = None # For document processing
         self.model_load_worker = None
         self.model_load_dialog = None
-        self.ai_worker = None # Single AI worker for meta-summary or initial phase
-        self.individual_ai_workers = [] # List for individual document summaries
+        
+        self.ai_worker = None # For individual document summaries or direct single summary
+        self.meta_summary_worker = None # For meta-summary processing
+        self.individual_summary_workers = [] # For multiple individual summary processes
+
+        self.current_summary_type = None # "meta" or "individual" or None
+        self.tasks_running = 0 # Counter for active background tasks
 
         # AI Model Manager (Phase 3)
         self.model_manager = ModelManager()
@@ -72,28 +77,13 @@ class MainWindow(QMainWindow):
     def _create_ai_worker(self, model_manager, processing_results, summary_length, preset_id):
         """
         Create the appropriate AI worker for the current platform.
-
-        On Windows, ONNX Runtime has known issues with multiprocessing DLL reinitialization.
-        This method detects the platform and uses the thread-based worker on Windows,
-        or the multiprocessing-based worker on other platforms.
-
-        Args:
-            model_manager: The ModelManager instance
-            processing_results: List of processing result dicts
-            summary_length: Target summary length in words
-            preset_id: Prompt template preset to use
-
-        Returns:
-            Either AIWorker (thread-based) or AIWorkerProcess (multiprocessing-based)
+        This is for top-level AI generation tasks, not internal meta-summary steps.
         """
         is_windows = sys.platform == 'win32' or platform.system() == 'Windows'
 
         if is_windows:
-            # On Windows, use thread-based worker to avoid ONNX Runtime multiprocessing DLL issues
-            # (WinError 1114: DLL initialization routine failed)
-            # See: https://github.com/microsoft/onnxruntime-genai/issues/...
             from src.debug_logger import debug_log
-            debug_log("\n[MAIN WINDOW] Windows detected - using thread-based AI worker to avoid DLL issues")
+            debug_log("\n[MAIN WINDOW] Windows detected - using thread-based AI worker to avoid DLL issues for direct summaries")
             return AIWorker(
                 model_manager=model_manager,
                 processing_results=processing_results,
@@ -101,10 +91,8 @@ class MainWindow(QMainWindow):
                 preset_id=preset_id
             )
         else:
-            # On non-Windows platforms (Linux, macOS), use multiprocessing for better performance
-            # since ONNX Runtime DLL issues don't apply
             from src.debug_logger import debug_log
-            debug_log("\n[MAIN WINDOW] Non-Windows platform detected - using multiprocessing AI worker")
+            debug_log("\n[MAIN WINDOW] Non-Windows platform detected - using multiprocessing AI worker for direct summaries")
             return AIWorkerProcess(
                 model_manager=model_manager,
                 processing_results=processing_results,
@@ -474,8 +462,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(
                 self,
                 "Model Pull Failed",
-                f"Could not pull model '{model_name}':\n\n{str(e)}\n\n"
-                f"Make sure Ollama service is running and the model name is correct."
+                f"Could not pull model '{model_name}':\n\n{str(e)}\n\nMake sure Ollama service is running and the model name is correct."
             )
             self.ai_controls.pull_model_complete()
 
@@ -553,8 +540,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(
             self,
             "Model Load Failed",
-            f"Failed to load the model:\n\n{error_msg}\n\n"
-            f"Please check that the model file exists in the models directory and try again."
+            f"Failed to load the model:\n\n{error_msg}\n\nPlease check that the model file exists in the models directory and try again."
         )
 
         # Update UI
@@ -657,8 +643,13 @@ class MainWindow(QMainWindow):
             )
             return
 
+        # Disable process button during generation
+        self.process_btn.setEnabled(False)
+        self.tasks_running = 0
+
         # --- Vocabulary Extraction Logic ---
         if generate_vocab:
+            self.tasks_running += 1
             self.status_bar.showMessage("Extracting vocabulary terms...", 0)
             try:
                 # Combine all cleaned text from selected documents
@@ -678,7 +669,7 @@ class MainWindow(QMainWindow):
                 # Save to CSV
                 self._save_vocabulary_csv(extracted_vocabulary)
                 
-                self.status_bar.showMessage(f"Vocabulary extracted and saved to CSV. Proceeding with summary generation...", 5000)
+                self.status_bar.showMessage(f"Vocabulary extracted and saved to CSV. Proceeding...", 5000)
                 
             except Exception as e:
                 self.status_bar.showMessage(f"Vocabulary extraction failed: {str(e)}", 5000)
@@ -687,102 +678,103 @@ class MainWindow(QMainWindow):
                     "Vocabulary Extraction Error",
                     f"An error occurred during vocabulary extraction:\n\n{str(e)}"
                 )
-                # Continue with summary generation even if vocab extraction fails
-                generate_vocab = False # Prevent further attempts in this run
+            finally:
+                self.tasks_running -= 1
+                self._check_all_tasks_finished()
 
         # --- Summary Generation Logic ---
+        # Meta summary is handled by MetaSummaryWorker, which generates its own individual summaries
         if generate_meta_summary:
-            self.status_bar.showMessage(f"Generating overall summary ({meta_summary_length} words)...", 0)
-            self._generate_meta_summary(selected_results, meta_summary_length, preset_id)
+            self.tasks_running += 1
+            self.current_summary_type = "meta"
+            self.status_bar.showMessage(f"Generating overall summary ({meta_summary_length} words)...")
+            self._generate_meta_summary(selected_results, meta_summary_length, individual_summary_length, preset_id)
         
-        if generate_individual_summaries:
-            self.status_bar.showMessage(f"Generating individual summaries ({individual_summary_length} words)...", 0)
+        # Only run individual if meta isn't handling it, or if meta is explicitly NOT selected
+        elif generate_individual_summaries: 
+            self.tasks_running += 1
+            self.current_summary_type = "individual"
+            self.status_bar.showMessage(f"Generating individual summaries ({individual_summary_length} words)...")
             self._generate_individual_summaries(selected_results, individual_summary_length, preset_id)
 
-    def _generate_meta_summary(self, selected_results: list, summary_length: int, preset_id: str):
+        self._check_all_tasks_finished() # Check if no summary tasks were started and only vocab was done
+
+
+    def _generate_meta_summary(self, selected_results: list, meta_summary_length: int, individual_summary_length: int, preset_id: str):
         """
-        Generate a single meta-summary for all selected documents.
+        Generate a single meta-summary for all selected documents using a MetaSummaryWorker.
         """
-        # Clear previous summary
         self.summary_results.clear_summary()
-        self.summary_results.start_generation(summary_length)
-        self.process_btn.setEnabled(False) # Disable button while processing
-
-        # Combine all cleaned text from selected documents
-        all_cleaned_text = "\n\n".join([
-            res['cleaned_text'] for res in selected_results if res.get('cleaned_text')
-        ])
+        self.summary_results.start_generation(meta_summary_length)
         
-        # Here you would typically feed the all_cleaned_text to a summarizer
-        # For now, let's mock it or adapt the existing AIWorker process
-        
-        # The existing AIWorkerProcess is designed for a list of processing results,
-        # where each result has a 'cleaned_text'. For a meta-summary, we effectively
-        # want to treat the combined text as a single document.
-        
-        # Create a dummy processing result for the combined text
-        meta_result = {
-            'file_path': 'meta_summary_combined_docs',
-            'cleaned_text': all_cleaned_text,
-            'status': 'success',
-            'filename': 'Combined Documents'
-        }
-
-        self.ai_worker = self._create_ai_worker(
+        self.meta_summary_worker = MetaSummaryWorker(
             model_manager=self.model_manager,
-            processing_results=[meta_result], # Pass as a list of one result
-            summary_length=summary_length,
+            selected_results=selected_results,
+            meta_summary_length=meta_summary_length,
+            individual_summary_length=individual_summary_length,
             preset_id=preset_id
         )
 
-        self._ai_start_time = time.time() # Need to import time again or move up
+        # Connect common signals
+        self.meta_summary_worker.progress_updated.connect(self._on_ai_progress)
+        self.meta_summary_worker.token_generated.connect(self._on_token_generated)
+        self.meta_summary_worker.summary_complete.connect(self._on_summary_complete) # This is for the FINAL meta-summary
+        self.meta_summary_worker.error.connect(self._on_ai_error)
+        self.meta_summary_worker.heartbeat_lost.connect(self._on_heartbeat_lost)
+        self.meta_summary_worker.finished.connect(self._on_meta_summary_finished) # Use a specific finished handler
 
-        # Connect signals
-        self.ai_worker.progress_updated.connect(self._on_ai_progress)
-        self.ai_worker.token_generated.connect(self._on_token_generated)
-        self.ai_worker.summary_complete.connect(self._on_summary_complete)
-        self.ai_worker.error.connect(self._on_ai_error)
-        self.ai_worker.heartbeat_lost.connect(self._on_heartbeat_lost)
-        self.ai_worker.finished.connect(self._on_ai_finished) # Make sure to re-enable button on finish
+        # Connect signals for individual summaries generated within the MetaSummaryWorker
+        self.meta_summary_worker.individual_summary_complete_signal.connect(self._on_meta_step_individual_summary_complete)
+        self.meta_summary_worker.individual_summary_error_signal.connect(self._on_meta_step_individual_summary_error)
 
-        self.ai_worker.start()
+        self.meta_summary_worker.start()
 
     def _generate_individual_summaries(self, selected_results: list, summary_length: int, preset_id: str):
         """
         Generate individual summaries for each selected document.
         """
         if not selected_results:
+            self.tasks_running -= 1 # No tasks actually started
+            self._check_all_tasks_finished()
             return
 
         self.status_bar.showMessage(f"Starting individual summary generation for {len(selected_results)} documents...", 0)
-        self.process_btn.setEnabled(False) # Disable button while processing
 
-        self.individual_ai_workers = [] # Clear previous workers
+        self.individual_summary_workers = [] # Clear previous workers
         for i, result in enumerate(selected_results):
             # Create a separate worker for each document
-            worker = self._create_ai_worker(
+            worker = self._create_ai_worker( # Use the top-level AI worker creator
                 model_manager=self.model_manager,
                 processing_results=[result], # Pass single result
                 summary_length=summary_length,
                 preset_id=preset_id
             )
+            # Use functools.partial to pass extra arguments
             worker.summary_complete.connect(
                 lambda summary, filename=result['filename']: self._on_individual_summary_complete(summary, filename)
             )
             worker.error.connect(
                 lambda error_msg, filename=result['filename']: self._on_individual_summary_error(error_msg, filename)
             )
-            worker.finished.connect(self._on_individual_summary_finished)
+            worker.finished.connect(self._on_individual_worker_finished)
             
-            self.individual_ai_workers.append(worker)
+            self.individual_summary_workers.append(worker)
             worker.start()
             self.status_bar.showMessage(f"Generating summary for {result['filename']}...", 0)
 
-        # Re-enable button when all workers are done (handled by _on_individual_summary_finished)
+
+    def _on_meta_step_individual_summary_complete(self, summary: str, filename: str):
+        """Handle individual summaries completed as part of the meta-summary process."""
+        # These are internal summaries, just log them for now
+        debug_log(f"[MAIN WINDOW] Meta-step: Individual summary for '{filename}' completed (len: {len(summary.split())} words)")
+
+    def _on_meta_step_individual_summary_error(self, error_message: str, filename: str):
+        """Handle errors for individual summaries completed as part of the meta-summary process."""
+        debug_log(f"[MAIN WINDOW] Meta-step: Error generating individual summary for '{filename}': {error_message}")
+        self.status_bar.showMessage(f"Meta-summary step: Failed to summarize '{filename}'", 5000)
 
     def _on_individual_summary_complete(self, summary: str, filename: str):
-        """Handle completed individual summary from AI worker."""
-        # For now, save individual summaries to separate files
+        """Handle completed individual summary from AI worker (when generated directly)."""
         self.status_bar.showMessage(f"Summary for {filename} completed. Saving...", 3000)
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -810,7 +802,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_individual_summary_error(self, error_message: str, filename: str):
-        """Handle errors for individual summary generation."""
+        """Handle errors for individual summary generation (when generated directly)."""
         QMessageBox.critical(
             self,
             "Individual Summary Generation Error",
@@ -818,19 +810,39 @@ class MainWindow(QMainWindow):
         )
         self.status_bar.showMessage(f"Individual summary generation failed for {filename}")
 
-    def _on_individual_summary_finished(self):
+    def _on_individual_worker_finished(self):
         """Handle cleanup when an individual AI worker finishes."""
-        # Check if all individual workers have finished
-        all_finished = True
-        for worker in self.individual_ai_workers:
-            if worker.isRunning():
-                all_finished = False
-                break
+        # Remove finished worker from the list
+        finished_workers_count = 0
+        for worker in self.individual_summary_workers:
+            if not worker.isRunning():
+                finished_workers_count += 1
+                worker.deleteLater() # Clean up QObject
         
-        if all_finished:
+        self.individual_summary_workers = [worker for worker in self.individual_summary_workers if worker.isRunning()]
+
+        if not self.individual_summary_workers: # All individual workers finished
+            self.tasks_running -= 1
+            self.current_summary_type = None
             self.status_bar.showMessage("All individual summaries generated.", 5000)
-            self.process_btn.setEnabled(True) # Re-enable the main process button
-            self.individual_ai_workers = [] # Clear the list of workers
+            self._check_all_tasks_finished()
+
+    @Slot()
+    def _on_meta_summary_finished(self):
+        """Handle cleanup after MetaSummaryWorker finishes."""
+        if self.meta_summary_worker:
+            self.meta_summary_worker.deleteLater()
+            self.meta_summary_worker = None
+        self.tasks_running -= 1
+        self.current_summary_type = None
+        self.status_bar.showMessage("Overall summary generation complete.", 5000)
+        self._check_all_tasks_finished()
+
+    def _check_all_tasks_finished(self):
+        """Re-enables process button if all background tasks are complete."""
+        if self.tasks_running <= 0:
+            self.process_btn.setEnabled(True)
+            self.status_bar.showMessage("Ready", 5000)
 
     def _save_vocabulary_csv(self, vocabulary_data):
         """
@@ -873,6 +885,9 @@ class MainWindow(QMainWindow):
                     "Save Error",
                     f"Failed to save vocabulary list:\n{str(e)}"
                 )
+        self.tasks_running -= 1 # Vocab saving is a blocking operation, so decrement here
+        self._check_all_tasks_finished()
+
 
     @Slot(str)
     def _on_ai_progress(self, message: str):
@@ -882,11 +897,13 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def _on_token_generated(self, token: str):
         """Handle streaming tokens from AI worker."""
-        self.summary_results.append_token(token)
+        # Only update the main summary widget if it's the meta-summary
+        if self.current_summary_type == "meta":
+            self.summary_results.append_token(token)
 
     @Slot(str)
     def _on_summary_complete(self, summary: str):
-        """Handle completed summary from AI worker."""
+        """Handle completed summary from AI worker (meta-summary)."""
         import time
         import traceback
 
@@ -902,11 +919,16 @@ class MainWindow(QMainWindow):
             print("[MAIN WINDOW] Progress indicator hidden")
 
             # Calculate generation time
-            if hasattr(self, '_ai_start_time'):
-                elapsed = time.time() - self._ai_start_time
+            # For meta-summary, _ai_start_time is set by the worker itself
+            if hasattr(self.meta_summary_worker, '_ai_start_time') and self.meta_summary_worker._ai_start_time:
+                elapsed = time.time() - self.meta_summary_worker._ai_start_time
                 print(f"[MAIN WINDOW] Setting generation time: {elapsed:.1f}s")
                 self.summary_results.set_generation_time(elapsed)
                 print("[MAIN WINDOW] Generation time set")
+            else:
+                 # Fallback if _ai_start_time is not accessible (e.g., direct AIWorker)
+                 self.summary_results.set_generation_time(time.time() - self._ai_start_time)
+
 
             # Update status
             word_count = len(summary.split())
@@ -917,13 +939,6 @@ class MainWindow(QMainWindow):
             print("[MAIN WINDOW] Status bar updated")
 
             debug_log(f"[MAIN WINDOW] Summary displayed to user: {word_count} words")
-
-            # Re-enable process button and cleanup
-            print("[MAIN WINDOW] Re-enabling process button...")
-            self.process_btn.setEnabled(True)
-            if self.ai_worker:
-                self.ai_worker.deleteLater()
-                self.ai_worker = None
             print("[MAIN WINDOW] Summary complete handler finished successfully")
 
         except Exception as e:
@@ -935,7 +950,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_ai_error(self, error_message: str):
-        """Handle errors from AI worker."""
+        """Handle errors from AI worker (meta-summary or direct individual summary)."""
         # Hide progress indicator
         self.summary_results.hide_progress()
 
@@ -946,11 +961,19 @@ class MainWindow(QMainWindow):
         )
         self.status_bar.showMessage("Summary generation failed")
 
-        # Re-enable process button and cleanup
-        self.process_btn.setEnabled(True)
-        if self.ai_worker:
-            self.ai_worker.deleteLater()
-            self.ai_worker = None
+        # Decrement task counter and re-enable button
+        if self.current_summary_type == "meta":
+            self.tasks_running -= 1
+            if self.meta_summary_worker:
+                self.meta_summary_worker.deleteLater()
+                self.meta_summary_worker = None
+        elif self.current_summary_type == "individual":
+            # Error for individual summary will be handled by _on_individual_summary_error
+            pass # No direct cleanup for self.ai_worker here if it was for individual_summary_workers
+        
+        self.current_summary_type = None
+        self._check_all_tasks_finished()
+
 
     @Slot()
     def _on_heartbeat_lost(self):
@@ -961,27 +984,49 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _on_ai_finished(self):
-        """Clean up after AI worker finishes."""
-        # Re-enable process button
-        self.process_btn.setEnabled(True)
-
-        # Clean up worker
-        if self.ai_worker:
+        """Clean up after AI worker finishes (for single direct AIWorkerProcess)."""
+        # This is primarily for a direct AIWorkerProcess instance.
+        # MetaSummaryWorker and individual_summary_workers have specific finished handlers.
+        if self.current_summary_type is None and self.ai_worker: # Only for direct AIWorkerProcess that's not part of a chain
+            self.tasks_running -= 1
             self.ai_worker.deleteLater()
             self.ai_worker = None
+            self._check_all_tasks_finished()
+
 
     @Slot()
     def cancel_ai_generation(self):
         """Cancel the current AI generation."""
-        if self.ai_worker and self.ai_worker.isRunning():
-            # Stop the worker
+        # Cancel meta-summary worker if active
+        if self.meta_summary_worker and self.meta_summary_worker.process and self.meta_summary_worker.process.is_alive():
+            self.meta_summary_worker.stop()
+            self.status_bar.showMessage("Overall summary generation cancelled by user", 3000)
+            self.summary_results.hide_progress()
+            self.tasks_running = 0 # Reset tasks
+            self.current_summary_type = None
+            self._check_all_tasks_finished()
+        # Cancel individual summary workers if active
+        elif self.individual_summary_workers:
+            for worker in self.individual_summary_workers:
+                if worker.process and worker.process.is_alive():
+                    worker.stop()
+            self.individual_summary_workers = []
+            self.status_bar.showMessage("Individual summary generation cancelled by user", 3000)
+            self.summary_results.hide_progress()
+            self.tasks_running = 0 # Reset tasks
+            self.current_summary_type = None
+            self._check_all_tasks_finished()
+        # Cancel a single direct AIWorker
+        elif self.ai_worker and self.ai_worker.isRunning():
             self.ai_worker.stop()
-
-            # Update UI
             self.status_bar.showMessage("Summary generation cancelled by user", 3000)
+            self.summary_results.hide_progress()
+            self.tasks_running = 0 # Reset tasks
+            self.current_summary_type = None
+            self._check_all_tasks_finished()
+        else:
+            self.status_bar.showMessage("No AI generation is currently active.", 3000)
 
-            # Note: The worker will emit finished signal when it stops,
-            # which will trigger _on_ai_finished() to clean up
 
     @Slot(str)
     def save_summary(self, summary_text: str):

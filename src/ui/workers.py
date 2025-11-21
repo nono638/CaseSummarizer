@@ -38,7 +38,7 @@ class ModelLoadWorker(QThread):
     model loading is a blocking operation.
 
     The key improvement: Uses a separate timer thread to emit progress
-    signals during the blocking load_model() call, preventing UI freezing.
+    signals every 100ms while load_model() is blocking.
 
     Signals:
         progress: Emitted every 100ms with elapsed time (float seconds)
@@ -833,7 +833,7 @@ class AIWorkerProcess(QObject):
             generation_time = time.time() - self.start_time
 
             debug_log(f"[AIWorkerProcess] Generation complete!")
-            debug_log(f"[AIWorkerProcess] Words: {word_count}, Tokens: {token_count}")
+            debug_log(f"[AIWorkerProcess] Words: {word_count}, Approximate tokens: {token_count}")
             debug_log(f"[AIWorkerProcess] Time: {generation_time:.1f}s")
 
             self.progress_updated.emit(f"Summary complete ({word_count} words)")
@@ -1042,3 +1042,188 @@ class AIWorkerProcess(QObject):
                 debug_log("[AIWorkerProcess] Force killing worker process")
                 self.process.kill()
 
+
+# ============================================================================
+# META SUMMARY WORKER (Iterative/Hierarchical Summarization)
+# ============================================================================
+
+def meta_summary_worker_process(
+    model_name: str,
+    selected_results: list,
+    meta_summary_length: int,
+    individual_summary_length: int,
+    output_queue,
+    preset_id: str,
+    heartbeat_interval: float = 5.0,
+    batch_size: int = 15,
+    batch_timeout: float = 0.5
+):
+    """
+    Standalone worker function that runs in a separate process for Meta-Summary generation.
+    It performs iterative/hierarchical summarization.
+
+    Args:
+        model_name: Name of the model being used
+        selected_results: List of processing result dicts, each containing 'cleaned_text'
+        meta_summary_length: Target length for the final meta-summary
+        individual_summary_length: Target length for each individual summary
+        output_queue: multiprocessing.Queue for sending messages back to GUI
+        preset_id: Prompt template preset to use
+    """
+    import sys
+    import os
+    import time
+    import datetime
+
+    worker_dir = Path(__file__).parent.parent.parent
+    if str(worker_dir) not in sys.path:
+        sys.path.insert(0, str(worker_dir))
+
+    try:
+        debug_log("\n[META-WORKER PROCESS] Starting Meta-Summary worker...")
+        output_queue.put({'type': 'heartbeat', 'data': 'alive', 'timestamp': time.time()})
+
+        from src.ai.ollama_model_manager import OllamaModelManager
+        model_manager = OllamaModelManager()
+        if not model_manager.is_model_loaded():
+            raise RuntimeError(f"Ollama service not accessible at {model_manager.api_base}.")
+
+        individual_summaries = []
+        total_documents = len(selected_results)
+
+        # Step 1: Generate individual summaries
+        output_queue.put({'type': 'status', 'data': f"Generating individual summaries for {total_documents} documents..."})
+        for i, result in enumerate(selected_results):
+            filename = result.get('filename', f"Document {i+1}")
+            output_queue.put({'type': 'status', 'data': f"Summarizing '{filename}' ({i+1}/{total_documents})..."})
+
+            try:
+                individual_summary = model_manager.generate_summary(
+                    case_text=result['cleaned_text'],
+                    max_words=individual_summary_length,
+                    preset_id=preset_id
+                )
+                if individual_summary:
+                    individual_summaries.append(f"--- Summary of {filename} ---\n{individual_summary}\n\n")
+                    output_queue.put({'type': 'individual_summary_complete', 'summary': individual_summary, 'filename': filename})
+                else:
+                    debug_log(f"[META-WORKER] WARNING: Empty individual summary for {filename}")
+                    output_queue.put({'type': 'individual_summary_error', 'error': f"Empty summary for {filename}", 'filename': filename})
+            except Exception as e:
+                debug_log(f"[META-WORKER] ERROR summarizing {filename}: {e}")
+                output_queue.put({'type': 'individual_summary_error', 'error': str(e), 'filename': filename})
+            
+            output_queue.put({'type': 'heartbeat', 'data': 'alive', 'timestamp': time.time()})
+
+        if not individual_summaries:
+            raise RuntimeError("No individual summaries were successfully generated for meta-summary.")
+
+        # Step 2: Combine individual summaries for meta-summarization
+        combined_individual_summaries = "\n".join(individual_summaries)
+        output_queue.put({'type': 'status', 'data': "Combining individual summaries for overall summary..."})
+        output_queue.put({'type': 'heartbeat', 'data': 'alive', 'timestamp': time.time()})
+
+        # Step 3: Generate the final meta-summary
+        output_queue.put({'type': 'status', 'data': f"Generating overall summary ({meta_summary_length} words)..."})
+        final_meta_summary = model_manager.generate_summary(
+            case_text=combined_individual_summaries,
+            max_words=meta_summary_length,
+            preset_id=preset_id
+        )
+
+        if not final_meta_summary:
+            raise RuntimeError("Empty overall summary returned!")
+
+        # Step 4: Send the final meta-summary (streaming simulation)
+        char_pos = 0
+        while char_pos < len(final_meta_summary):
+            batch_end = min(char_pos + batch_size, len(final_meta_summary))
+            batch_text = final_meta_summary[char_pos:batch_end]
+            output_queue.put({'type': 'token', 'data': batch_text, 'buffer_size': len(batch_text)})
+            char_pos = batch_end
+            time.sleep(0.01) # Small delay
+            output_queue.put({'type': 'heartbeat', 'data': 'alive', 'timestamp': time.time()})
+
+        word_count = len(final_meta_summary.split())
+        output_queue.put({
+            'type': 'complete',
+            'data': final_meta_summary.strip(),
+            'word_count': word_count,
+            'token_count': word_count # Approximate
+        })
+
+    except Exception as e:
+        error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        debug_log(f"[META-WORKER PROCESS] ERROR: {error_msg}\n{error_traceback}")
+        output_queue.put({'type': 'error', 'data': error_msg, 'traceback': error_traceback})
+    finally:
+        output_queue.put({'type': 'shutdown'})
+        debug_log("[META-WORKER PROCESS] Worker process shutting down")
+
+
+class MetaSummaryWorker(AIWorkerProcess): # Inherit from AIWorkerProcess for common functionality
+    """
+    Multiprocessing-based worker for generating a meta-summary via iterative summarization.
+    """
+    # Signals are inherited, but can be customized or extended if needed
+    # progress_updated = Signal(str)
+    # token_generated = Signal(str)
+    # summary_complete = Signal(str)
+    # error = Signal(str)
+    # heartbeat_lost = Signal()
+
+    def __init__(self, model_manager, selected_results, meta_summary_length, individual_summary_length, preset_id):
+        super().__init__(model_manager, selected_results, meta_summary_length, preset_id) # Reuse parent init
+
+        self.selected_results = selected_results
+        self.meta_summary_length = meta_summary_length
+        self.individual_summary_length = individual_summary_length
+        self.preset_id = preset_id
+
+    def start(self):
+        """Start the worker process for meta-summary generation."""
+        self.start_time = time.time()
+        self._is_running = True
+
+        try:
+            model_name = self.model_manager.current_model_name or 'standard'
+
+            debug_log(f"\n[MetaSummaryWorker] Starting meta-summary generation process...")
+            debug_log(f"[MetaSummaryWorker] Model: {model_name}")
+            debug_log(f"[MetaSummaryWorker] Individual summary length: {self.individual_summary_length} words")
+            debug_log(f"[MetaSummaryWorker] Meta summary length: {self.meta_summary_length} words")
+            debug_log(f"[MetaSummaryWorker] Preset ID: {self.preset_id}")
+            debug_log(f"[MetaSummaryWorker] Documents to process: {len(self.selected_results)}")
+
+            self.queue = multiprocessing.Queue()
+            self.process = multiprocessing.Process(
+                target=meta_summary_worker_process,
+                args=(
+                    model_name,
+                    self.selected_results,
+                    self.meta_summary_length,
+                    self.individual_summary_length,
+                    self.queue,
+                    self.preset_id
+                ),
+                daemon=True
+            )
+            self.process.start()
+            debug_log(f"[MetaSummaryWorker] Worker process started (PID: {self.process.pid})")
+
+            self.progress_updated.emit("Starting meta-summary worker process...")
+
+            self.poll_timer = QTimer()
+            self.poll_timer.timeout.connect(self._poll_queue)
+            self.poll_timer.start(100)
+
+            self.last_heartbeat_time = time.time()
+            self.heartbeat_check_timer = QTimer()
+            self.heartbeat_check_timer.timeout.connect(self._check_heartbeat)
+            self.heartbeat_check_timer.start(2000)
+
+        except Exception as e:
+            error_msg = f"Failed to start meta-summary worker process: {str(e)}"
+            debug_log(f"[MetaSummaryWorker] ERROR: {error_msg}")
+            self.error.emit(error_msg)
