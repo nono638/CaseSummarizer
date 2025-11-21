@@ -88,39 +88,89 @@ class VocabularyExtractor:
         Extracts unusual vocabulary, categorizes, and provides definitions.
         """
         doc = self.nlp(text)
-        vocabulary = []
-        seen_terms = set()
+        
+        extracted_terms_prelim = [] # To store (term_text, category, frequency_key, ent_type_for_category)
+        term_frequencies = defaultdict(int)
 
+        # First pass: Extract all potential terms and count their frequencies
         # Extract named entities first
         for ent in doc.ents:
             # Prioritize multi-word entities if they are proper nouns
             if ent.label_ in ["PERSON", "ORG", "GPE", "LOC"]:
                 term_text = ent.text
-                if term_text.lower() not in self.exclude_list and term_text.lower() not in seen_terms:
-                    # Pass ent.label_ to _is_unusual for proper noun check
-                    if self._is_unusual(ent.root, ent_type=ent.label_): # ent.root is a token
-                        category = self._get_category(ent.root, ent_type=ent.label_) # Pass ent_type to _get_category
-                        if category:
-                            vocabulary.append({
-                                "Term": term_text,
-                                "Category": category,
-                                "Relevance to Case": "High", # Placeholder, will be refined
-                                "Definition": self._get_definition(term_text)
-                            })
-                            seen_terms.add(term_text.lower())
+                if term_text.lower() not in self.exclude_list:
+                    term_frequencies[term_text.lower()] += 1
+                    extracted_terms_prelim.append({
+                        "Term": term_text,
+                        "ent_type": ent.label_, # Use ent.label_ for category in second pass
+                        "frequency_key": term_text.lower() # Key for frequency counting
+                    })
         
         # Extract unusual single tokens not already covered by multi-word entities
         for token in doc:
-            # Pass token.ent_type_ to _is_unusual for proper noun check
-            if self._is_unusual(token, ent_type=token.ent_type_) and token.text.lower() not in seen_terms:
-                category = self._get_category(token, ent_type=token.ent_type_) # Pass ent_type_ here too for consistency
-                if category:
-                    vocabulary.append({
-                        "Term": token.text,
-                        "Category": category,
-                        "Relevance to Case": "Medium", # Placeholder, will be refined
-                        "Definition": self._get_definition(token.text)
+            if self._is_unusual(token, ent_type=token.ent_type_):
+                term_text = token.text
+                
+                # Check if this token is already part of a multi-word entity extracted
+                is_part_of_entity = False
+                for ent in doc.ents:
+                    if ent.start <= token.i < ent.end and ent.text.lower() in term_frequencies:
+                        is_part_of_entity = True
+                        break
+                
+                if not is_part_of_entity and term_text.lower() not in self.exclude_list:
+                    term_frequencies[term_text.lower()] += 1
+                    extracted_terms_prelim.append({
+                        "Term": term_text,
+                        "ent_type": token.ent_type_, # Use token.ent_type_ for category in second pass
+                        "frequency_key": term_text.lower()
                     })
-                    seen_terms.add(token.text.lower())
+
+        vocabulary = []
+        seen_terms_final = set()
+
+        # Second pass: Process unique terms, assign relevance, and definitions
+        for item in extracted_terms_prelim:
+            term = item["Term"]
+            lower_term = term.lower()
+            ent_type_for_category = item["ent_type"]
+            
+            if lower_term in seen_terms_final:
+                continue # Skip duplicates that might arise from different extraction paths
+
+            # Determine category based on new _get_category which now expects ent_type as string
+            category = self._get_category(self.nlp(term)[0], ent_type=ent_type_for_category) 
+            
+            # Skip if category is None (e.g., DATE, TIME entities)
+            if category is None:
+                continue
+
+            frequency = term_frequencies[lower_term]
+            relevance = "Low" # Default
+
+            if category in ["Proper Noun (Person)", "Proper Noun (Organization)", "Proper Noun (Location)"]:
+                relevance = "High"
+                if frequency > 1: # Boost proper nouns if they appear multiple times
+                    relevance = "Very High"
+            elif category == "Medical Term":
+                relevance = "Medium"
+                if frequency >= 2: # Appears more than once
+                    relevance = "High"
+            elif category == "Acronym":
+                relevance = "Medium"
+                if frequency >= 2: # Appears more than once
+                    relevance = "High"
+            elif category == "Technical Term":
+                relevance = "Low"
+                if frequency >= 3: # Appears multiple times
+                    relevance = "Medium"
+
+            vocabulary.append({
+                "Term": term,
+                "Category": category,
+                "Relevance to Case": relevance,
+                "Definition": self._get_definition(term)
+            })
+            seen_terms_final.add(lower_term)
         
         return vocabulary

@@ -89,7 +89,6 @@ def test_get_category(extractor):
     
     # Acronym
     token_ct = doc[14] # CT
-    print(f"\nDebug: token_ct.text = '{token_ct.text}', token_ct.ent_type_ = '{token_ct.ent_type_}'")
     assert extractor._get_category(token_ct, ent_type=token_ct.ent_type_) == "Acronym"
 
     # Known medical term
@@ -111,10 +110,10 @@ def test_extract(extractor):
     
     vocabulary = extractor.extract(test_text)
     
-    # Expected terms (case-insensitive for comparison)
-    expected_terms = {
+    # Expected terms (case-insensitive for comparison) for single occurrence
+    expected_terms_single = {
         "john doe": {"Category": "Proper Noun (Person)", "Relevance to Case": "High"},
-        "cardiomyopathy": {"Category": "Medical Term", "Relevance to Case": "Medium"}, # Assuming 'cardiomyopathy' is in medical_terms
+        "cardiomyopathy": {"Category": "Medical Term", "Relevance to Case": "Medium"},
         "jane smith": {"Category": "Proper Noun (Person)", "Relevance to Case": "High"},
         "mayo clinic": {"Category": "Proper Noun (Organization)", "Relevance to Case": "High"},
         "ct": {"Category": "Acronym", "Relevance to Case": "Medium"},
@@ -122,9 +121,10 @@ def test_extract(extractor):
 
     found_terms = {item["Term"].lower(): item for item in vocabulary}
 
-    for term, expected_data in expected_terms.items():
+    for term, expected_data in expected_terms_single.items():
         assert term in found_terms, f"Term '{term}' not found in extracted vocabulary"
         assert found_terms[term]["Category"] == expected_data["Category"]
+        assert found_terms[term]["Relevance to Case"] == expected_data["Relevance to Case"]
         # Definition should not be N/A for known words
         if found_terms[term]["Definition"] == "N/A" and term not in ["ct", "john doe", "jane smith", "mayo clinic"]: # Proper nouns and acronyms might not have WordNet definitions
             pytest.fail(f"Definition for '{term}' should not be N/A")
@@ -134,7 +134,14 @@ def test_extract(extractor):
     assert "court" not in found_terms
     assert "verdict" not in found_terms
 
-    # Check that duplicates are handled
-    test_text_dup = "Cardiomyopathy is a serious condition. The patient had cardiomyopathy."
+    # Check that duplicates are handled and relevance is boosted
+    test_text_dup = "Cardiomyopathy is a serious condition. The patient had cardiomyopathy. Also, cardiomyopathy can be genetic."
     vocabulary_dup = extractor.extract(test_text_dup)
-    assert sum(1 for item in vocabulary_dup if item["Term"].lower() == "cardiomyopathy") == 1
+    
+    # Expected for duplicated term: cardiomyopathy
+    found_cardiomyopathy = next((item for item in vocabulary_dup if item["Term"].lower() == "cardiomyopathy"), None)
+    assert found_cardiomyopathy is not None
+    assert found_cardiomyopathy["Category"] == "Medical Term"
+    assert found_cardiomyopathy["Relevance to Case"] == "High" # Appears 3 times
+    assert found_cardiomyopathy["Definition"] != "N/A" # Should have a definition
+    assert sum(1 for item in vocabulary_dup if item["Term"].lower() == "cardiomyopathy") == 1 # Still only one entry

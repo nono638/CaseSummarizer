@@ -48,3 +48,14 @@
     *   `src/ui/main_window.py`
     *   `src/ui/widgets.py`
 *   **Next:** Refine "Relevance to Case" logic.
+
+### 2025-11-20 - Feature: Vocabulary Extractor - Relevance Refinement
+
+*   **Action:** Refined the "Relevance to Case" logic within the `VocabularyExtractor` module.
+    *   Implemented term frequency counting.
+    *   Assigned relevance levels ("Very High", "High", "Medium", "Low") based on a combination of term category (Proper Noun, Medical Term, Acronym, Technical Term) and frequency within the processed text.
+*   **Module(s) Modified:**
+    *   `src/vocabulary_extractor.py`
+    *   `tests/test_vocabulary_extractor.py` (updated expected relevance values)
+*   **Verification:** All 5 tests in `tests/test_vocabulary_extractor.py` passed successfully.
+*   **Next:** Implement Meta-Summary Logic.
