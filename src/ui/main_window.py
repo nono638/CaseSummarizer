@@ -8,13 +8,15 @@ Main application window with file selection, processing, and results display.
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QProgressBar, QFileDialog,
-    QMessageBox, QStatusBar, QMenuBar
+    QMessageBox, QStatusBar, QMenuBar, QCheckBox
 )
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction
 import os
 import sys
 import platform
+import csv # New: For CSV writing
+from datetime import datetime # Already imported, but noting its relevance
 from pathlib import Path
 
 from src.ui.widgets import FileReviewTable, AIControlsWidget, SummaryResultsWidget
@@ -23,6 +25,8 @@ from src.ui.dialogs import ModelLoadProgressDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
+from src.vocabulary_extractor import VocabularyExtractor # New: For vocabulary extraction
+from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH # New: For vocabulary extractor config
 
 
 class MainWindow(QMainWindow):
@@ -118,6 +122,13 @@ class MainWindow(QMainWindow):
         select_files_action.setShortcut("Ctrl+O")
         select_files_action.triggered.connect(self.select_files)
         file_menu.addAction(select_files_action)
+
+        file_menu.addSeparator()
+
+        generate_summaries_action = QAction("&Generate Summaries", self)
+        generate_summaries_action.setShortcut("Ctrl+G")
+        generate_summaries_action.triggered.connect(self.process_with_ai)
+        file_menu.addAction(generate_summaries_action)
 
         file_menu.addSeparator()
 
@@ -220,6 +231,11 @@ class MainWindow(QMainWindow):
         self.deselect_all_btn.clicked.connect(self.file_table.deselect_all)
         self.deselect_all_btn.setEnabled(False)
         controls_layout.addWidget(self.deselect_all_btn)
+
+        # New: Generate Vocabulary Checkbox
+        self.generate_vocab_checkbox = QCheckBox("Generate Vocabulary List (CSV)")
+        self.generate_vocab_checkbox.setToolTip("Extract unusual terms, proper nouns, medical terms, and acronyms into a CSV file.")
+        controls_layout.addWidget(self.generate_vocab_checkbox)
 
         controls_layout.addStretch()
 
@@ -628,6 +644,42 @@ class MainWindow(QMainWindow):
         summary_length = self.ai_controls.get_summary_length()
         preset_id = self.ai_controls.get_selected_preset_id()
 
+        # Check if vocabulary extraction is requested
+        generate_vocab = self.generate_vocab_checkbox.isChecked()
+
+        # --- Vocabulary Extraction Logic ---
+        if generate_vocab:
+            self.status_bar.showMessage("Extracting vocabulary terms...")
+            try:
+                # Combine all cleaned text from selected documents
+                all_cleaned_text = "\n\n".join([
+                    res['cleaned_text'] for res in selected_results if res.get('cleaned_text')
+                ])
+                
+                # Instantiate VocabularyExtractor
+                vocab_extractor = VocabularyExtractor(
+                    exclude_list_path=LEGAL_EXCLUDE_LIST_PATH,
+                    medical_terms_path=MEDICAL_TERMS_LIST_PATH
+                )
+                
+                # Extract vocabulary
+                extracted_vocabulary = vocab_extractor.extract(all_cleaned_text)
+                
+                # Save to CSV
+                self._save_vocabulary_csv(extracted_vocabulary)
+                
+                self.status_bar.showMessage(f"Vocabulary extracted and saved to CSV. Proceeding with summary generation...", 5000)
+                
+            except Exception as e:
+                self.status_bar.showMessage(f"Vocabulary extraction failed: {str(e)}", 5000)
+                QMessageBox.critical(
+                    self,
+                    "Vocabulary Extraction Error",
+                    f"An error occurred during vocabulary extraction:\n\n{str(e)}"
+                )
+                # Continue with summary generation even if vocab extraction fails
+                generate_vocab = False # Prevent further attempts in this run
+
         # Clear previous summary
         self.summary_results.clear_summary()
 
@@ -659,6 +711,48 @@ class MainWindow(QMainWindow):
 
         # Start worker
         self.ai_worker.start()
+
+    def _save_vocabulary_csv(self, vocabulary_data):
+        """
+        Saves the extracted vocabulary data to a CSV file.
+        """
+        if not vocabulary_data:
+            self.status_bar.showMessage("No vocabulary data to save.", 3000)
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"extracted_vocabulary_{timestamp}.csv"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Vocabulary List",
+            default_filename,
+            "CSV Files (*.csv);;All Files (*.*)"
+        )
+
+        if file_path:
+            try:
+                with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    fieldnames = ["Term", "Category", "Relevance to Case", "Definition"]
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                    writer.writeheader()
+                    for row in vocabulary_data:
+                        writer.writerow(row)
+                
+                self.status_bar.showMessage(f"Vocabulary list saved to {os.path.basename(file_path)}", 5000)
+                QMessageBox.information(
+                    self,
+                    "Vocabulary Saved",
+                    f"Vocabulary list successfully saved to:\n{file_path}"
+                )
+            except Exception as e:
+                self.status_bar.showMessage(f"Failed to save vocabulary list: {str(e)}", 5000)
+                QMessageBox.critical(
+                    self,
+                    "Save Error",
+                    f"Failed to save vocabulary list:\n{str(e)}"
+                )
 
     @Slot(str)
     def _on_ai_progress(self, message: str):
@@ -856,47 +950,3 @@ class MainWindow(QMainWindow):
                     "2. The Ollama service typically starts automatically\n"
                     "3. If not running, you may need to start it via the menu bar or:\n"
                     f"   {start_command}\n"
-                    "4. Restart this application"
-                )
-            else:  # Linux
-                instructions = (
-                    "1. Install Ollama: curl https://ollama.ai/install.sh | sh\n"
-                    "2. Start the service:\n"
-                    f"   {start_command}\n"
-                    "3. Restart this application"
-                )
-
-            warning_text = (
-                "Ollama service is not accessible.\n\n"
-                "LocalScribe requires Ollama to be running in the background.\n\n"
-                f"{instructions}\n\n"
-                "You can continue using LocalScribe to prepare documents, "
-                "but you won't be able to generate summaries until Ollama is running."
-            )
-
-            QMessageBox.warning(
-                self,
-                "Ollama Service Not Found",
-                warning_text
-            )
-
-    def closeEvent(self, event):
-        """Handle window close event."""
-        # Stop worker thread if running
-        if self.worker and self.worker.isRunning():
-            reply = QMessageBox.question(
-                self,
-                "Processing in Progress",
-                "Document processing is still running. Are you sure you want to quit?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-
-            if reply == QMessageBox.Yes:
-                self.worker.terminate()
-                self.worker.wait()
-                event.accept()
-            else:
-                event.ignore()
-        else:
-            event.accept()
