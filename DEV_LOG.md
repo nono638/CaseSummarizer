@@ -37,3 +37,14 @@
     *   `src/ui/main_window.py`
     *   `src/config.py` (added paths for exclude and medical terms lists)
 *   **Next:** Refine "Relevance to Case" logic and implement meta-summary options.
+
+### 2025-11-20 - UI Integration: Summary Options
+
+*   **Action:** Added UI controls for meta-summary and individual summary generation.
+    *   Added checkboxes and length input spinboxes to `AIControlsWidget` for "Generate Overall Summary" and "Generate Per-Document Summaries".
+    *   Refactored `process_with_ai` to retrieve these settings and delegate to new helper methods (`_generate_meta_summary`, `_generate_individual_summaries`).
+    *   Implemented placeholder logic for `_generate_meta_summary` and `_generate_individual_summaries`.
+*   **Module(s) Modified:**
+    *   `src/ui/main_window.py`
+    *   `src/ui/widgets.py`
+*   **Next:** Refine "Relevance to Case" logic.
