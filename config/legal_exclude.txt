@@ -1,0 +1,111 @@
+preponderance
+deliberations
+summations
+verdict
+plaintiff
+defendant
+complaint
+motion
+discovery
+deposition
+interrogatory
+affidavit
+subpoena
+objection
+sustained
+overruled
+hearsay
+admissible
+inadmissible
+evidence
+testimony
+witness
+judge
+jury
+counsel
+attorney
+lawyer
+court
+case
+appeal
+brief
+contract
+tort
+negligence
+liability
+damages
+injunction
+settlement
+litigation
+jurisdiction
+venue
+statute
+regulation
+ordinance
+precedent
+stare decisis
+certiorari
+habeas corpus
+pro se
+pro bono
+voir dire
+peremptory challenge
+indictment
+arraignment
+bail
+parole
+probation
+acquittal
+conviction
+sentence
+incarceration
+capital punishment
+due process
+equal protection
+first amendment
+fourth amendment
+fifth amendment
+sixth amendment
+eighth amendment
+fourteenth amendment
+ Miranda rights
+double jeopardy
+self-incrimination
+cross-examination
+direct examination
+re-direct examination
+re-cross examination
+opening statement
+closing argument
+burden of proof
+beyond a reasonable doubt
+res ipsa loquitur
+respondeat superior
+force majeure
+caveat emptor
+ad litem
+amicus curiae
+de facto
+de jure
+ergo
+et al
+et seq
+ex parte
+in camera
+in limine
+inter alia
+ipso facto
+lis pendens
+mala fide
+mens rea
+modus operandi
+nolo contendere
+non sequitur
+per curiam
+prima facie
+pro rata
+quantum meruit
+quid pro quo
+sic
+sua sponte
+writ

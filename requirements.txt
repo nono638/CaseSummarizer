@@ -1,53 +1,6 @@
-# LocalScribe - Python Dependencies
-
-# UI Framework
-PySide6>=6.6.0
-
-# NumPy (must be <2.0 for PySide6 compatibility)
+onnxruntime-genai-directml
+huggingface-hub
 numpy<2.0
-
-# Local AI Engine
-# Ollama REST API - For commercial use (MIT license, no version conflicts)
-# Install Ollama from https://ollama.ai
-# No pip dependencies required - Ollama is a standalone service
-# requests library is already included below for API calls
-
-# Optional: ONNX Runtime support (legacy, has token corruption bug)
-# Uncomment if needed for backwards compatibility
-# onnxruntime-genai-directml>=0.10.0  # LEGACY: Phi-3 has token corruption bug (see development_log.md)
-# huggingface-hub>=0.20.0  # For downloading ONNX models
-
-# Optional: llama-cpp-python (legacy fallback)
-# llama-cpp-python>=0.3.0
-
-# OCR
-pytesseract>=0.3.10
-
-# Document Processing
-pdfplumber>=0.10.3
-pdf2image>=1.16.3
-striprtf>=0.0.26  # For RTF file parsing
-
-# NLP Tools
-nltk>=3.8.1
-
-# LLM Framework
-langchain>=0.1.0  # For building LLM applications and chains
-
-# Utilities
-requests>=2.31.0  # For license server API calls and downloading filter lists
-cryptography>=41.0.0  # For encrypting license.dat
-PyYAML>=6.0  # For configuration file parsing
-pandas>=2.0.0  # For organizing chunk data and progressive summaries
-
-# Development Tools
-pytest>=7.4.3
-pytest-qt>=4.2.0
-
-# Packaging
-pyinstaller>=6.3.0
-
-langchain
-langchain-community
-pypdf
-sentence-transformers
+PySide6
+spacy
+nltk
