@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 from datetime import datetime
 import yaml
+from collections import Counter
 
 from src.chunking_engine import Chunk, ChunkingEngine
 from src.config import DEBUG_MODE
@@ -452,6 +453,55 @@ Summary:"""
             section_str = ""
 
         return f"Processing chunk {chunk_num}/{total_chunks} ({percentage}%){section_str}"
+
+    def generate_summary_metadata(self, summary_data: List[Dict]) -> Dict:
+        """
+        Analyzes summary data to extract overall metadata.
+
+        Args:
+            summary_data: List of dicts, each with 'title', 'summary', 'keywords'.
+
+        Returns:
+            A dictionary containing the extracted metadata.
+        """
+        if not summary_data:
+            return {
+                'overall_sentiment': 'Neutral',
+                'key_themes': [],
+                'document_count': 0,
+                'average_summary_length': 0,
+                'most_frequent_keyword': None,
+            }
+
+        all_keywords = []
+        total_summary_length = 0
+
+        for item in summary_data:
+            if 'keywords' in item and item['keywords']:
+                all_keywords.extend(item['keywords'])
+            if 'summary' in item:
+                total_summary_length += len(item['summary'].split())
+
+        document_count = len(summary_data)
+        average_summary_length = total_summary_length // document_count if document_count > 0 else 0
+
+        # Key Themes (unique keywords)
+        key_themes = sorted(list(set(all_keywords)))
+
+        # Most Frequent Keyword
+        most_frequent_keyword = None
+        if all_keywords:
+            from collections import Counter
+            keyword_counts = Counter(all_keywords)
+            most_frequent_keyword = keyword_counts.most_common(1)[0][0]
+
+        return {
+            'overall_sentiment': 'Mixed (Placeholder)',  # Placeholder for future NLP sentiment analysis
+            'key_themes': key_themes,
+            'document_count': document_count,
+            'average_summary_length': average_summary_length,
+            'most_frequent_keyword': most_frequent_keyword,
+        }
 
 
 def create_progressive_summarizer(config_path: Path = None) -> ProgressiveSummarizer:
