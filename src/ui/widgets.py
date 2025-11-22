@@ -111,33 +111,22 @@ class FileReviewTable(ctk.CTkFrame):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
-class AIControlsWidget(ctk.CTkFrame):
-    """AI Controls panel refactored for CustomTkinter."""
-
+class ModelSelectionWidget(ctk.CTkFrame):
+    """Widget for selecting the AI model."""
     def __init__(self, master, model_manager, **kwargs):
         super().__init__(master, **kwargs)
         self.model_manager = model_manager
-        
+
         self.grid_columnconfigure(0, weight=1)
-        
-        # Model Selection
+
         model_label = ctk.CTkLabel(self, text="Model Selection (Ollama)", font=ctk.CTkFont(weight="bold"))
         model_label.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
-        
+
         self.model_selector = ctk.CTkComboBox(self, values=["Loading..."], command=self.refresh_status)
         self.model_selector.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
         
-        # Summary Length
-        length_label = ctk.CTkLabel(self, text="Summary Length (Approx)", font=ctk.CTkFont(weight="bold"))
-        length_label.grid(row=2, column=0, padx=10, pady=(10, 0), sticky="w")
-
-        self.length_slider = ctk.CTkSlider(self, from_=100, to=500, number_of_steps=40)
-        self.length_slider.set(200)
-        self.length_slider.grid(row=3, column=0, padx=10, pady=5, sticky="ew")
-        
-        self.length_value_label = ctk.CTkLabel(self, text=f"{self.length_slider.get():.0f} words")
-        self.length_slider.configure(command=lambda v: self.length_value_label.configure(text=f"{v:.0f} words"))
-        self.length_value_label.grid(row=4, column=0, padx=10, pady=(0, 10), sticky="w")
+        self.local_model_info_label = ctk.CTkLabel(self, text="Models run locally and offline.", text_color="gray", font=ctk.CTkFont(size=11))
+        self.local_model_info_label.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
 
     def refresh_status(self, model_name=None):
         try:
@@ -149,25 +138,70 @@ class AIControlsWidget(ctk.CTkFrame):
             self.model_selector.configure(values=["Ollama not found"])
             self.model_selector.set("Ollama not found")
 
-class SummaryResultsWidget(ctk.CTkFrame):
-    """Widget to display AI-generated summary, refactored for CustomTkinter."""
+class OutputOptionsWidget(ctk.CTkFrame):
+    """Widget for configuring desired outputs."""
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Summary Length
+        length_label = ctk.CTkLabel(self, text="Summary Length (Approx)", font=ctk.CTkFont(weight="bold"))
+        length_label.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
+
+        self.length_slider = ctk.CTkSlider(self, from_=100, to=500, number_of_steps=40)
+        self.length_slider.set(200)
+        self.length_slider.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+
+        self.length_value_label = ctk.CTkLabel(self, text=f"{self.length_slider.get():.0f} words")
+        self.length_slider.configure(command=lambda v: self.length_value_label.configure(text=f"{v:.0f} words"))
+        self.length_value_label.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+
+        # Output Type Checkboxes
+        output_type_label = ctk.CTkLabel(self, text="Desired Outputs", font=ctk.CTkFont(weight="bold"))
+        output_type_label.grid(row=3, column=0, padx=10, pady=(10, 0), sticky="w")
+
+        self.individual_summaries_check = ctk.CTkCheckBox(self, text="Individual Summaries")
+        self.individual_summaries_check.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.individual_summaries_check.select() # On by default
+
+        self.meta_summary_check = ctk.CTkCheckBox(self, text="Meta-Summary of All Documents")
+        self.meta_summary_check.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+
+        self.vocab_csv_check = ctk.CTkCheckBox(self, text="Rare Word List (CSV)")
+        self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
+
+
+
+class DynamicOutputWidget(ctk.CTkFrame):
+    """Widget to dynamically display AI-generated summary, meta-summary, or vocabulary CSV."""
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(1, weight=1) # Row for the dynamic content frame
 
-        # Stats bar
-        self.stats_frame = ctk.CTkFrame(self)
-        self.stats_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        self.word_count_label = ctk.CTkLabel(self.stats_frame, text="Words: 0")
-        self.word_count_label.pack(side="left", padx=10)
+        # Output Selection Dropdown
+        self.output_selector_label = ctk.CTkLabel(self, text="View Output:", font=ctk.CTkFont(weight="bold"))
+        self.output_selector_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5, 0))
 
-        # Summary text box
-        self.summary_text = ctk.CTkTextbox(self, wrap="word")
-        self.summary_text.grid(row=1, column=0, sticky="nsew", padx=5, pady=0)
-        self.summary_text.insert("0.0", "Generated summary will appear here...")
+        self.output_selector = ctk.CTkComboBox(self, values=["No outputs yet"], command=self._on_output_selection)
+        self.output_selector.grid(row=0, column=0, sticky="e", padx=5, pady=(5, 0))
+        self.output_selector.set("No outputs yet") # Initial placeholder
+
+        # Dynamic Content Frame (to hold either Textbox or Treeview)
+        self.dynamic_content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.dynamic_content_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=0)
+        self.dynamic_content_frame.grid_columnconfigure(0, weight=1)
+        self.dynamic_content_frame.grid_rowconfigure(0, weight=1)
+
+        # Textbox for summaries
+        self.summary_text_display = ctk.CTkTextbox(self.dynamic_content_frame, wrap="word")
+        self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+        self.summary_text_display.insert("0.0", "Generated summaries and rare word lists will appear here. Select an option from the dropdown above.")
+
+        # Treeview for CSV (initially hidden)
+        self.csv_treeview = None # Will be initialized when CSV data is loaded
 
         # Button bar
         self.button_frame = ctk.CTkFrame(self)
@@ -178,21 +212,175 @@ class SummaryResultsWidget(ctk.CTkFrame):
 
         self.save_btn = ctk.CTkButton(self.button_frame, text="Save to File...", command=self.save_to_file)
         self.save_btn.pack(side="left", padx=5)
+        
+        # Internal storage for outputs
+        self._outputs = {
+            "Meta-Summary": "",
+            "Rare Word List (CSV)": []
+        }
+        self._document_summaries = {} # {filename: summary_text}
+
+    def _on_output_selection(self, choice):
+        """Handle selection change in the output_selector dropdown."""
+        self._clear_dynamic_content()
+        
+        if choice == "No outputs yet":
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert("0.0", "Generated summaries and rare word lists will appear here. Select an option from the dropdown above.")
+        elif choice == "Meta-Summary":
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert("0.0", self._outputs.get("Meta-Summary", "Meta-Summary not yet generated."))
+        elif choice == "Rare Word List (CSV)":
+            self._display_csv(self._outputs.get("Rare Word List (CSV)", []))
+        elif choice.startswith("Summary for "):
+            doc_name = choice.replace("Summary for ", "")
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert("0.0", self._document_summaries.get(doc_name, f"Summary for {doc_name} not yet generated."))
+
+    def _clear_dynamic_content(self):
+        """Clears the currently displayed widget in the dynamic content frame."""
+        for widget in self.dynamic_content_frame.winfo_children():
+            widget.grid_remove() # Use grid_remove for widgets managed by grid
+
+    def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None):
+        """
+        Updates the internal storage with new outputs and refreshes the dropdown.
+
+        Args:
+            meta_summary: The generated meta-summary text.
+            vocab_csv_data: A list of lists representing the CSV data.
+            document_summaries: A dictionary of {filename: summary_text}.
+        """
+        if meta_summary:
+            self._outputs["Meta-Summary"] = meta_summary
+        if vocab_csv_data is not None:
+            self._outputs["Rare Word List (CSV)"] = vocab_csv_data
+        if document_summaries:
+            self._document_summaries.update(document_summaries)
+
+        self._refresh_dropdown()
+        
+    def _refresh_dropdown(self):
+        """Refreshes the output selection dropdown based on available outputs."""
+        options = ["No outputs yet"]
+        if self._outputs.get("Meta-Summary"):
+            options.append("Meta-Summary")
+        if self._outputs.get("Rare Word List (CSV)"):
+            options.append("Rare Word List (CSV)")
+        
+        doc_summary_options = [f"Summary for {name}" for name in self._document_summaries.keys()]
+        if doc_summary_options:
+            doc_summary_options.sort()
+            options.extend(doc_summary_options)
+            
+        self.output_selector.configure(values=options)
+        if len(options) > 1:
+            self.output_selector.set(options[1]) # Select first available real output
+            self._on_output_selection(options[1])
+        else:
+            self.output_selector.set("No outputs yet")
+            self._on_output_selection("No outputs yet")
+
+    def _display_csv(self, data: list):
+        """Displays CSV data in a Treeview."""
+        self._clear_dynamic_content()
+
+        if not data:
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert("0.0", "Rare Word List (CSV) not yet generated or is empty.")
+            return
+
+        if self.csv_treeview is None:
+            style = ttk.Style()
+            style.theme_use("default")
+            style.configure("Treeview", background="#2b2b2b", foreground="white", fieldbackground="#2b2b2b", borderwidth=0)
+            style.map('Treeview', background=[('selected', '#3470b6')])
+            style.configure("Treeview.Heading", background="#565b5e", foreground="white", relief="flat")
+            style.map("Treeview.Heading", background=[('active', '#6c757d')])
+
+            headers = data[0] if data else []
+            self.csv_treeview = ttk.Treeview(self.dynamic_content_frame, columns=headers, show="headings")
+            for col in headers:
+                self.csv_treeview.heading(col, text=col, anchor='w')
+                self.csv_treeview.column(col, width=100, anchor='w') # Default width
+
+            # Add scrollbar
+            vsb = ttk.Scrollbar(self.dynamic_content_frame, orient="vertical", command=self.csv_treeview.yview)
+            hsb = ttk.Scrollbar(self.dynamic_content_frame, orient="horizontal", command=self.csv_treeview.xview)
+            self.csv_treeview.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+            vsb.grid(row=0, column=1, sticky="ns")
+            hsb.grid(row=1, column=0, sticky="ew")
+
+        # Clear existing data
+        self.csv_treeview.delete(*self.csv_treeview.get_children())
+
+        # Populate with new data
+        for row in data[1:]: # Skip headers
+            self.csv_treeview.insert("", "end", values=row)
+
+        self.csv_treeview.grid(row=0, column=0, sticky="nsew")
+
+
+    def get_current_content_for_export(self):
+        """Returns the currently displayed content for copy/save operations."""
+        current_choice = self.output_selector.get()
+        if current_choice == "Meta-Summary":
+            return self._outputs.get("Meta-Summary", "")
+        elif current_choice == "Rare Word List (CSV)":
+            # Convert list of lists to CSV string
+            data = self._outputs.get("Rare Word List (CSV)", [])
+            if not data: return ""
+            import io, csv
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerows(data)
+            return output.getvalue()
+        elif current_choice.startswith("Summary for "):
+            doc_name = current_choice.replace("Summary for ", "")
+            return self._document_summaries.get(doc_name, "")
+        return ""
 
     def copy_to_clipboard(self):
-        summary = self.summary_text.get("0.0", "end")
-        self.clipboard_clear()
-        self.clipboard_append(summary)
-        messagebox.showinfo("Copied", "Summary copied to clipboard.")
+        content = self.get_current_content_for_export()
+        if content:
+            self.clipboard_clear()
+            self.clipboard_append(content)
+            messagebox.showinfo("Copied", "Content copied to clipboard.")
+        else:
+            messagebox.showwarning("Empty", "No content to copy.")
 
     def save_to_file(self):
-        summary = self.summary_text.get("0.0", "end")
+        content = self.get_current_content_for_export()
+        if not content:
+            messagebox.showwarning("Empty", "No content to save.")
+            return
+
+        current_choice = self.output_selector.get()
+        default_filename = "output"
+        filetypes = [("All Files", "*.*")]
+
+        if current_choice == "Meta-Summary":
+            default_filename = "meta_summary.txt"
+            filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
+        elif current_choice == "Rare Word List (CSV)":
+            default_filename = "rare_word_list.csv"
+            filetypes = [("CSV Files", "*.csv"), ("All Files", "*.*")]
+        elif current_choice.startswith("Summary for "):
+            doc_name = current_choice.replace("Summary for ", "")
+            default_filename = f"{doc_name}_summary.txt"
+            filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
+
         filepath = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")],
-            title="Save Summary"
+            defaultextension=".txt", # Default to .txt if no specific type is chosen
+            filetypes=filetypes,
+            initialfile=default_filename,
+            title="Save Output"
         )
         if filepath:
             with open(filepath, "w", encoding="utf-8") as f:
-                f.write(summary)
-            messagebox.showinfo("Saved", f"Summary saved to {filepath}")
+                f.write(content)
+            messagebox.showinfo("Saved", f"Output saved to {filepath}")
