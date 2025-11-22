@@ -247,70 +247,69 @@ class MainWindow(ctk.CTk):
         bottom_left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
         bottom_right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0), pady=(5, 0))
 
-        # Configure quadrant frames to have a grid for internal layout and tooltip icon
+        # Configure quadrant frames to have a grid for internal layout
+        # Row 0: Labels (centered, full width)
+        # Row 1: Tooltip icons (left side)
+        # Row 2+: Content widgets
         for frame in [top_left_frame, top_right_frame, bottom_left_frame, bottom_right_frame]:
-            frame.grid_rowconfigure(0, weight=0) # For tooltip icon
-            frame.grid_rowconfigure(1, weight=1) # For content
+            frame.grid_rowconfigure(0, weight=0) # For labels
+            frame.grid_rowconfigure(1, weight=0) # For tooltip icons
+            frame.grid_rowconfigure(2, weight=1) # For content
             frame.grid_columnconfigure(0, weight=1)
-            frame.grid_columnconfigure(1, weight=0, minsize=30)  # Fixed width column for tooltip icons
 
         # --- Populate Quadrants ---
         # NOTE: All quadrant headers follow a consistent style convention:
-        # - Font size: 16pt, bold weight
-        # - Alignment: centered within the quadrant
-        # - Tooltip icon positioned on the right with help text
-        # - Future headers should follow this same pattern for UI consistency
+        # - Row 0: Labels (16pt, bold weight, centered, full width)
+        # - Row 1: Tooltip icons (14pt, left-aligned in column 0)
+        # - Row 2+: Content widgets
+        # - Future sections should follow this same pattern for UI consistency
 
         # Top-Left: File Review Table and Tooltip
         files_label = ctk.CTkLabel(top_left_frame, text="Document Selection", font=ctk.CTkFont(size=16, weight="bold"))
-        files_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=(5,0))
+        files_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
         files_label.configure(anchor="center")
         tooltip_icon_tl = ctk.CTkLabel(top_left_frame, text="📄", font=ctk.CTkFont(size=14))
-        tooltip_icon_tl.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        tooltip_icon_tl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
         create_tooltip(tooltip_icon_tl, "Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
 
         self.file_table = FileReviewTable(top_left_frame)
-        self.file_table.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        self.file_table.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
         # Top-Right: Model Selection and Tooltip
-        # Icon positioned on the left in its own column for visibility
-        tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
-        tooltip_icon_tr.grid(row=0, column=0, sticky="w", padx=(5, 0), pady=(5,0))
-        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.", position="right")
-        # Header centered in the middle space (column 1)
         model_label = ctk.CTkLabel(top_right_frame, text="AI Model Selection", font=ctk.CTkFont(size=16, weight="bold"))
-        model_label.grid(row=0, column=1, sticky="ew", padx=5, pady=(5,0))
+        model_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
         model_label.configure(anchor="center")
+        tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
+        tooltip_icon_tr.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
+        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.", position="right")
 
         self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
-        self.model_selection.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.model_selection.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
 
         # Bottom-Left: Dynamic Output Display and Tooltip
         output_display_label = ctk.CTkLabel(bottom_left_frame, text="Generated Outputs", font=ctk.CTkFont(size=16, weight="bold"))
-        output_display_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=(5,0))
+        output_display_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
         output_display_label.configure(anchor="center")
         tooltip_icon_bl = ctk.CTkLabel(bottom_left_frame, text="📝", font=ctk.CTkFont(size=14))
-        tooltip_icon_bl.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        tooltip_icon_bl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
         create_tooltip(tooltip_icon_bl, "View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
 
         self.summary_results = DynamicOutputWidget(bottom_left_frame)
-        self.summary_results.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        self.summary_results.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
 
         # Bottom-Right: Output Options and Tooltip
-        # Icon positioned on the left in its own column for visibility
-        tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
-        tooltip_icon_br.grid(row=0, column=0, sticky="w", padx=(5, 0), pady=(5,0))
-        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.", position="right")
-        # Header centered in the middle space (column 1)
         output_options_label = ctk.CTkLabel(bottom_right_frame, text="Output Options", font=ctk.CTkFont(size=16, weight="bold"))
-        output_options_label.grid(row=0, column=1, sticky="ew", padx=5, pady=(5,0))
+        output_options_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
         output_options_label.configure(anchor="center")
-        
+        tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
+        tooltip_icon_br.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
+        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.", position="right")
+
         self.output_options = OutputOptionsWidget(bottom_right_frame)
-        self.output_options.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
-        
+        self.output_options.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
+
         self.generate_outputs_btn = ctk.CTkButton(bottom_right_frame, text="Generate All Outputs", command=self._start_generation)
-        self.generate_outputs_btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
+        self.generate_outputs_btn.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
         self.generate_outputs_btn.configure(state="disabled") # Disabled until files are selected
 
     def _create_status_bar(self):
