@@ -138,46 +138,60 @@ class MainWindow(ctk.CTk):
 
         # Place frames in the grid
         top_left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=(0, 5))
-        create_tooltip(top_left_frame, "Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
-        
         top_right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        create_tooltip(top_right_frame, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.")
-        
         bottom_left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
-        create_tooltip(bottom_left_frame, "View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
-        
         bottom_right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0), pady=(5, 0))
-        create_tooltip(bottom_right_frame, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.")
+
+        # Configure quadrant frames to have a grid for internal layout and tooltip icon
+        for frame in [top_left_frame, top_right_frame, bottom_left_frame, bottom_right_frame]:
+            frame.grid_rowconfigure(0, weight=0) # For tooltip icon
+            frame.grid_rowconfigure(1, weight=1) # For content
+            frame.grid_columnconfigure(0, weight=1)
 
         # --- Populate Quadrants ---
 
-        # Top-Left: File Review Table
-        top_left_frame.grid_rowconfigure(0, weight=1)
-        top_left_frame.grid_columnconfigure(0, weight=1)
+        # Top-Left: File Review Table and Tooltip
+        files_label = ctk.CTkLabel(top_left_frame, text="Document Selection", font=ctk.CTkFont(weight="bold"))
+        files_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_tl = ctk.CTkLabel(top_left_frame, text="📄", font=ctk.CTkFont(size=14))
+        tooltip_icon_tl.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        create_tooltip(tooltip_icon_tl, "Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
+        
         self.file_table = FileReviewTable(top_left_frame)
-        self.file_table.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.file_table.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        # Top-Right: Model Selection
-        top_right_frame.grid_rowconfigure(0, weight=1)
-        top_right_frame.grid_columnconfigure(0, weight=1)
+        # Top-Right: Model Selection and Tooltip
+        model_label = ctk.CTkLabel(top_right_frame, text="AI Model Selection", font=ctk.CTkFont(weight="bold"))
+        model_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
+        tooltip_icon_tr.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.")
+        
         self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
-        self.model_selection.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        self.model_selection.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
 
-        # Bottom-Left: Summary Results
-        bottom_left_frame.grid_rowconfigure(0, weight=1)
-        bottom_left_frame.grid_columnconfigure(0, weight=1)
-        self.summary_results = DynamicOutputWidget(bottom_left_frame) # Replaced SummaryResultsWidget
-        self.summary_results.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        # Bottom-Left: Dynamic Output Display and Tooltip
+        output_display_label = ctk.CTkLabel(bottom_left_frame, text="Generated Outputs", font=ctk.CTkFont(weight="bold"))
+        output_display_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_bl = ctk.CTkLabel(bottom_left_frame, text="📝", font=ctk.CTkFont(size=14))
+        tooltip_icon_bl.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        create_tooltip(tooltip_icon_bl, "View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
+        
+        self.summary_results = DynamicOutputWidget(bottom_left_frame)
+        self.summary_results.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
-        # Bottom-Right: Output Options
-        bottom_right_frame.grid_rowconfigure(0, weight=1) # OutputOptionsWidget will take up available space
-        bottom_right_frame.grid_rowconfigure(1, weight=0) # Button will have fixed height
-        bottom_right_frame.grid_columnconfigure(0, weight=1)
+        # Bottom-Right: Output Options and Tooltip
+        output_options_label = ctk.CTkLabel(bottom_right_frame, text="Output Options", font=ctk.CTkFont(weight="bold"))
+        output_options_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
+        tooltip_icon_br.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
+        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.")
+        
         self.output_options = OutputOptionsWidget(bottom_right_frame)
-        self.output_options.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        self.output_options.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         
         self.generate_outputs_btn = ctk.CTkButton(bottom_right_frame, text="Generate All Outputs", command=self._start_generation)
-        self.generate_outputs_btn.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        self.generate_outputs_btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
         self.generate_outputs_btn.configure(state="disabled") # Disabled until files are selected
 
     def _create_status_bar(self):
@@ -205,13 +219,14 @@ class MainWindow(ctk.CTk):
             self.file_table.clear() # Clear existing entries
             for filepath in filepaths:
                 filename = os.path.basename(filepath)
+                file_size = os.path.getsize(filepath) # Get actual file size
                 self.file_table.add_result({
                     'filename': filename,
                     'status': 'pending',
                     'method': 'N/A',
                     'confidence': 0,
-                    'page_count': 0,
-                    'file_size': 0
+                    'page_count': 0, # Page count requires processing, keep as 0 for now
+                    'file_size': file_size
                 })
 
         else:

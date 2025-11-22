@@ -130,10 +130,14 @@ class ModelSelectionWidget(ctk.CTkFrame):
 
     def refresh_status(self, model_name=None):
         try:
-            available_models = self.model_manager.get_available_models()
-            self.model_selector.configure(values=available_models)
-            if available_models:
-                self.model_selector.set(available_models[0])
+            available_models_dict = self.model_manager.get_available_models()
+            available_model_names = list(available_models_dict.keys())
+            
+            self.model_selector.configure(values=available_model_names)
+            if available_model_names:
+                self.model_selector.set(available_model_names[0])
+            else:
+                self.model_selector.set("No models found")
         except Exception as e:
             self.model_selector.configure(values=["Ollama not found"])
             self.model_selector.set("Ollama not found")
