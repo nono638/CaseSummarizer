@@ -20,8 +20,8 @@ from src.debug_logger import debug_log
 # Helper function to create tooltips for CustomTkinter widgets
 def create_tooltip(widget, text, position="right"):
     """
-    Create a tooltip that appears on hover, positioned relative to the widget.
-    Tooltip automatically disappears when mouse leaves the widget.
+    Create a stable tooltip that appears on hover without flickering.
+    Uses delayed display and proper positioning to prevent enter/leave loops.
 
     Args:
         widget: The widget to attach the tooltip to
@@ -29,15 +29,25 @@ def create_tooltip(widget, text, position="right"):
         position: "right" (default) or "left" - which side of the widget the tooltip appears
     """
     tooltip_window = None
-    hide_timer = None
+    show_timer = None
 
-    def show_tooltip(event):
-        nonlocal tooltip_window, hide_timer
+    def schedule_show():
+        """Schedule tooltip to appear after delay (prevents flickering)."""
+        nonlocal show_timer
+        cancel_show()  # Cancel any existing scheduled show
+        show_timer = widget.after(500, show_tooltip_delayed)  # 500ms delay
 
-        # Cancel any pending hide
-        if hide_timer:
-            widget.after_cancel(hide_timer)
-            hide_timer = None
+    def cancel_show():
+        """Cancel scheduled tooltip display."""
+        nonlocal show_timer
+        if show_timer:
+            widget.after_cancel(show_timer)
+            show_timer = None
+
+    def show_tooltip_delayed():
+        """Display tooltip (called after delay)."""
+        nonlocal tooltip_window, show_timer
+        show_timer = None
 
         # If tooltip already exists, don't create another
         if tooltip_window:
@@ -45,14 +55,14 @@ def create_tooltip(widget, text, position="right"):
 
         # Create tooltip window
         tooltip_window = ctk.CTkToplevel(widget)
-        tooltip_window.wm_overrideredirect(True) # Remove window decorations
+        tooltip_window.wm_overrideredirect(True)  # Remove window decorations
         tooltip_window.wm_attributes("-topmost", True)  # Keep on top
 
         label = ctk.CTkLabel(tooltip_window, text=text,
-                             bg_color=("#333333", "#333333"), # Dark background
-                             text_color=("white", "white"), # White text
+                             bg_color=("#333333", "#333333"),  # Dark background
+                             text_color=("white", "white"),  # White text
                              corner_radius=5,
-                             wraplength=200) # Wrap text after 200 pixels
+                             wraplength=200)  # Wrap text after 200 pixels
         label.pack(padx=5, pady=5)
 
         # Get tooltip dimensions
@@ -68,20 +78,22 @@ def create_tooltip(widget, text, position="right"):
 
         # Get screen dimensions
         screen_width = widget.winfo_toplevel().winfo_screenwidth()
+        screen_height = widget.winfo_toplevel().winfo_screenheight()
 
         # Position tooltip based on requested position and screen space
+        # Use larger offsets to prevent tooltip from overlapping widget area
         if position == "left":
-            # Position to the left of the widget with 10px gap
-            x = widget_x - tooltip_width - 10
+            # Position to the left of the widget with 15px gap (larger to prevent overlap)
+            x = widget_x - tooltip_width - 15
             # Ensure we don't go off the left edge
             if x < 0:
-                x = widget_x + widget_width + 10  # Fall back to right side
+                x = widget_x + widget_width + 15  # Fall back to right side
         else:  # position == "right" (default)
-            # Position to the right of the widget with 10px gap
-            x = widget_x + widget_width + 10
+            # Position to the right of the widget with 15px gap
+            x = widget_x + widget_width + 15
             # Check if tooltip would go off the right edge
             if x + tooltip_width > screen_width:
-                x = widget_x - tooltip_width - 10  # Show on left instead
+                x = widget_x - tooltip_width - 15  # Show on left instead
                 # If left side also doesn't work, squeeze it at the right edge
                 if x < 0:
                     x = screen_width - tooltip_width - 10
@@ -90,7 +102,6 @@ def create_tooltip(widget, text, position="right"):
         y = widget_y + (widget_height // 2) - (tooltip_height // 2)
 
         # Keep tooltip on screen vertically
-        screen_height = widget.winfo_toplevel().winfo_screenheight()
         if y < 0:
             y = 0
         elif y + tooltip_height > screen_height:
@@ -99,28 +110,27 @@ def create_tooltip(widget, text, position="right"):
         tooltip_window.wm_geometry(f"+{x}+{y}")
 
     def hide_tooltip(event):
-        nonlocal tooltip_window, hide_timer
+        """Hide tooltip immediately (no delay)."""
+        nonlocal tooltip_window
+        cancel_show()  # Cancel any pending show
+        if tooltip_window:
+            try:
+                tooltip_window.destroy()
+            except:
+                pass
+            tooltip_window = None
 
-        # Schedule hide with short delay to prevent flickering
-        def do_hide():
-            nonlocal tooltip_window
-            if tooltip_window:
-                try:
-                    tooltip_window.destroy()
-                except:
-                    pass
-                tooltip_window = None
+    def on_enter(event):
+        """Handle mouse entering widget - schedule tooltip display."""
+        schedule_show()
 
-        # Cancel any pending hide
-        if hide_timer:
-            widget.after_cancel(hide_timer)
-
-        # Schedule hide for next event loop iteration
-        hide_timer = widget.after(50, do_hide)
+    def on_leave(event):
+        """Handle mouse leaving widget - hide tooltip immediately."""
+        hide_tooltip(event)
 
     # Bind to the widget (icon)
-    widget.bind("<Enter>", show_tooltip)
-    widget.bind("<Leave>", hide_tooltip)
+    widget.bind("<Enter>", on_enter)
+    widget.bind("<Leave>", on_leave)
 
 
 class MainWindow(ctk.CTk):
