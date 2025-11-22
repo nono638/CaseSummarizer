@@ -273,11 +273,13 @@ class MainWindow(ctk.CTk):
         self.file_table.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         # Top-Right: Model Selection and Tooltip
+        # Icon positioned on the left in its own column for visibility
         tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
-        tooltip_icon_tr.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_tr.grid(row=0, column=0, sticky="w", padx=(5, 0), pady=(5,0))
         create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.", position="right")
+        # Header centered in the middle space (column 1)
         model_label = ctk.CTkLabel(top_right_frame, text="AI Model Selection", font=ctk.CTkFont(size=16, weight="bold"))
-        model_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=(5,0))
+        model_label.grid(row=0, column=1, sticky="ew", padx=5, pady=(5,0))
         model_label.configure(anchor="center")
 
         self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
@@ -295,11 +297,13 @@ class MainWindow(ctk.CTk):
         self.summary_results.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
 
         # Bottom-Right: Output Options and Tooltip
+        # Icon positioned on the left in its own column for visibility
         tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
-        tooltip_icon_br.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
+        tooltip_icon_br.grid(row=0, column=0, sticky="w", padx=(5, 0), pady=(5,0))
         create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.", position="right")
+        # Header centered in the middle space (column 1)
         output_options_label = ctk.CTkLabel(bottom_right_frame, text="Output Options", font=ctk.CTkFont(size=16, weight="bold"))
-        output_options_label.grid(row=0, column=0, columnspan=2, sticky="ew", padx=5, pady=(5,0))
+        output_options_label.grid(row=0, column=1, sticky="ew", padx=5, pady=(5,0))
         output_options_label.configure(anchor="center")
         
         self.output_options = OutputOptionsWidget(bottom_right_frame)
