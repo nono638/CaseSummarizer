@@ -25,9 +25,9 @@ def create_tooltip(widget, text):
         nonlocal tooltip_window
         if tooltip_window:
             return
-        x, y, _, _ = widget.bbox("insert")
-        x += widget.winfo_rootx() + 25
-        y += widget.winfo_rooty() + 25
+        # Position tooltip relative to mouse cursor
+        x = event.x_root + 20
+        y = event.y_root + 20
         
         tooltip_window = ctk.CTkToplevel(widget)
         tooltip_window.wm_overrideredirect(True) # Remove window decorations
@@ -83,6 +83,8 @@ class MainWindow(ctk.CTk):
         
         # Check Ollama service on startup
         self._check_ollama_service()
+        # Refresh model selector after Ollama check
+        self.model_selection.refresh_status()
 
     def _create_main_layout(self):
         """Creates the main grid layout."""
@@ -198,10 +200,25 @@ class MainWindow(ctk.CTk):
             self.selected_files = filepaths
             self.files_label.configure(text=f"{len(filepaths)} file(s) selected")
             self.generate_outputs_btn.configure(state="normal")
+            
+            # Populate file table with initial pending status
+            self.file_table.clear() # Clear existing entries
+            for filepath in filepaths:
+                filename = os.path.basename(filepath)
+                self.file_table.add_result({
+                    'filename': filename,
+                    'status': 'pending',
+                    'method': 'N/A',
+                    'confidence': 0,
+                    'page_count': 0,
+                    'file_size': 0
+                })
+
         else:
             self.selected_files = []
             self.files_label.configure(text="No files selected")
             self.generate_outputs_btn.configure(state="disabled")
+            self.file_table.clear()
 
     def _start_generation(self):
         """Initiate the processing and generation of outputs."""

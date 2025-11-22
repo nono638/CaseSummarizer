@@ -7,6 +7,10 @@ This module initializes the CustomTkinter application and launches the main wind
 
 import sys
 import multiprocessing
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import customtkinter as ctk
 
 # CRITICAL: Import src.ai BEFORE UI framework to avoid DirectML DLL conflicts on Windows
