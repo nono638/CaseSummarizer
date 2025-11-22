@@ -53,10 +53,14 @@ def create_tooltip(widget, text, position="right"):
         if tooltip_window:
             return
 
-        # Create tooltip window
-        tooltip_window = ctk.CTkToplevel(widget)
+        # Force widget geometry update before querying position
+        widget.update_idletasks()
+
+        # Create tooltip window using toplevel parent for proper hierarchy
+        tooltip_window = ctk.CTkToplevel(widget.winfo_toplevel())
         tooltip_window.wm_overrideredirect(True)  # Remove window decorations
         tooltip_window.wm_attributes("-topmost", True)  # Keep on top
+        tooltip_window.wm_attributes("-toolwindow", True)  # Prevent taskbar appearance on Windows
 
         label = ctk.CTkLabel(tooltip_window, text=text,
                              bg_color=("#333333", "#333333"),  # Dark background
@@ -65,49 +69,47 @@ def create_tooltip(widget, text, position="right"):
                              wraplength=200)  # Wrap text after 200 pixels
         label.pack(padx=5, pady=5)
 
-        # Get tooltip dimensions
+        # Force tooltip to calculate its size (use update_idletasks for reliable sizing)
         tooltip_window.update_idletasks()
         tooltip_width = tooltip_window.winfo_width()
         tooltip_height = tooltip_window.winfo_height()
 
-        # Get widget position on screen
+        # Get widget position on screen (after widget geometry is finalized)
         widget_x = widget.winfo_rootx()
         widget_y = widget.winfo_rooty()
         widget_width = widget.winfo_width()
         widget_height = widget.winfo_height()
 
         # Get screen dimensions
-        screen_width = widget.winfo_toplevel().winfo_screenwidth()
-        screen_height = widget.winfo_toplevel().winfo_screenheight()
+        screen_width = widget.winfo_screenwidth()
+        screen_height = widget.winfo_screenheight()
 
-        # Position tooltip based on requested position and screen space
-        # Use larger offsets to prevent tooltip from overlapping widget area
+        # Position tooltip with cascading fallback logic
         if position == "left":
-            # Position to the left of the widget with 15px gap (larger to prevent overlap)
+            # Try left side first
             x = widget_x - tooltip_width - 15
-            # Ensure we don't go off the left edge
-            if x < 0:
-                x = widget_x + widget_width + 15  # Fall back to right side
         else:  # position == "right" (default)
-            # Position to the right of the widget with 15px gap
+            # Try right side first
             x = widget_x + widget_width + 15
-            # Check if tooltip would go off the right edge
-            if x + tooltip_width > screen_width:
-                x = widget_x - tooltip_width - 15  # Show on left instead
-                # If left side also doesn't work, squeeze it at the right edge
-                if x < 0:
-                    x = screen_width - tooltip_width - 10
 
-        # Position vertically centered with the widget
+        # Check boundaries and apply cascading fallback
+        if x + tooltip_width > screen_width:
+            # Right position would go off-screen, try left
+            x = widget_x - tooltip_width - 15
+
+        if x < 0:
+            # Left position would go off-screen, clamp to screen edge
+            x = max(0, min(widget_x, screen_width - tooltip_width - 10))
+
+        # Position vertically centered with the widget, with bounds checking
         y = widget_y + (widget_height // 2) - (tooltip_height // 2)
-
-        # Keep tooltip on screen vertically
-        if y < 0:
-            y = 0
-        elif y + tooltip_height > screen_height:
-            y = screen_height - tooltip_height
+        y = max(0, min(y, screen_height - tooltip_height))
 
         tooltip_window.wm_geometry(f"+{x}+{y}")
+
+        # Ensure tooltip appears and is on top
+        tooltip_window.lift()
+        tooltip_window.update_idletasks()
 
     def hide_tooltip(event):
         """Hide tooltip immediately (no delay)."""
@@ -250,6 +252,7 @@ class MainWindow(ctk.CTk):
             frame.grid_rowconfigure(0, weight=0) # For tooltip icon
             frame.grid_rowconfigure(1, weight=1) # For content
             frame.grid_columnconfigure(0, weight=1)
+            frame.grid_columnconfigure(1, weight=0, minsize=30)  # Fixed width column for tooltip icons
 
         # --- Populate Quadrants ---
         # NOTE: All quadrant headers follow a consistent style convention:
