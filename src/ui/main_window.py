@@ -20,7 +20,8 @@ from src.debug_logger import debug_log
 # Helper function to create tooltips for CustomTkinter widgets
 def create_tooltip(widget, text, position="right"):
     """
-    Create a tooltip that appears on hover.
+    Create a tooltip that appears on hover, positioned relative to the widget.
+    Tooltip automatically disappears when mouse leaves the widget.
 
     Args:
         widget: The widget to attach the tooltip to
@@ -28,15 +29,23 @@ def create_tooltip(widget, text, position="right"):
         position: "right" (default) or "left" - which side of the widget the tooltip appears
     """
     tooltip_window = None
+    hide_timer = None
 
     def show_tooltip(event):
-        nonlocal tooltip_window
+        nonlocal tooltip_window, hide_timer
+
+        # Cancel any pending hide
+        if hide_timer:
+            widget.after_cancel(hide_timer)
+            hide_timer = None
+
         if tooltip_window:
             return
 
         # Create tooltip window
         tooltip_window = ctk.CTkToplevel(widget)
         tooltip_window.wm_overrideredirect(True) # Remove window decorations
+        tooltip_window.wm_attributes("-topmost", True)  # Keep on top
 
         label = ctk.CTkLabel(tooltip_window, text=text,
                              bg_color=("#333333", "#333333"), # Dark background
@@ -50,36 +59,57 @@ def create_tooltip(widget, text, position="right"):
         tooltip_width = tooltip_window.winfo_width()
         tooltip_height = tooltip_window.winfo_height()
 
+        # Get widget position on screen
+        widget_x = widget.winfo_rootx()
+        widget_y = widget.winfo_rooty()
+        widget_width = widget.winfo_width()
+        widget_height = widget.winfo_height()
+
         # Get screen dimensions
         screen_width = widget.winfo_toplevel().winfo_screenwidth()
 
         # Position tooltip based on requested position and screen space
         if position == "left":
-            # Position to the left of the cursor
-            x = event.x_root - tooltip_width - 20
+            # Position to the left of the widget with 10px gap
+            x = widget_x - tooltip_width - 10
             # Ensure we don't go off the left edge
             if x < 0:
-                x = event.x_root + 20  # Fall back to right side
+                x = widget_x + widget_width + 10  # Fall back to right side
         else:  # position == "right" (default)
-            # Position to the right of the cursor
-            x = event.x_root + 20
+            # Position to the right of the widget with 10px gap
+            x = widget_x + widget_width + 10
             # Check if tooltip would go off the right edge
             if x + tooltip_width > screen_width:
-                x = event.x_root - tooltip_width - 20  # Show on left instead
-                # If left side also doesn't work, position at cursor minus some offset
+                x = widget_x - tooltip_width - 10  # Show on left instead
+                # If left side also doesn't work, squeeze it at the right edge
                 if x < 0:
                     x = screen_width - tooltip_width - 10
 
-        # Position vertically above cursor to avoid blocking it
-        y = event.y_root - tooltip_height - 10
+        # Position vertically centered with the widget
+        y = widget_y + (widget_height // 2) - (tooltip_height // 2)
+
+        # Keep tooltip on screen vertically
+        screen_height = widget.winfo_toplevel().winfo_screenheight()
+        if y < 0:
+            y = 0
+        elif y + tooltip_height > screen_height:
+            y = screen_height - tooltip_height
 
         tooltip_window.wm_geometry(f"+{x}+{y}")
 
     def hide_tooltip(event):
-        nonlocal tooltip_window
-        if tooltip_window:
-            tooltip_window.destroy()
-        tooltip_window = None
+        nonlocal tooltip_window, hide_timer
+
+        # Schedule the hide with a small delay to prevent flickering
+        def do_hide():
+            nonlocal tooltip_window
+            if tooltip_window:
+                tooltip_window.destroy()
+                tooltip_window = None
+
+        if hide_timer:
+            widget.after_cancel(hide_timer)
+        hide_timer = widget.after(100, do_hide)
 
     widget.bind("<Enter>", show_tooltip)
     widget.bind("<Leave>", hide_tooltip)
@@ -312,7 +342,8 @@ class MainWindow(ctk.CTk):
         self.select_files_btn.configure(state="disabled")
         self.generate_outputs_btn.configure(state="disabled") # Disable new button
         self.progress_bar.pack(side="right", padx=10, pady=5, fill="x", expand=True)
-        self.file_table.clear()
+        # DO NOT clear the file table - users need to see which files are being processed
+        # The table entries will be updated with status as files are processed
         self.processing_results = []
         self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
 
