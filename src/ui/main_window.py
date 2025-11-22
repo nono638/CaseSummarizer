@@ -18,27 +18,62 @@ from src.ai import ModelManager
 from src.debug_logger import debug_log
 
 # Helper function to create tooltips for CustomTkinter widgets
-def create_tooltip(widget, text):
+def create_tooltip(widget, text, position="right"):
+    """
+    Create a tooltip that appears on hover.
+
+    Args:
+        widget: The widget to attach the tooltip to
+        text: The tooltip text to display
+        position: "right" (default) or "left" - which side of the widget the tooltip appears
+    """
     tooltip_window = None
-    
+
     def show_tooltip(event):
         nonlocal tooltip_window
         if tooltip_window:
             return
-        # Position tooltip relative to mouse cursor
-        x = event.x_root + 20
-        y = event.y_root + 20
-        
+
+        # Create tooltip window
         tooltip_window = ctk.CTkToplevel(widget)
         tooltip_window.wm_overrideredirect(True) # Remove window decorations
-        tooltip_window.wm_geometry(f"+{x}+{y}")
-        
+
         label = ctk.CTkLabel(tooltip_window, text=text,
                              bg_color=("#333333", "#333333"), # Dark background
                              text_color=("white", "white"), # White text
                              corner_radius=5,
                              wraplength=200) # Wrap text after 200 pixels
         label.pack(padx=5, pady=5)
+
+        # Get tooltip dimensions
+        tooltip_window.update_idletasks()
+        tooltip_width = tooltip_window.winfo_width()
+        tooltip_height = tooltip_window.winfo_height()
+
+        # Get screen dimensions
+        screen_width = widget.winfo_toplevel().winfo_screenwidth()
+
+        # Position tooltip based on requested position and screen space
+        if position == "left":
+            # Position to the left of the cursor
+            x = event.x_root - tooltip_width - 20
+            # Ensure we don't go off the left edge
+            if x < 0:
+                x = event.x_root + 20  # Fall back to right side
+        else:  # position == "right" (default)
+            # Position to the right of the cursor
+            x = event.x_root + 20
+            # Check if tooltip would go off the right edge
+            if x + tooltip_width > screen_width:
+                x = event.x_root - tooltip_width - 20  # Show on left instead
+                # If left side also doesn't work, position at cursor minus some offset
+                if x < 0:
+                    x = screen_width - tooltip_width - 10
+
+        # Position vertically above cursor to avoid blocking it
+        y = event.y_root - tooltip_height - 10
+
+        tooltip_window.wm_geometry(f"+{x}+{y}")
 
     def hide_tooltip(event):
         nonlocal tooltip_window
@@ -165,7 +200,7 @@ class MainWindow(ctk.CTk):
         model_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
         tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
         tooltip_icon_tr.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
-        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.")
+        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.", position="left")
         
         self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
         self.model_selection.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
@@ -185,7 +220,7 @@ class MainWindow(ctk.CTk):
         output_options_label.grid(row=0, column=0, sticky="w", padx=5, pady=(5,0))
         tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
         tooltip_icon_br.grid(row=0, column=1, sticky="e", padx=5, pady=(5,0))
-        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.")
+        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.", position="left")
         
         self.output_options = OutputOptionsWidget(bottom_right_frame)
         self.output_options.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=5)
