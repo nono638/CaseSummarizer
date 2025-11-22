@@ -98,14 +98,10 @@ def create_tooltip(widget, text, position="right"):
 
         tooltip_window.wm_geometry(f"+{x}+{y}")
 
-        # Bind Leave event to the tooltip itself to handle flickering
-        # This prevents the tooltip window from triggering leave events on the icon
-        tooltip_window.bind("<Leave>", hide_tooltip)
-
     def hide_tooltip(event):
         nonlocal tooltip_window, hide_timer
 
-        # Schedule the hide immediately (no delay - the tooltip itself handles re-entry)
+        # Schedule hide with short delay to prevent flickering
         def do_hide():
             nonlocal tooltip_window
             if tooltip_window:
@@ -115,11 +111,12 @@ def create_tooltip(widget, text, position="right"):
                     pass
                 tooltip_window = None
 
+        # Cancel any pending hide
         if hide_timer:
             widget.after_cancel(hide_timer)
 
-        # Destroy immediately instead of using delay to prevent double-triggering
-        do_hide()
+        # Schedule hide for next event loop iteration
+        hide_timer = widget.after(50, do_hide)
 
     # Bind to the widget (icon)
     widget.bind("<Enter>", show_tooltip)
@@ -169,26 +166,34 @@ class MainWindow(ctk.CTk):
 
     def _create_menus(self):
         """Create a native-style menubar using tkinter.Menu with dark theme colors."""
-        # Dark theme colors that match CustomTkinter's palette
-        bg_color = "#2b2b2b"  # Dark background
-        fg_color = "white"    # Light text
-        active_bg = "#3470b6" # CustomTkinter blue highlight
+        # Dark grey colors to match CustomTkinter's palette
+        # Using darker grey (#404040) instead of pure #2b2b2b for menu bar readability
+        bg_color = "#404040"  # Dark grey background
+        fg_color = "#ffffff"  # White text
+        active_bg = "#505050" # Slightly lighter grey for hover
+        active_fg = "#ffffff" # White text on hover
 
-        self.menubar = Menu(self, bg=bg_color, fg=fg_color, activebackground=active_bg,
-                           activeforeground="white", borderwidth=0)
+        self.menubar = Menu(self, bg=bg_color, fg=fg_color,
+                           activebackground=active_bg, activeforeground=active_fg,
+                           borderwidth=1, relief="flat",
+                           disabledforeground="#666666")
         self.config(menu=self.menubar)
 
-        file_menu = Menu(self.menubar, tearoff=0, bg=bg_color, fg=fg_color,
-                        activebackground=active_bg, activeforeground="white",
-                        borderwidth=0)
+        file_menu = Menu(self.menubar, tearoff=0,
+                        bg=bg_color, fg=fg_color,
+                        activebackground=active_bg, activeforeground=active_fg,
+                        borderwidth=0, relief="flat",
+                        disabledforeground="#666666")
         self.menubar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="Select Files...", command=self.select_files)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.quit)
 
-        help_menu = Menu(self.menubar, tearoff=0, bg=bg_color, fg=fg_color,
-                        activebackground=active_bg, activeforeground="white",
-                        borderwidth=0)
+        help_menu = Menu(self.menubar, tearoff=0,
+                        bg=bg_color, fg=fg_color,
+                        activebackground=active_bg, activeforeground=active_fg,
+                        borderwidth=0, relief="flat",
+                        disabledforeground="#666666")
         self.menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="About", command=self.show_about)
 
