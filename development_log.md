@@ -1,5 +1,35 @@
 # Development Log
 
+## 2025-11-22 00:45 - UI Polish & Tooltip System Refinement
+**Feature:** Comprehensive tooltip system overhaul, menu bar dark theming, and consistent quadrant layout reorganization
+
+Completed extensive UI polish session addressing tooltip flickering issues, menu bar styling inconsistency, and quadrant layout misalignment. Implemented a stable 500ms-delay tooltip system with intelligent positioning fallbacks, changed menu bar to dark grey matching CustomTkinter's dark theme, and standardized all four quadrants with a consistent Row 0 (labels) / Row 1 (icons) / Row 2+ (content) structure.
+
+**Work Completed:**
+1. **Tooltip System Redesign** - Researched Tkinter event-loop behavior and implemented a 500ms-delay tooltip system to eliminate flickering caused by enter/leave event feedback loops. Added cascading boundary checking to ensure tooltips always appear on-screen.
+2. **Pragmatic Icon Repositioning** - Moved right-side tooltip icons from problematic far-right edge (column=1, sticky="e") to top-left (column=0, sticky="w") to eliminate tooltip positioning edge cases. Changed tooltip direction from "left" to "right" accordingly.
+3. **Menu Bar Dark Theme** - Changed menu bar color from bright white to dark grey (#404040) with dark hover state (#505050) to match CustomTkinter's dark aesthetic and reduce eye strain.
+4. **Quadrant Header Styling** - Enlarged all quadrant headers to 16pt bold and centered them for improved visual hierarchy. Fixed centering by moving labels from columnspan=2 to column=1.
+5. **File Persistence During Processing** - Fixed issue where files disappeared from selection table during processing; they now remain visible with status updates.
+6. **Layout Standardization** - Reorganized all four quadrants with identical grid structure: Row 0 for labels, Row 1 for help icons (top-left), Row 2+ for content widgets. Applied consistently across Document Selection, AI Model Selection, Generated Outputs, and Output Options quadrants.
+7. **Smart Tooltip Positioning** - Implemented cascading fallback boundary checking: prefer right-side positioning, but if off-screen, fall back to left; if still off-screen, center on widget. Added wm_attributes("-toolwindow", True) for Windows tooltip styling.
+
+**Technical Notes:**
+- Root cause of flickering: Tooltip appearing near cursor caused cursor to "leave" the widget, destroying the tooltip, which immediately caused the cursor to re-enter the widget, triggering tooltip again—infinite loop.
+- Solution approach: 500ms delay breaks the feedback loop because tooltip displays only after mouse has stabilized over the icon.
+- Pragmatic workaround: Rather than continue debugging edge-case positioning, repositioned icons from problematic right edge to left side, eliminating the geometric edge case entirely.
+
+**Commits:**
+- `8fafb5a` - fix: Resolve asymmetric tooltip issue - right-side tooltips now appear
+- `eb61a11` - fix: Reposition right-side tooltip icons to left - pragmatic workaround
+- `5847d11` - fix: Make right-side tooltip icons visible
+- `c8af8d3` - refactor: Reorganize quadrant layout for consistency and clarity
+- `ef637bf` - docs: Update human summary with 2025-11-22 UI polish session
+
+**Status:** UI polish complete and production-ready. All tooltips functional on all four quadrants with consistent icon positioning. Layout systematized for predictable UX and maintainability.
+
+---
+
 ## 2025-11-21 23:45 - CustomTkinter UI Refactor Completion
 **Feature:** Finalized UI widget implementations and verified production readiness
 
