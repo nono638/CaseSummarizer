@@ -11,11 +11,44 @@ from datetime import datetime
 from pathlib import Path
 from queue import Queue, Empty
 
-from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, SummaryResultsWidget
+from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, DynamicOutputWidget
 from src.ui.workers import ProcessingWorker
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
+
+# Helper function to create tooltips for CustomTkinter widgets
+def create_tooltip(widget, text):
+    tooltip_window = None
+    
+    def show_tooltip(event):
+        nonlocal tooltip_window
+        if tooltip_window:
+            return
+        x, y, _, _ = widget.bbox("insert")
+        x += widget.winfo_rootx() + 25
+        y += widget.winfo_rooty() + 25
+        
+        tooltip_window = ctk.CTkToplevel(widget)
+        tooltip_window.wm_overrideredirect(True) # Remove window decorations
+        tooltip_window.wm_geometry(f"+{x}+{y}")
+        
+        label = ctk.CTkLabel(tooltip_window, text=text,
+                             bg_color=("#333333", "#333333"), # Dark background
+                             text_color=("white", "white"), # White text
+                             corner_radius=5,
+                             wraplength=200) # Wrap text after 200 pixels
+        label.pack(padx=5, pady=5)
+
+    def hide_tooltip(event):
+        nonlocal tooltip_window
+        if tooltip_window:
+            tooltip_window.destroy()
+        tooltip_window = None
+
+    widget.bind("<Enter>", show_tooltip)
+    widget.bind("<Leave>", hide_tooltip)
+
 
 class MainWindow(ctk.CTk):
     """
@@ -103,16 +136,16 @@ class MainWindow(ctk.CTk):
 
         # Place frames in the grid
         top_left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=(0, 5))
-        top_left_frame.setToolTip("Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
+        create_tooltip(top_left_frame, "Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
         
         top_right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        top_right_frame.setToolTip("Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.")
+        create_tooltip(top_right_frame, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.")
         
         bottom_left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
-        bottom_left_frame.setToolTip("View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
+        create_tooltip(bottom_left_frame, "View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
         
         bottom_right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0), pady=(5, 0))
-        bottom_right_frame.setToolTip("Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.")
+        create_tooltip(bottom_right_frame, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.")
 
         # --- Populate Quadrants ---
 
