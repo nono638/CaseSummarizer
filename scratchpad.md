@@ -54,6 +54,78 @@ Complete the vocabulary extraction pipeline with per-term definitions:
 
 ---
 
+## Model Compatibility & Prompt Format (Discussion: 2025-11-23)
+
+### **Current State: Model-Agnostic Discovery, Prompt Format Incompatibility**
+
+**Question Addressed:** Will all Ollama-downloaded models work with LocalScribe?
+
+**Answer:**
+- ✅ **Model discovery:** Yes. Code queries `/api/tags`, which lists all downloaded models automatically
+- ⚠️ **Prompt compatibility:** No. Different models expect different prompt formats (Llama vs. Mistral vs. Gemma instruction formats)
+
+**The Problem:**
+Current code sends raw prompts to all models. Most instruction-tuned models work, but:
+- Chat-only models may refuse or produce garbage
+- Some models need special formatting (`[INST]...[/INST]`)
+- Vocabulary extraction (requiring JSON output) may fail silently
+
+**Decision: Implement Prompt Format Wrapping (Option A)**
+
+#### **Phase 2.7: Model-Aware Prompt Formatting** (Est. 1-2 hours)
+Detect model type and wrap prompts in model-specific instruction formats.
+
+**Implementation:**
+1. Add `wrap_prompt_for_model(model_name: str, prompt: str) -> str` method to `OllamaModelManager`
+2. Detect model type from model name:
+   ```python
+   def wrap_prompt_for_model(self, model_name: str, prompt: str) -> str:
+       """Wrap prompt in model-specific format based on model type."""
+       base_model = model_name.split(':')[0].lower()
+
+       if 'llama' in base_model:
+           return f"[INST] {prompt} [/INST]"
+       elif 'mistral' in base_model:
+           return f"[INST] {prompt} [/INST]"
+       elif 'gemma' in base_model:
+           return prompt  # No special wrapping needed
+       elif 'neural-chat' in base_model:
+           return f"### User:\n{prompt}\n\n### Assistant:"
+       elif 'dolphin' in base_model:
+           return f"### User\n{prompt}\n### Assistant"
+       else:
+           # Default: try raw prompt (might work with instruction-tuned models)
+           return prompt
+   ```
+
+3. Use wrapped prompt in `generate()` method (line ~242):
+   ```python
+   wrapped_prompt = self.wrap_prompt_for_model(self.model_name, prompt)
+   payload = {
+       "model": self.model_name,
+       "prompt": wrapped_prompt,  # Use wrapped version
+       "temperature": temperature,
+       ...
+   }
+   ```
+
+4. Test compatibility matrix:
+   - ✅ gemma3:1b (no wrapping)
+   - ✅ llama2:7b (Llama format)
+   - ✅ mistral:7b (Mistral format)
+   - ✅ neural-chat:7b (special format)
+   - ? Other models (test as user adds them)
+
+**Why This Matters:**
+- Future-proofs the app for any Ollama model
+- User can freely experiment with different models without code changes
+- Prevents silent failures (model returns garbage because prompt format is wrong)
+
+**Documentation:**
+Add tooltip to model dropdown: "Select any Ollama model. LocalScribe automatically adapts prompt format for compatibility."
+
+---
+
 ## Summary Quality Improvements (Discussion: 2025-11-23)
 
 ### **Current Issue: Summaries Are Unsatisfactory**
