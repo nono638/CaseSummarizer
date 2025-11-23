@@ -66,7 +66,19 @@
       "Bash(pkill:*)",
       "Bash(del debug_flow.txt)",
       "Bash(timeout 300 \"venv\\Scripts\\python\":*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force)",
+      "Bash(. \"venv\\Scripts\\Activate.ps1\")",
+      "Bash(Write-Host \"✅ Environment activated\")",
+      "Bash(cd:*)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(pip install:*)",
+      "Bash(timeout 10 python:*)",
+      "Bash(python -m py_compile:*)",
+      "WebFetch(domain:stackoverflow.com)",
+      "WebFetch(domain:coderslegacy.com)",
+      "Bash(.venvScriptspython.exe --version)",
+      "Bash(\"venv\\Scripts\\python.exe\" -m py_compile src/main.py src/ui/main_window.py src/cleaner.py)"
     ],
     "deny": [],
     "ask": []

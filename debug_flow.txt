@@ -1,7 +1,1399 @@
 === LocalScribe Debug Log ===
-Started: 2025-11-21T11:33:36.211336
+Started: 2025-11-22T23:56:51.488443
 ============================================================
 
-[11:33:38.784] [OLLAMA] Connection successful
-[11:33:40.859] [OLLAMA] Found 1 models: ['gemma3:1b']
-[11:33:40.859] [MAIN WINDOW] [OK] Ollama service is accessible on startup
+[23:56:58.869] [OLLAMA] Connection successful
+[23:56:58.869] [OLLAMA WORKER] OllamaModelManager instantiated.
+[23:56:58.870] [OLLAMA WORKER] Received GENERATE_SUMMARY task. Preset: gemma3:1b, Max words: 200
+[23:56:58.871] 
+[OLLAMA GENERATE] Starting text generation
+[23:56:58.871] [OLLAMA GENERATE] Model: gemma3:1b
+[23:56:58.871] [OLLAMA GENERATE] Max tokens: 429
+[23:56:58.871] [OLLAMA GENERATE] Prompt length: 92735 chars
+[23:56:58.871] [OLLAMA GENERATE] Temperature: 0.3, Top P: 0.9
+[23:56:58.871] [OLLAMA GENERATE] ===== COMPL[00:00:13.840] [MAIN WINDOW] Summary result received: {'type': 'individual', 'filename': None, 'summary': "Okay, here's a case summary based on the provided text, aiming for a concise and informative overview:\n\n**Case Summary: Luigi Napolitano v. North Shore University Hospital – Marla Stein**\n\nThis case centers around a lawsuit brought by Luigi Napolitano against North Shore University Hospital (NSUH) stemming from alleged negligence and wrongful treatment.  Napolitano alleges that NSUH failed to adequately protect patients and failed to provide appropriate care, resulting in significant harm. The core of the claim revolves around a pattern of negligence and a failure to fulfill the duty of care expected of healthcare providers.  Napolitano is seeking substantial damages, including compensation for medical expenses, pain and suffering, and other losses. The case highlights a significant breach of duty and a failure to adequately safeguard patient well-being.\n\n**Key Points:**\n\n*   **Plaintiff:** Luigi Napolitano, a physician, is suing North Shore University Hospital.\n*   **Defendant:** North Shore University Hospital (NSUH) – a healthcare institution.\n*   **Claim:** Negligence and wrongful treatment leading to injuries.\n*   **Core Allegations:** NSUH failed to provide adequate protection and care to patients, resulting in harm.\n*   **Legal Basis:** The case is based on CPLR (New York State Civil Procedure Law) and focuses on the duty of care owed to patients.\n\nLet me know if you'd like me to elaborate on any specific aspect of the case or add more detail!"}
+ntary like "The document states..." or "According to..."
+
+CASE DOCUMENTS (synthesize these into one summary):
+---
+
+
+--- 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_BILL_OF_PARTICULARS_47.pdf ---
+SUPREME COURT OF THE STATE OF NEW YORK
+Plaintiff VERIFIED BILL OF
+R.N., CAROL CURRY, R.N., KARYN CARLSON, R.N. and
+Plaintiff(s), by his attorneys, HARRIS, KEENAN & GOLDFARB PLLC, as and for a
+Second Supplemental Bill of Particulars, allege(s), upon information and belief:
+1. Plaintiff sustained the following special damages:
+A. Lost wages……approximately $77,400.00 from date of incident to
+the present and continuing
+B. Medical expenses and/or
+Medical liens………….approximately $200,000.00 and continuing
+Dated: New York, New York
+February 28, 2023
+Attorney for Plaintiff(s)
+Luigi Napolitano
+233 Broadway, Suite 900
+New York, New York 10279
+Our File No. 207081
+Wagner, Doman, Leto, & Di Leo, PC
+Attorney for Defendant(s)
+Robert L. Wighton, M.D., Sulman Mahmood, D.O.,
+Joseph Demonte, PCA, Madeline Fils-Alme, R.N..
+Carol Curry, R.N., Karyn Carlson, R.N. and
+North Shore Community Hospital - Northwell Health
+227 Mineola Blvd
+Mineola, NY 11501
+ATTORNEY'S VERIFICATION
+Marla Stein, an attorney duly admitted to practice before the Courts of the State of New
+York, affirms the following to be true under the penalties of perjury:
+I am a partner of HARRIS, KEENAN & GOLDFARB PLLC, attorneys of record for
+Plaintiff in the action within. I have read the annexed SECOND SUPPLEMENTAL BILL OF
+PARTICULARS and know the contents thereof, and the same are true to my knowledge, except
+those matters therein which are stated to be alleged upon information and belief, and as to those
+matters I believe them to be true. My belief, as to those matters therein not stated upon
+knowledge, is based upon facts, records, and other pertinent information contained in my files.
+This verification is made by me because Plaintiff(s) is/are not presently in the county
+wherein I maintain my offices.
+DATED: New York, New York
+February 28, 2022
+
+--- 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_BILL_OF_PARTICULARS_30.pdf ---
+SUPREME COURT OF THE STATE OF NEW YORK
+Plaintiff SUPPLEMENTAL
+against PARTICULARS
+ROBERT L. WIGHTON, M.D., SULMAN MAHMOOD, Index No.: 700321/2022
+CARLSON, R.N. and NORTH SHORE UNIVERSITY
+Plaintiff, by his attorneys, BURNS & HARRIS, as and for a Supplemental Verified Bill
+of Particulars, allege(s), upon information and belief:
+1. As a result of the negligence as previously pleaded, plaintiff sustained the
+following additional injuries:
+PLAINTIFF UNDERWENT THE FOLLOWING PROCEDURE ON
+Left L4 transpedicular approach to L3/4 far-lateral facetectomy and
+microdiscectomy and foraminotomies of L3/4 using microsurgical dissection
+A copy of the April 22, 2022 operative report is annexed hereto along with an authorization
+to obtain same from Mt. Sinai Medical Center.
+Dated: New York, New York
+Attorney for Plaintiff(s)
+Luigi Napolitano
+233 Broadway, Suite 900
+New York, New York 10279
+Our File No. 207081
+Wagner, Doman, Leto, & Di Leo, PC
+Attorney for Defendant(s)
+Robert L. Wighton, M.D., Sulman Mahmood, D.O.,
+Joseph Demonte, PCA, Madeline Fils-Alme, R.N.,
+Carol Curry, R.N., Karyn Carlson, R.N. and
+North Shore Community Hospital - Northwell Health
+227 Mineola Blvd
+Mineola, NY 11501
+ATTORNEY'S VERIFICATION
+Marla Stein, an attorney duly admitted to practice before the Courts of the State of New
+York, affirms the following to be true under the penalties of perjury:
+I am an attorney at BURNS & HARRIS, attorneys of record for Plaintiff in the action
+within. I have read the annexed SUPPLEMENTAL BILL OF PARTICULARS and know the
+contents thereof, and the same are true to my knowledge, except those matters therein which are
+stated to be alleged upon information and belief, and as to those matters I believe them to be true.
+My belief, as to those matters therein not stated upon knowledge, is based upon facts, records,
+and other pertinent information contained in my files.
+This verification is made by me because Plaintiff is not presently in the county wherein I
+maintain my offices.
+DATED: New York, New York
+NYSCEF DOCF.r omNAOr.th ur3J0enkine MD 16468106486 7/12/2022 09:53:51 PDT RECEIVEDP aNgeY2SoCfE4F: 07/12/2022
+Patient: Luigi Napolitano DOB: 951 Sex: M
+Provider: Arthur Jenidns, (Bimng) Visit: 04/19/2022 7:30AM Chart: NAt-U000001
+Type code Descripnon
+MD-10-cM Condlilon M47.26 other spom1gfoolsug11hr=na ,Indier gaglm
+MD-10-cM Cerullgion M54.16 Rarnadapaniy, lunabarruglan
+MD-10-CM Condlilon M51.27 other interuergelgraleBoodisplacemerd,11subosecralgegion
+Type Code ModMess Quanny Desortpdon
+CPT 63056 1.00uN DEcoMPREss sPINAL CORo LMeR
+CPT 681180 1.00UN MERoSURGERY ADD©N
+Mount Sinal Medical Center
+Department of Neurosurgely
+Opemtive Report - Confidential
+Medcal Record Number: F296456
+Pre-operative Diagnosis: L11/4 tat far-lateral disk hemiation, Left leg pain, Lumber spinal stenosis
+Procedure: Left tA transpedicular approach to a i.3/4 faiHaleral facetectomy and micedisfactomy and
+foramenctomies of L3f4 using microsurgical dissection techniques
+Assistant: Neurosurgery PA
+Anesthesia: local with sedation
+Position: Pione, on the Wilson frarne of the Jackson Table
+Fluid: SM cc crystaloid
+Complications: None
+Specimen: Hemiated disk, L3/4
+implants: 1ibrin glue
+[Page 1] tunepeanwoneenera'ed at6966MM2m966 GGr Ponmenutby DrCbrono
+NYSCEF DOCF.ro mNAOrt.hu r3J0enkine MD 16468106486 7/12/2022 c9:53:61 PDT RECEIVEDP aNgeY3SoCfE4F: 07/12/2022
+Patient: Luigi Napontano DOB: 951 Sex: M
+Provider: Anhur Jenkins, (BDAng) Visit: 04/1s/2022 7:30AM Chart: NALU000001
+Indication: This patient presented with progressive left-sided radiating fow back pain that extends down his left
+poolesfor leg. He also enderses left leg numbness. MRI 1.umber Spine 7/t3/21 demonstrates a large disc
+hemiation at L3/4. The dsks, benefilm, and attematives to the proposed procedum were explained to the patient
+by Dr. Arthur Jenkins in their office, and all questions were answered to their satisfaction.
+Description of Procedure:
+Af1er the patient was brought to the opera8ng mom and af1er adequate Bnes were placed, the patient
+positkmed hinsellin the prone position on the Wilson frame of the Jackson Table. Sedation was induced, and
+the Interal 8uoro was bmught into the field, and the lateral aspect of the facet joint and the transverse process
+of I.3/4 were identified in AP and lateral fluoro.
+The back area was then carefuny washed, and then prepped and draped in the usual stedle fashion. A
+"Time-Out"was perfomied, and critical steps ueviewed. The Incision was Infiltrated with Marcaine with
+The initial incision was made with a #15 blade. A Bowie tip foGowed the lamina and facet joint on that side, and
+the endoscope was placed, but immediately we encountered bleeding that did not slop, even though Itwas not
+much in volume, it made visibilty poor. We instead then placed a 5.3 mm dilator, and then a 9.4 mmdAntor was
+then placed over the 5.3 mm dilator, and in a subperiosleal fashion, the Inseations of the multifidus muscle onto
+the interior edge of the lamina of the top level, and the medial aspect of the target facet joint were removed In a
+blunt fashion. The larger METRx dAstors were then used so a 14x4 cm tubular retractor was placed.
+This was then secured using the clamp onto the Jackson table with the METRx flexible arm assernbly. The
+fluoro unit was used to demonstrate that this was on an equivalent paranel trajectmy into the disk space of
+t.3/4. the remaining multifidus muscle that was dhectly between the region for the laminatomy and in the
+viewer's way was bipolared and removed using a pituitary rangeur. At this point, the region where the lateral
+foramenolomy would be performed was well-visualized, with IIgamentum flavum seen medial to the facet joint,
+and the Inferior edge of the top lamina, superior edge of the lower lamina, and the medial aspect of the facet aA
+within the field.
+The remaining multifidus and longlesimus muscle that were direcUy between the region for the forananctomy
+and in the viewer's way were bipolared and removed using a pitullary rangeur. At this point, Su :egion where
+the Interal aspect of the foramenolomy would be perkmned was well-visualized, wilh the L4 transverse process
+of the fewer level, and the supegfor articular pmcess of L4 arising from this over Kambin's triangle.
+At this point, the lateral aspect of the ascending facet of IA was undercut with a combination of the drill and the
+2mm and3mm Kerrison rangeurs. The inter tansverse ligaments was detached fmm the side of the facet,
+exposing the radicular artery and the dorsal ramus LS, which led to the nerve root of L3. Once this root was
+able to be klentitled, and foBowed to the pedicle of L3 under the pars of L3, the lateral aspect of the thecal sao
+E-signedtryDaAsAur.1onlesson080e2622sm|IGer
+[Page 2) tesepage weesenerneseasosmanoanampu aes Pomered by DrChrono
+NYSCEF DOCF.ro mNAOr.th ur3J0enkine 12 164681c6486 7/12/2022 09:53:51 PDT RECEIVEDP aNgeY4SoCfE4F: 07/12/2022
+Patient: 1.ulgi NapoRlano DOB: 951 Sex: M
+Provider: Arthur Jenidns, (BilEng) Visit: 04/19/2022 7:30AM Chart: NALU000001
+was seen just posterior to the vertebral body of LS.
+The LS mot was imed of adherent soar, and retracted lateraBy to expose the hemiated disk fragment
+undemeath. The pedicle of 1.3 was palpated, and the fateral aspect of the facet joint of L3/4 was identified ,
+which made up the dorsal and caudal merges of the neural foramen. The disk fragment was then removed in a
+piecemeal fashion, with care to pmtect the mot at LS/4 as well as the lateral aspect of the thecal sac. After
+extensive removal of the fragment, using up and down curets, pituitary rangeurs, and the right-angled nonre
+hook, the root and forainen were felt to be free and no longer pressed upon by the disk fragment.
+Adequate hemostasis was obtained with the bipolar cautory and bone wax on the bony edges, The wound was
+Irrigated with a liter of antibiotk>containing saline., A thin layer of Evacel fibrin glue was sprayed on the dorsal
+surface of the dura and nerve root for homos1asis and neural prolection. The fascla was closed with 0-Vicryl
+sutute, the subcuticular layer closed with Interrupted inverted 3-0 Vicsyl sulule, and the sidn closed with 2
+layers of Dormabond and a Tegaderm dressing. The patelnt was aroused fem sedation, and moved to the
+Dr. Jenkins, the Attending Surgeon, was scrubbed for the cdtical portions of the case, Including the
+micrrvne-menan for the transpedicular lateral facetectomies of I.3/4, and the foramenot0mies of L3/4.
+Medications & Allergies:
+Current Medication &cosage o1spense agG PRN? Indication
+1.is1NOPAILTAs 10M 90.000 1TabOD No
+RosUVAsTATIN TAB10M 90.000 1TabQD No
+METPoRMIN TAe 100 1sp.0m 1TabOD No
+G1.NEPIRioE TAB1MG 90.000 1tabQD No
+Allergy Reaction
+NoKnonn orugAlloggles(NKDA) N/A
+[Page S] T'|s pagewasGenera|adat6M|6GD23SG199|||eT Poleared by DrChrono
+(CAUTION: This is an important document. It gives the person whom you designate (YOUR "AGENT") broad
+powers to execute a written request for patient information to obtain your medical records without advance notice
+to you or approval by you. These powers will continue to exist after you become disabled or incompetent If there
+is anything about this form that you do not understand, you should ask a lawyer to explain it to you).
+THIS is intended to constitute a DURABLE SPECIFIC POWER OF ATTORNEY to execute a written request for
+patient information to obtain his or her medical records pursuant to Section I8 ofthe New York Public Health Law.
+Medical records to be released may include:
+(Indicated by initiating) × l.. Alcohol/Drug Treatment
+× )... Mental Health Information
+X L. HIV-Related Infounation
+1, do hereby appoint my attorneys: BURNS & HARRIS, IN MY
+NAME, CE A STEAD in any way which I myself could do, if 1were personally present, with respect to the
+executing of awritten request for patient information to obtain any and all of my medical records to the extent that I
+am permitted by law to act through an agent
+This durable Power of Attomey shall not be affected by my subsequent disability or incompetence.
+RECElVMG A DULY EXECUTED COPY OR FACSIMILE OF THIS INSTRUMENT MAY ACT
+In Witness Whereof I have hereunto signed my name this day of ,206
+On the day of ,20 11, before me personally .1
+to me known to be the individual described in and who executed the d ackn ledged that
+she executed the same.
+Notary Public, State of Ne Y
+Qualified in Kings County
+Oommission Expires November 29,20
+OCA Official Form No.:960
+['this form has been approved by the New York State Depanment of Health]
+Patient Name Date of Birth Social Securi Number
+Luigi Napolitano
+15-94 Street, Queens, New York 11360
+1,or my authorized representative, request that health information regarding my care and treatment be released asset forth on this form:
+In accordance with New York State Law and the Privacy Rule of the Health Insurance Portability and Accountability Act of 1996
+(HIPAA), I understand that:
+l. This authorization may include disclosure of information relating to ALCOHOL and DRUG ABUSE, MENTAL HEALTH
+TREATMENT, except psychotherapy notes, and CONFIDENTIAL RELATED INFORMATION only if I place my initials
+on the appropriate line in Item 9(a). In the event the health information described below includes any of these types of information,
+and I initial the line on the box in Item 9(a), I specifically authorize release of such information to the person(s) indicated in Item 8.
+2. If I am authorizing the release of HIV-related, alcohol or drug treatment, or mental health treatment information, the recipient is
+prohibited from redisclosing such information without my authorization unless permitted to do so under federal or state law. I
+understand that I have the right to request a list of people who may receive or use my HIV-related information without authorization.
+If I experience discrimination because of the release or disclosure of HIV-related information, I may contact the New York State
+Division of Human Rights at (212) 480-2493 or the New York City Commission of Human Rights at (212) 306-7450. These agencies
+are responsible for protecting my rights.
+3. I have the right to revoke this authorization at any time by writing to the health care provider listed below. I understand that I may
+revoke this authorization except to the extent that action has already been taken based on this authorization.
+4. I understand that signing this authorization isvoluntary. My treatment, payment, enrollment in ahealth plan, or eligibility for benefits
+will not be conditioned upon my authorization of this disclosure.
+5. Information disclosed under this authorization might be redisclosed by the recipient (except as noted above in Item 2), and this
+redisclosure may no longer be protected by federal or state law.
+CARE WITH ANYONE OTHER THEN THE ATTORNEY OR GOVERNMENTAL AGENCY SPEIFIED IN ITEM 9 (b).
+7. Name and address of health provider or entity to release this information:
+Mt. Sinai Medical Center, 1 Gustave L. Levy Place New York, NY 10029-6574
+8. Name and address of person(s) or category of person to whom this information will be sent:
+Wagner, Doman, Leto & Di Leo, 227 Mineola Blvd., Mineola, NY 11501
+9(a). Specific information to be released:
+Medical Record from to
+Entire Medical Record, including patient histories, office notes (except psychotherapy notes), test results, radiology studies, films,
+referrals, consults, billing records, insurance records, and records sent to you by other health care providers.
+Include: (Indicate by Initialing)
+Other: Alcohol/Drug Treatment
+Mental Health Information
+HIV-Related Information
+Authorization to Discuss Health Information
+By initialing here I authorize
+to discuss my health information with my attorney, or agovernmental agency, list here:
+10. Reason for release of information: 11. Date or event on which this authorization will expire:
+At request of individual
+Other: LITIGATION END OF LITIGATION
+12. If not the patient, name of person signing form: 13. Authority to sign on behalf of patient:
+SAMANTHA WALTON FOR BURNS & HARRIS POWER OF ATTORNEY (attached)
+All items o form have been completed and my questions about this form have been answered. In addition, I have been provided a
+Signature of t rep sentative authorized by law.
+" Human Immun iency Virus that causes AIDS. The New York State Public Health Law protects information which reasonably
+could identify someone as having HIV symptoms or infection and information regarding a person's contacts.
+
+--- 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_ANSWER_13.pdf ---
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, VERIFIED ANSWER
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME, by her
+attorneys, WAGNER, DOMAN, LETO & DI LEO, P.C. answering the complaint of the
+plaintiff herein, upon information and belief:
+1. Denies each and every allegation contained in paragraph designated "1" in the
+form alleged but admits ROBERT WIGHTON, M.D. was a physician duly licensed to practice
+medicine in the State of New York.
+2. Denies each and every allegation contained in paragraph designated "10" in the
+form alleged but admits SULMAN MAHOOD, M.D. was a physician duly licensed to practice
+medicine in the State of New York.
+3. Denies any knowledge or information thereof sufficient to form a belief as to the
+4. Denies each and every allegation contained in paragraphs designated "9", "18",
+5. Answering paragraph “107”, defendant repeats, reiterates, and realleges above
+denials for paragraphs designated “1” through “106”.
+6. Answering paragraph “117”, defendant repeats, reiterates, and realleges above
+denials for paragraphs designated “1” through “116”.
+7. Answering paragraph “128”, defendant repeats, reiterates, and realleges above
+denials for paragraphs designated “1” through “127”.
+8. Answering paragraph “141”, defendant repeats, reiterates, and realleges above
+denials for paragraphs designated “1” through “140”.
+9. Defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME,
+demands that the liability, if any, be apportioned.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+10. The alleged cause of action sounding in medical malpractice is barred by the
+statute of limitations in that the plaintiff failed to bring this action within two and one-half (21/2) years as set forth in Section 214-a of the CPLR.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+11. The cause of action in informed consent alleging a negligent failure to obtain
+same is barred in that the plaintiff has failed to bring the action within the two and one-half (21/2) years set forth in Section 214-a of the CPLR, and the decision of Murriello v. Crappotta,
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+12. It is alleged upon information and belief that the cause of action asserted by the
+plaintiff concerning the receipt by the defendant of an informed consent falls within the scope
+of Section 2805(d) of the Public Health Law, such law having been fully complied with by the
+defendant, thus barring the assertion of this cause of action.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+13. The alleged cause of action asserted by the plaintiff in paragraphs "1" through
+“145” fails to state a cause of action in that they do not contain any allegations of injury to the
+plaintiff for which the answering defendant can be held liable.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+14. Upon information and belief, any damages sustained by the plaintiff
+was/were caused in whole or in part by the culpable conduct of the plaintiff and/or damages
+were aggravated by the culpable conduct of the plaintiff.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+15. Defendant will rely upon the provision of Article 16 of the CPLR with regard to
+the limitation of joint and several liability.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+16. Any award to plaintiff for the cost of medical care, custodial care or
+rehabilitation services, loss of earnings or other economic loss should be reduced by the
+amount such expense has been or will be replaced or indemnified in whole or in part from any
+collateral source in accordance with the provisions and limitations set forth in CPLR § 4545.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+17. Answering defendant will rely upon the New York General Obligations Law §
+15-108, and is thereby entitled to a set-off of damages based on any prior settlements regarding
+the injuries alleged in this lawsuit.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+18. Upon information and belief, the plaintiff failed to mitigate his or her damages.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+19. Answering defendant exercised all care reasonably necessary to prevent and
+limit the deprivation and injury for which liability is alleged herein by plaintiff.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+20. That pursuant to the “Coronavirus Aid, Relief, and Economic Security Act” signed
+into law on March 27, 2020, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME is
+immune from any cause of action arising under the Federal or State law for any harm caused by
+an act or omission of the professional in the provision of health care services during the COVID19 public health emergency.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+21. That this matter is barred pursuant to the applicable provisions of New York
+Emergency or Disaster Treatment Act, Art. 30-D, N.Y. Public Health Law, §§3080-82, as
+enacted on April 3, 2020, New York Executive Order 202.10, and any and all related Executive
+Orders issued by the Governor of the State of New York.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+22. That this matter is barred pursuant to the applicable provisions of the Public
+Readiness and Emergency Preparedness Act.
+COMPLAINT, ANSWERING DEFENDANT ALLEGES UPON
+23. That at all times, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME acted within the scope of the crisis standards of care, as well as the standards of care in
+place in the locality in question at the time of the COVID-19 emergency.
+WHEREFORE, defendant, MADELINE FILS-AIME, R.N. s/h/a MADELINE FILSALME, demands judgment dismissing the complaint herein together with interest, costs,
+disbursements, or judgment over, as may be required by law.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, DEMAND FOR VERIFIED
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE that pursuant to Section 3041, Rules 3042 and
+3043, and Section 3044 of the Civil Practice Law and Rules, you are hereby required to serve a
+verified bill of particulars upon the undersigned within twenty (20) days after the receipt of this
+In the event of your failure to comply with this demand for a verified bill of
+particulars within that time, motion will be made for an order precluding you from offering any
+evidence on the causes of action alleged in the complaint concerning the following items:
+1. The dates and times of day of the alleged negligent acts and/or omissions
+which will be alleged and claimed against the answering defendant herein.
+2. The exact location of the alleged negligent acts and/or omissions charged
+against the answering defendant herein.
+3. A statement of each and every act of negligence or omission, which
+constituted the alleged malpractice complained of with the date of each if different from the
+dates in Paragraph 1.
+4. State the names of each and every person who performed such acts or
+failed to act; if the names are not known, describe the physical appearances with sufficient
+clarity for ready identification.
+5. State the occupation of each such person.
+6. A statement of the accepted medical practices, customs and medical
+standards, which it is claimed were violated in each of the above acts or omissions.
+7. State whether or not any claim is made as to improper, unavailable or
+defective equipment, and if so, identify the equipment and state the defective conditions.
+8. State what laws of the State of New York were allegedly violated by the
+answering defendant herein as to:
+(a) The performance of the operation;
+(b) The parts of the body operated upon; and
+(c) Any other procedure or treatment performed by the answering
+defendants herein.
+9. List any operation, procedure or therapy which is claimed to be improper.
+10. Describe the manner of the alleged impropriety referred to in Item 9.
+(a) The injuries the plaintiff suffered as the result of the alleged negligence
+and/or malpractice of each defendant responsible. State which injuries are claimed to be
+12. State the dates the plaintiff was confined to each of the following:
+(c) hospital, with names and addresses.
+13. State separately the total amounts claimed by the plaintiff as special
+damages for each of the following:
+(a) physicians' services;
+(b) nurses' services,
+(c) medical expenses;
+(d) hospital expenses, with the names and address of all hospitals;
+(e) loss of earnings;
+(f) any other expenses.
+(a) occupation of the plaintiff
+(b) name and address of plaintiff’s employer; if self-employed, state the
+address of plaintiff’s place of employment and the type of business or occupation in which
+plaintiff was engaged immediately prior to the occurrence;
+(c) The length of time plaintiff was unable to attend to plaintiff’s
+employment, with dates;
+(d) The amount of money plaintiff was alleged to have earned during the
+year prior to the occurrence;
+(e) The amount of earnings the plaintiff was alleged to have lost as a result
+of the occurrence.;
+15. State the date of plaintiff's birth.
+16. State residence address of plaintiff.
+17. A. If wrongful death is claimed:
+(a) State the date of birth and date of death of the decedent.
+(b) State the decedent's domicile at death;
+(c) State cause of death of the decedent;
+B. If wrongful death is claimed with respect to pecuniary loss sustained by
+the next of kin as a result of the death of decedent, state:
+(a) The names and addresses of the next of kin who received financial
+support from the deceased at the time of plaintiff’s death.
+(b) The specific amount received by each of the next of kin from the
+deceased during the five-year period immediately prior to plaintiff’s death.
+18. If a claim is made regarding lack of information or disclosure, set forth:
+(a) A summary of the information given to the plaintiff;
+(b) A summary of the information which should have been given to the
+(c) A summary of all the information in possession of plaintiff from
+whatever source obtained;
+(d) A description of any alternative treatment which plaintiff would have
+chosen, with the basis therefor;
+(e) Whether plaintiff consented to any treatment whatsoever and describe
+extent of consent and any restrictions or limitations.
+19. List the names and addresses of all hospitals and physicians that treated
+plaintiff during plaintiff’s entire life.
+20. Set forth any statutory violations that will be claimed, with proper
+citations thereof.
+21. Set forth all amounts which have been received from collateral sources
+and identify the source thereof.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, NOTICE TO
+TAKE DEPOSITION
+-against- UPON ORAL
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE that pursuant to Article 31 of the Civil Practice
+Law and Rules that the testimony upon oral examination of plaintiff, as an adverse party, will
+be taken before a notary public who is not an attorney, or employee of an attorney for any party
+or prospective party herein and is not a person who would be disqualified to act as a juror
+because of interest or because of consanguinity or affinity to any party herein, at the office of
+the undersigned on the 28th day of March, 2022 at 10:00 in the forenoon of that day with
+respect to evidence material and necessary in the prosecution/defense of this action.
+Said person to be examined is required to produce at such examination any
+and all books, papers, records, photographs, documents, etc., relating to the within action.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, NOTICE TO PRODUCE
+-against- INFORMATION
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE, that pursuant to CPLR 3101(d), the plaintiff is
+hereby required to produce the following at the office of the undersigned:
+1. State the name and address of every expert retained or employed by you
+in anticipation of this litigation or preparation for trial whom you expect to call as a witness at
+2. Disclose in reasonable detail the qualifications of each expert witness. In
+a medical malpractice case include the following:
+a. in the case of a board-certified expert, the name of the certifying
+board and the year of certification;
+b. the states in which the expert is licensed;
+c. the title of any text authored, contributed to, or edited by, the expert,
+together with an appropriate citation (by name of publication, volume number, date, or other
+appropriate identifying matter);
+d. the undergraduate school attended by such expert, with year of
+e. the medical school attended by such expert, with the year of
+f. the institutions attended by the expert in connection with any
+internship, residency, fellowship, or other specialized training, and the dates of such attendance.
+3. Disclose in reasonable detail the subject matter on which each expert is
+expected to testify.
+4. Disclose in reasonable detail the substance of the facts and opinions on
+which each expert is expected to testify.
+5. Disclose in reasonable detail a summary of the grounds for each expert's
+PLEASE TAKE FURTHER NOTICE, that this demand is a continuing
+demand for information regarding experts retained by you for trial. Failure to comply with this
+notice in a timely manner shall be grounds for an order precluding you from offering the
+testimony at trial of any expert witness whose name and expected testimony is not disclosed,
+striking the complaint, dismissing the action and/or such other and further relief as the Court
+deems just under the circumstances.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, DEMAND FOR SOCIAL
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE, that pursuant to CPLR Section 3120, you are hereby
+required to forward to WAGNER, DOMAN, LETO & DI LEO, P.C., 227 Mineola Boulevard,
+Mineola, New York 11501, attorneys for defendant, MADELINE FILS-AIME, R.N. s/h/a
+MADELINE FILS-ALME within twenty (20) days, duly executed and acknowledged written
+authorizations to obtain full access to and copies of all of plaintiff’s current and historical
+Facebook, Twitter, MySpace, Instagram and Linkedin accounts for the period of one (1) year
+prior to the day of loss, in this matter to the present. (See Romano v. Steelcase, Inc., 30
+Misc.3d 426 [Sup. Ct Suffolk County 2010]; Servilli v. Westchester, Index No. 19051/2007,
+Decision 12/21/2010 [Sup. Ct. Westchester County 2010]).
+1. Authorizations shall permit the release and complete copies of said accounts
+including but not limited to: all records, information, photographs, videos, comments,
+messages and posting on Facebook, Twitter, MySpace, Instagram and Linkedin accounts.
+2. Authorizations shall include the name, username, screen name and e-mail
+account used in creating each and every Facebook, Twitter, MySpace, Instagram and Linkedin
+3. The authorizations shall allow access to the requested records and shall be
+directed to the following:
+Linkedin Corporation, Attention: Legal Department, 2029 Stierlin Court,
+Mountain View, CA 94040;
+Facebook, Attention: Security Department, 1601 South California Avenue, Palo
+Twitter, Inc. c/o Trust & Safety, 795 Folsom Street, Suite 600, San Francisco,
+MySpace, 2021 Avenue of the Start, Suite 700, Los Angeles, CA 90067;
+Instagram LLC, 1601 Willow Road, Menlo Park, CA 94025.
+(Authorizations must specify the user ID for the account, the password associated with the
+account, the user’s zip code, and the date of birth.)
+In lieu of producing said items at the office of the undersigned, said
+authorizations may be submitted by mail to the undersigned before the return date of the within
+If plaintiff was not a registered user of Facebook, Twitter, MySpace, Instagram
+and Linkedin during the requested time period, defendants demand a statement from
+plaintiff(s), under oath, to that effect.
+PLEASE TAKE FURTHER NOTICE, that your failure to comply with this demand
+within a reasonable amount of time or to move on a timely basis for a protective order will
+result in a motion being made to compel your compliance.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, DEMAND FOR
+-against- INFORMATION
+ROBERT L. WIGHTON, M.D., SULMAN CPLR 4545(a)
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE, that pursuant to CPLR 4545(a) the defendant
+demands within twenty (20) days from the date hereof plaintiff serve a verified statement
+1. Whether plaintiff has been reimbursed or indemnified for economic loss
+claimed in this action from any collateral source:
+a. If the answer to the foregoing is in the affirmative, state for which of such
+claims plaintiff has received payment, the amount thereof, and the name and address of the
+person, firm, or organization who made such payment;
+b. If such payment was made by an insurance company, state the number of
+the policy under which it was paid.
+2. Whether plaintiff has made a claim for payment for economic loss which
+has not as yet been paid:
+a. If the answer to the foregoing is in the affirmative, state the name of the
+person, firm or organization to whom such claim was presented, or the date of presentation, and
+the amount claimed.
+b. If such claim was presented to an insurance company, state the number of
+the policy under which same was made.
+FAILURE TO COMPLY with the within demand will be the basis for a
+motion seeking appropriate relief.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, NOTICE FOR DISCOVERY
+-against- DOCUMENTS
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE, that pursuant to CPLR 3101(e), you are required
+to produce at the office of the undersigned attorneys within twenty (20) days from the date
+hereof the following documents for discovery and inspection:
+1. All writings and/or documents made by this defendant, including but not
+limited to bills, records, reports, correspondence, notes, insurance forms, prescriptions, and any
+other memoranda in possession or control of plaintiff or plaintiff's representative and/or
+2. Any and all written statements made by this defendant, and any and all
+transcripts, notes or other recordings of any and all oral statements made by this defendant.
+PLEASE TAKE FURTHER NOTICE that this defendant will object to the
+introduction of any mentioned documents in evidence at trial if the plaintiff fails to comply
+with this notice.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, NOTICE FOR DISCOVERY
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE, that the undersigned attorneys demand that you
+furnish the following items within twenty (20) days of the service of this demand:
+1. Pursuant to CPLR 3120 and the rules of this court governing the exchange
+of medical reports, you are required to serve upon and deliver to the undersigned, copies of all
+medical reports of those physicians who have treated or examined the party seeking recovery,
+including a detailed recital of the injuries and conditions complained of.
+Further, you are to include duly executed and acknowledged written
+authorizations permitting the undersigned to obtain and make copies of all hospital and
+physician's records for those institutions and physicians that have treated the plaintiff. The
+authorizations must include:
+a. Full name and address of physician and/or hospital;
+b. Specialty of said physician;
+c. Dates of treatment;
+d. Plaintiff's full name and address;
+e. Identifying information necessary to acquire records;
+i. hospital identification number;
+ii. Blue Cross/Blue Shield identifying number if different from Social
+Security number;
+iii. Social Security number;
+iv. date of birth;
+f. Full name and address of employer;
+g. Dates of employment;
+h. Full name and address of pharmacy;
+i. Prescription numbers.
+j. PLEASE NOTE: If authorizations for both records and radiographic
+studies are demanded, separate authorizations are requested.
+2. Pursuant to Rule 2103(e) of the CPLR, the names and addresses of each
+party appearing in this action for the purpose of service of papers.
+3. Pursuant to Section 3101(e) of the CPLR, a copy of any statement given
+by or on behalf of any answering defendant serving this demand.
+4. Name and address of any witness known to the plaintiff or plaintiff's
+attorney, including witnesses to admissions, notice, conversations or alleged damages. Specify
+the name and address of any witness to each of the following, including but not limited thereto:
+a. The occurrence alleged in the complaint;
+b. Any acts, omissions or conditions which allegedly caused the occurrence
+alleged in the complaint;
+c. Any actual notice allegedly given to the defendants answering herein of any
+condition which allegedly caused the occurrence alleged in the complaint;
+d. The nature and duration of any alleged condition which allegedly caused the
+occurrence alleged in the complaint;
+e. Any statement or admission made by defendant or defendant's agents,
+servants, or employees.
+f. The nature and duration of any alleged damage which allegedly arose from
+the occurrence alleged in the complaint.
+5. The full caption of each and every lawsuit brought on plaintiff's behalf to
+recover damages for any connected or aggravated injuries allegedly caused and sustained by
+reason of the acts of one or more preceding joint, concurrent and/or succeeding tort feasors,
+b. Index Number;
+c. Calendar Number;
+d. Names and addresses of all litigants;
+e. Names and addresses of all attorneys appearing for the litigants;
+f. Status of lawsuit--
+i. if noticed for trial, please specify the date;
+ii. if settled, annex a copy of each release delivered indicating the amounts
+contributed by each defendant;
+iii. if discontinued without payment, annex a copy of each stipulation so
+delivered to each defendant;
+iv. if tried, annex a copy of the judgment with notice of entry;
+v. if judgment was satisfied, set forth date and amount of payment and
+annex a copy of satisfaction and judgment.
+6. Photographic prints of photographs, slides, moving pictures, videotapes
+or any other visual statements under the control of plaintiff, its agents or attorneys, still or
+moving which depict:
+a. the scene of the occurrence alleged in plaintiff's complaint;
+b. the scene of the occurrence alleged in plaintiff's complaint
+immediately prior thereto;
+c. the occurrence alleged in plaintiff's complaint;
+d. the scene of the occurrence alleged in the plaintiff's complaint
+immediately thereafter.
+e. any condition which allegedly caused or contributed to the
+occurrence alleged in plaintiff's complaint which plaintiff intends to use and introduce into
+evidence at the trial of this action.
+7. Copies of any photographs, slides or other still picture of the plaintiff or
+plaintiff's physical condition that were taken and which plaintiff intends to introduce into
+evidence at the trial of this action. If photographs to be exchanged were taken by a regular
+camera or by digital means, then identify who took the photographs the plaintiff is relying on;
+where the photographs are digitally saved; when the photographs were taken; and whether all
+photographs were exchanged that were taken for the purpose of disclosure, if any photographs
+were deleted, re-cut, re-sized, enhanced, cropped, edited, filtered or digitally revised in any
+8. Copies of any films or videotapes taken which show plaintiff's condition
+which plaintiff intends to produce and enter into evidence at trial of this action. All films or
+videotapes taken or made shall be produced without any editing in addition to any edited
+version thereof.
+9. The defendant demands to be notified at least 20 days in advance of any
+filming or videotaping or photographing of the plaintiff or plaintiff's condition taken by
+plaintiff or at plaintiff's direction or for plaintiff by others which is done to provide the jury in
+this action with a "Day in the Life" of the plaintiff or similar production depicting plaintiff's
+abilities. The defendant will object under the rules of this Court to any offer of such films,
+videotapes or photographs at the trial for the action if this demand is not met within the time
+period provided.
+10. Copies of any scripts, including drafts thereof, and complete copies of
+only "voice-overs" without editing, for the inclusion in the above as audio enhancement.
+11. The defendant demands to be present during any pre-production meeting,
+editing session, filming, videotaping or photographing, or post-production meeting or session
+involved in the preparation of any films, videotapes or still photographs taken in this matter.
+12. The defendant demands the right to film, photograph or videotape the
+actual occurrences cited in numbers "7" and "11" above.
+PLEASE TAKE FURTHER NOTICE that the within demand is a continuing
+demand. In the event any of the above items are obtained after service of this demand, they are
+to be furnished to this office.
+FAILURE TO COMPLY with this demand will be the basis of a motion
+seeking appropriate relief.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, NOTICE PURSUANT
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+COUNSELORS:
+PLEASE TAKE NOTICE that pursuant to CPLR §2103 the defendant herein
+declares that defendant will not accept the transmission by electronic means of any paper or
+document required to be served upon this firm without the specific permission of this firm for
+each and every document or paper so served.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, DEMAND FOR
+-against- MEDICAID/MEDICARE
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+PLEASE TAKE NOTICE, that pursuant to Article 31 of the Civil Practice law and Rules,
+the undersigned attorneys for defendant, hereby demand that you furnish to us within thirty (30)
+days of the service of this Notice the following:
+1. A statement as to whether the plaintiff has received benefits from either Medicare
+or Medicaid at any time, for any reason, not limited to the injuries alleged in the instant action. If
+so, please state:
+a. plaintiff(s)’ date of birth;
+b. the Medicare/Medicaid file number;
+c. the address of the office handling the plaintiff(s)’ Medicare/Medicaid file;
+d. copies of all documents, records, memoranda, notes, etc., in plaintiff(s)’
+possession pertaining to plaintiff(s)’ receipt of Medicare/Medicaid benefits; and
+e. a duly executed authorization bearing plaintiff(s)’ date of birth permitting this
+firm and other representatives of defendant(s) to obtain copies of plaintiff(s)’ Medicare/Medicaid
+PLEASE TAKE NOTICE that, pursuant to CPLR, this is a continuing Demand and that you
+are required to serve the demanded information by the earliest of the following:
+a. within 30 days of the date of this Demand;
+b. within 20 days of receiving the above requested information;
+c. no later than 30 days prior to the commencement of trial.
+If you do not possess the above requested information, a letter or affidavit to that effect
+should be submitted.
+IF YOU FAIL TO COMPLY, we shall rely on all sanctions provided by law.
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+LUIGI NAPOLITANO, Index No. 700321/2022
+Plaintiff, DEMAND FOR TRIAL
+-againstROBERT L. WIGHTON, M.D., SULMAN
+R.N., KARYN CARLSON, R.N. and NORTH SHORE
+PLEASE TAKE NOTICE, that, the below named attorneys demand that the plaintiff
+furnish the below named defendant with the following, at the time the Note of Issue is filed:
+Said authorizations are to contain full and proper names and addressed, together with any
+necessary identifying information, such as Social Security Number, and are to be HIPAA
+compliant to obtain the requisite records, films and billing records.
+PLEASE TAKE FURTHER NOTICE that, failure to comply with the above demand will
+be the basis of a motion seeking appropriate relief, including, but not limited to dismissal of the
+Dated: January 27, 2022
+Mineola, New York
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a
+227 Mineola Boulevard
+Mineola, NY 11501
+Attorneys for Plaintiff
+233 Broadway, Suite 900
+New York, NY 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+-againstROBERT L. WIGHTON, M.D., SULMAN MAHMOOD, D.O., JOSEPH DEMONTE, PCA,
+MADELINE FILS-ALME, R.N., CAROL CURRY, R.N., KARYN CARLSON, R.N. and
+DISCLOSURE AS TO MEDICAID/MEDICARE LIEN and DEMAND FOR TRIAL
+WAGNER, DOMAN, LETO & Di LEO, P.C.
+ATTORNEYS AT LAW
+Attorneys for Defendant
+MADELINE FILS-AIME, R.N. s/h/a MADELINE FILS-ALME
+227 Mineola Blvd.
+Service of a copy of the within is hereby
+PLEASE TAKE NOTICE
+(cid:0) that the within is a (certified) true copy of a
+Notice of Entry entered in the office of the clerk of the within named court on
+(cid:0) that an Order of which the within is a true copy will be presented for settlement to the Hon.
+One of the judges of the within named Court, at
+
+--- 700321_2022_LUIGI_NAPOLITANO_v_ROBERT_L_WIGHTON_M_D_et_al_SUMMONS___COMPLAINT_1.pdf ---
+SUPREME COURT OF THE STATE OF NEW YORK
+SUMMONS
+Plaintiffs designate Queens
+County as the place of trial.
+The basis of venue is:
+CARLSON, R.N. and NORTH SHORE UNIVERSITY
+Plaintiff’s residence
+Bayside, NY 11360
+To the above named Defendants:
+You are hereby summoned to answer the complaint in this action, and to serve a copy
+of your answer, or, if the complaint is not served with this summons, to serve a notice of appearance
+on the Plaintiff's attorneys within twenty days after the service of this summons, exclusive of the day
+of service, where service is made by delivery upon you personally within the state, or, within 30
+days after completion of service where service is made in any other manner. In case of your failure
+to appear or answer, judgment will be taken against you by default for the relief demanded in the
+Dated: New York, New York
+January 6, 2022 Yours, etc.
+Attorney for Plaintiff(s)
+Luigi Napolitano
+233 Broadway, Suite 900
+New York, New York 10279
+Our File No. 207081
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+300 Community Drive
+Manhasset, NY 11030
+SUPREME COURT OF THE STATE OF NEW YORK
+VERIFIED COMPLAINT
+R.N. and NORTH SHORE UNIVERSITY HOSPITAL -
+Plaintiffs, by their attorneys, BURNS & HARRIS, as and for a Verified Complaint herein,
+respectfully set forth and allege:
+AS AND FOR A FIRST CAUSE OF ACTION:
+1. That at all times herein mentioned, defendant ROBERT L. WIGHTON, M.D., was or
+represented himself to be a physician duly licensed or authorized to practice medicine in the State of
+2. That at all times hereinafter mentioned, the defendant, ROBERT L. WIGHTON,
+M.D., held himself out to be a physician possessing the skill and ability of members of the medical,
+profession, and represented that he was capable of diagnosing, treating, advising, referring,
+recommending and caring for such medical conditions for which he would undertake to treat.
+3. That at all of the times herein mentioned, defendant ROBERT L. WIGHTON, M.D.,
+was an employee of a professional corporation.
+4. That at all of the times herein mentioned, defendant ROBERT L. WIGHTON, M.D.,
+was a shareholder in a professional corporation.
+5. That at all of the times herein mentioned, defendant ROBERT L. WIGHTON, M.D.,
+was an employee of a private group practice.
+6. That at all times hereinafter mentioned, the defendant, ROBERT L. WIGHTON,
+M.D., was an agent, servant and/or employee of and/or affiliated with the defendant NORTH
+7. That at all times hereinafter mentioned, the defendant, ROBERT L. WIGHTON,
+M.D. was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+8. That at all times hereinafter mentioned, the defendant, ROBERT L. WIGHTON,
+M.D., was an agent, servant and/or employee of and/or affiliated with the defendant NORTH
+9. That the defendant ROBERT L. WIGHTON, M.D. was responsible for the negligent
+acts and omissions of his agents, servants, affiliated physicians, medical personnel and/or employees
+under the theory of respondeat superior.
+10. That at all times herein mentioned, defendant SULMAN MAHMOOD, D.O. was or
+represented himself to be a physician duly licensed or authorized to practice medicine in the State of
+11. That at all times hereinafter mentioned, the defendant, SULMAN MAHMOOD, D.O.
+held himself out to be a physician possessing the skill and ability of members of the medical,
+profession, and represented that he was capable of diagnosing, treating, advising, referring,
+recommending and caring for such medical conditions for which he would undertake to treat.
+12. That at all of the times herein mentioned, defendant SULMAN MAHMOOD, D.O.
+was an employee of a professional corporation.
+13. That at all of the times herein mentioned, defendant SULMAN MAHMOOD, D.O.
+was a shareholder in a professional corporation.
+14. That at all of the times herein mentioned, defendant SULMAN MAHMOOD, D.O.
+was an employee of a private group practice.
+15. That at all times hereinafter mentioned, the defendant, SULMAN MAHMOOD, D.O.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+16. That at all times hereinafter mentioned, the defendant, SULMAN MAHMOOD, D.O.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+17. That at all times hereinafter mentioned, the defendant, SULMAN MAHMOOD, D.O.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+18. That the defendant SULMAN MAHMOOD, D.O. was responsible for the negligent
+acts and omissions of his agents, servants, affiliated physicians, medical personnel and/or employees
+under the theory of respondeat superior.
+19. That at all times herein mentioned, defendant JOSEPH DEMONTE, PCA was or
+represented himself to be a patient care assistant duly licensed or authorized to work as such in the
+State of New York.
+20. That at all times hereinafter mentioned, the defendant, JOSEPH DEMONTE, PCA
+held himself out to be a patient care assistant possessing the skill and ability of members of his
+profession and represented that he was capable of caring for such medical conditions for which he
+would assist with.
+21. That at all of the times herein mentioned, defendant JOSEPH DEMONTE, PCA was
+an employee of a professional corporation.
+22. That at all of the times herein mentioned, defendant JOSEPH DEMONTE, PCA was
+a shareholder in a professional corporation.
+23. That at all of the times herein mentioned, defendant JOSEPH DEMONTE, PCA was
+an employee of a private group practice.
+24. That at all times hereinafter mentioned, the defendant, JOSEPH DEMONTE, PCA
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+25. That at all times hereinafter mentioned, the defendant, JOSEPH DEMONTE, PCA
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+26. That at all times hereinafter mentioned, the defendant, JOSEPH DEMONTE, PCA
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+27. That the defendant JOSEPH DEMONTE, PCA was responsible for the negligent acts
+and omissions of his agents, servants, affiliated physicians, medical personnel and/or employees
+under the theory of respondeat superior.
+28. That at all times herein mentioned, defendant MADELINE FILS-ALME, R.N. was or
+represented herself to be a registered nurse duly licensed or authorized to practice nursing in the
+State of New York.
+29. That at all times hereinafter mentioned, the defendant, MADELINE FILS-ALME,
+R.N. held herself out to be a nurse possessing the skill and ability of members of the nursing
+profession, and represented that she was capable of diagnosing, treating, advising, referring,
+recommending and caring for such medical conditions for which she would undertake to treat.
+30. That at all of the times herein mentioned, defendant MADELINE FILS-ALME, R.N.
+was an employee of a professional corporation.
+31. That at all of the times herein mentioned, defendant MADELINE FILS-ALME, R.N.
+was a shareholder in a professional corporation.
+32. That at all of the times herein mentioned, defendant MADELINE FILS-ALME, R.N.
+was an employee of a private group practice.
+33. That at all times hereinafter mentioned, the defendant, MADELINE FILS-ALME,
+R.N. was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+34. That at all times hereinafter mentioned, the defendant, MADELINE FILS-ALME,
+R.N. was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+35. That at all times hereinafter mentioned, the defendant, MADELINE FILS-ALME,
+R.N. was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+36. That the defendant MADELINE FILS-ALME, R.N. was responsible for the negligent
+acts and omissions of his agents, servants, affiliated physicians, medical personnel and/or employees
+under the theory of respondeat superior.
+37. That at all times herein mentioned, defendant CAROL CURRY, R.N. was or
+represented herself to be a registered nurse duly licensed or authorized to practice nursing in the
+State of New York.
+38. That at all times hereinafter mentioned, the defendant, CAROL CURRY, R.N. held
+herself out to be a nurse possessing the skill and ability of members of the nursing profession, and
+represented that she was capable of diagnosing, treating, advising, referring, recommending and
+caring for such medical conditions for which she would undertake to treat.
+39. That at all of the times herein mentioned, defendant CAROL CURRY, R.N. was an
+employee of a professional corporation.
+40. That at all of the times herein mentioned, defendant CAROL CURRY, R.N. was a
+shareholder in a professional corporation.
+41. That at all of the times herein mentioned, defendant CAROL CURRY, R.N. was an
+employee of a private group practice.
+42. That at all times hereinafter mentioned, the defendant, CAROL CURRY, R.N. was an
+agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+43. That at all times hereinafter mentioned, the defendant, MADELINE FILS-ALME,
+R.N. was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+44. That at all times hereinafter mentioned, the defendant, CAROL CURRY, R.N. was an
+agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+45. That the defendant CAROL CURRY, R.N. was responsible for the negligent acts and
+omissions of his agents, servants, affiliated physicians, medical personnel and/or employees under
+the theory of respondeat superior.
+46. That at all times herein mentioned, defendant KARYN CARLSON, R.N. was or
+represented herself to be a registered nurse duly licensed or authorized to practice nursing in the
+State of New York.
+47. That at all times hereinafter mentioned, the defendant, KARYN CARLSON, R.N.
+held herself out to be a nurse possessing the skill and ability of members of the nursing profession,
+and represented that she was capable of diagnosing, treating, advising, referring, recommending and
+caring for such medical conditions for which she would undertake to treat.
+48. That at all of the times herein mentioned, defendant KARYN CARLSON, R.N. was
+an employee of a professional corporation.
+49. That at all of the times herein mentioned, defendant KARYN CARLSON, R.N. was a
+shareholder in a professional corporation.
+50. That at all of the times herein mentioned, defendant KARYN CARLSON, R.N. was
+an employee of a private group practice.
+51. That at all times hereinafter mentioned, the defendant, KARYN CARLSON, R.N.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+52. That at all times hereinafter mentioned, the defendant, KARYN CARLSON, R.N.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+53. That at all times hereinafter mentioned, the defendant, KARYN CARLSON, R.N.
+was an agent, servant and/or employee of and/or affiliated with the defendant NORTH SHORE
+54. That the defendant KARYN CARLSON, R.N. was responsible for the negligent acts
+and omissions of his agents, servants, affiliated physicians, medical personnel and/or employees
+under the theory of respondeat superior.
+55. That all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH was and still is a corporation duly organized and existing
+under and by virtue of the laws of the State of New York.
+56. That all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH was and still is a corporation duly organized and existing
+under and by virtue of the laws of the State of New York.
+57. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, owned a hospital located in the County of Nassau, City
+and State of New York.
+58. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, operated said hospital located in the County of Nassau,
+City and State of New York.
+59. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, maintained said hospital located in the County of Nassau,
+City and State of New York.
+60. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, managed said hospital located in the County of Nassau,
+City and State of New York.
+61. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, controlled said hospital located in the County of Nassau,
+City and State of New York.
+62. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, held itself out as a hospital duly qualified and capable of
+rendering competent medical, nursing and supervisory care, treatment, supervision, fall prevention
+and protection and to the general public, including the plaintiff herein.
+63. That at all times herein mentioned, it was the duty of defendant, NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH, its servants, agents, affiliated physicians,
+residents, nurses, attendants and/or employees to provide for the safety, security, supervision, fall
+prevention, protection and well-being of patients of said hospital.
+64. That at all times herein mentioned, it was the duty of defendant, NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH, its servants, agents, affiliated physicians,
+residents, nurses, attendants and/or employees to provide and/or ensure safe, suitable, adequate and
+appropriate supervision, assistance, safeguards and protective devices for the safety, security,
+supervision, fall prevention, protection and well-being of patients of said hospital.
+65. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, furnished and/or provided physicians, residents, aides,
+attendants, nurses and other hospital personnel at said hospital to afford medical and hospital care,
+testing, advice, referral, recommendations, supervision, aid, assistance, fall prevention, protection,
+management and treatment to the general public, including the plaintiff herein.
+66. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, did agree to and did hold itself out as maintaining at the
+said hospital, an adequate and competent staff, including physicians, physician assistants, residents,
+aides, attendants, nurses and other medical personnel, and further warranted that the members of its
+said staff were qualified and trained for the purpose of providing such medical and hospital care,
+advice, testing, referral, recommendation, supervision, aid, assistance, fall prevention, protection,
+management, treatment and attention as they would be required to provide in accordance with the
+accepted standards of medical and hospital practice to persons seeking and requiring hospital and
+medical care, attention, safeguarding and supervision, including the plaintiff herein, and said
+defendant further held itself out as being equipped in sufficient manner to render such care, advice,
+supervision, aid, assistance, protection, safeguarding, referral, recommendation, management and
+treatment at its said hospital.
+67. That at all times herein mentioned, the defendant, NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, furnished, provided, used and employed at said hospital
+physicians, residents, nurses, aides, staff members, and others, who were authorized, retained, or
+permitted by defendant to order, recommend, request, advise, perform, render, or provide medical
+examinations, evaluations, care, diagnoses, treatments, procedures, protocols, tests, studies, services,
+supervision, aid, assistance, fall prevention, protection, safeguarding or advice of, for and to patients
+at the said hospital.
+68. That at all times herein mentioned, the said defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH, was and is fully accredited by the Joint
+Commission on Accreditation of Health Care Organizations and said defendant's manuals, rules,
+regulations, practices, procedures, protocols, techniques and functions were required to be in
+accordance with the standards and conditions of the said Joint Commission on Accreditation of
+Health Care Organizations.
+69. That the defendant NORTH SHORE UNIVERSITY HOSPITAL – NORTHWELL
+HEALTH, was responsible for the negligent acts and omissions of its agents, servants, affiliated
+physicians, residents, nurses, aides, attendants and/or employees at the said hospital under the theory
+of respondeat superior.
+70. That at all of the times herein mentioned, defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, represented that its servants, agents, affiliated physicians,
+residents, nurses, aides, attendants, employees and/or medical personnel at the said hospital were
+capable, competent and qualified to properly and adequately order, recommend, request, advise,
+perform, render, or provide all of the professional examinations, evaluations, consultations,
+directions, instructions, supervision, safeguarding, fall prevention, protection, care, treatments,
+procedures, protocols, tests, studies, services and advice ordered, recommended, requested, required
+and advised for, performed upon, rendered and/or provided to the plaintiff LUIGI NAPOLITANO.
+71. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant ROBERT L. WIGHTON, M.D., in connection with certain
+medical care, diagnosis, management and treatment to be rendered to the said plaintiff by the said
+defendant at the defendant hospital herein.
+72. That the defendant ROBERT L. WIGHTON, M.D., did undertake the treatment of the
+plaintiff LUIGI NAPOLITANO, by providing medical care, diagnosis, consultation, management,
+treatment, advice, referral and attention, and accepted the plaintiff as a patient at said hospital.
+73. That the defendant ROBERT L. WIGHTON, M.D., undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, procedures, tests, studies, services, or advice for and to the plaintiff
+LUIGI NAPOLITANO at the said defendant hospital herein.
+74. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant SULMAN MAHMOOD, D.O. in connection with certain
+medical care, diagnosis, management and treatment to be rendered to the said plaintiff by the said
+defendant at the defendant hospital herein.
+75. That the defendant SULMAN MAHMOOD, D.O. did undertake the treatment of the
+plaintiff LUIGI NAPOLITANO, by providing medical care, diagnosis, consultation, management,
+treatment, advice, referral and attention, and accepted the plaintiff as a patient at said hospital.
+76. That the defendant SULMAN MAHMOOD, D.O. undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, procedures, tests, studies, services, or advice for and to the plaintiff
+LUIGI NAPOLITANO at the said defendant hospital herein.
+77. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant JOSEPH DEMONTE, PCA in connection with certain medical
+care, diagnosis, management and treatment to be rendered to the said plaintiff by the said defendant
+at the defendant hospital herein.
+78. That the defendant JOSEPH DEMONTE, PCA did undertake the treatment of the
+plaintiff LUIGI NAPOLITANO, by providing medical care, diagnosis, consultation, management,
+treatment, advice, referral and attention, and accepted the plaintiff as a patient at said hospital.
+79. That the defendant JOSEPH DEMONTE, PCA undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, supervision, procedures, tests, studies, services, or advice for and to
+the plaintiff LUIGI NAPOLITANO at the said defendant hospital herein.
+80. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant MADELINE FILS-ALME, R.N. in connection with certain
+medical care, diagnosis, management and treatment to be rendered to the said plaintiff by the said
+defendant at the defendant hospital herein.
+81. That the defendant MADELINE FILS-ALME, R.N. did undertake the treatment of
+the plaintiff LUIGI NAPOLITANO, by providing medical care, diagnosis, consultation,
+management, treatment, advice, referral and attention, and accepted the plaintiff as a patient at said
+82. That the defendant MADELINE FILS-ALME, R.N. undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, procedures, tests, studies, services, or advice for and to the plaintiff
+LUIGI NAPOLITANO at the said defendant hospital herein.
+83. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant CAROL CURRY, R.N. in connection with certain medical
+care, diagnosis, management and treatment to be rendered to the said plaintiff by the said defendant
+at the defendant hospital herein.
+84. That the defendant CAROL CURRY, R.N. did undertake the treatment of the plaintiff
+LUIGI NAPOLITANO, by providing medical care, nursing care, diagnosis, consultation,
+management, treatment, supervision, advice, referral and attention, and accepted the plaintiff as a
+patient at said hospital.
+85. That the defendant CAROL CURRY, R.N. undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, supervision, procedures, tests, studies, services, or advice for and to
+the plaintiff LUIGI NAPOLITANO at the said defendant hospital herein.
+86. That from July 9, 2021 through July 11, 2021, the plaintiff LUIGI NAPOLITANO
+came under the care of the defendant KARYN CARLSON, R.N. in connection with certain medical
+care, diagnosis, management and treatment to be rendered to the said plaintiff by the said defendant
+at the defendant hospital herein.
+87. That the defendant KARYN CARLSON, R.N. did undertake the treatment of the
+plaintiff LUIGI NAPOLITANO, by providing medical care, diagnosis, supervision, consultation,
+management, treatment, advice, referral and attention, and accepted the plaintiff as a patient at said
+88. That the defendant KARYN CARLSON, R.N. undertook to and/or did order,
+recommend, request, advise, perform, render, or provide medical examinations, evaluations,
+consultations, care, treatments, procedures, tests, studies, services, or advice for and to the plaintiff
+LUIGI NAPOLITANO at the said defendant hospital herein.
+89. That on July 9, 2021, the plaintiff LUIGI NAPOLITANO came under the care of the
+defendant NORTH SHORE UNIVERSITY HOSPITAL – NORTHWELL HEALTH, in connection
+with certain medical care and treatment to be rendered to the plaintiff by the said defendant, its
+servants, agents, affiliated physicians, residents, nurses, aides, attendants and/or employees.
+90. That from July 9, 2021 through July 11, 2021, the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH, its servants, agents, affiliated physicians,
+residents, nurses, aides, attendants and/or employees did undertake the treatment of the plaintiff,
+LUIGI NAPOLITANO, providing the plaintiff with medical care and attention, and accepted the
+plaintiff as a patient to the said hospital.
+91. That the defendant, NORTH SHORE UNIVERSITY HOSPITAL – NORTHWELL
+HEALTH, its servants, agents, affiliated physicians, residents nurses, aides, attendants and/or
+employees did undertake to diagnose and treat the plaintiff.
+92. That the defendant, NORTH SHORE UNIVERSITY HOSPITAL – NORTHWELL
+HEALTH, its servants, agents, affiliated physicians, nurses, aides, attendants and/or employees did
+undertake to provide for the fall prevention, risk assessment, supervision, protection and well-being
+of the plaintiff.
+93. That at all times herein mentioned, the defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH, its servants, agents, affiliated physicians, residents, interns,
+technicians, nurses, aides, employees and/or medical personnel at the said hospital undertook to
+and/or did order, recommend, request, advise, perform, render, or provide medical tests,
+examinations, evaluations, consultations, directions, instructions, supervision, safeguarding, fall
+prevention, risk assessments, protection, care, treatments, procedures, protocols, studies, services, or
+advice for and to the plaintiff LUIGI NAPOLITANO.
+94. That during plaintiff’s admission to the defendant hospital from July 9, 2021 through
+July 11, 2021, the plaintiff, LUIGI NAPOLITANO, was caused to fall from a wheelchair.
+95. That the foregoing care, treatment, supervision, fall prevention, protection,
+assessment and management of the plaintiff, LUIGI NAPOLITANO, by the defendant, its servants,
+agents, affiliated physicians, physician assistants, residents, interns, technicians, nurses, aides,
+attendants, employees and/or medical personnel at the said hospital was performed in such a
+careless, negligent, and improper manner, and not in accordance with the good and accepted
+standards of medical and hospital care and practice, thereby causing the plaintiff, LUIGI
+NAPOLITANO, to sustain severe injuries and damages.
+96. That the medical and hospital procedures, fall prevention protocols, assessments,
+protection, examinations, evaluations, care, treatments, tests, studies, services, or advice ordered,
+requested, recommended, advised, performed, rendered, or provided to plaintiff by the defendants
+herein, were ordered, requested, recommended, advised, performed, rendered, or provided by
+persons who were incompetent or unqualified to order, recommend, request, advise, perform, render
+or provide examinations, evaluations, care, treatments, procedures, supervision, safeguarding, fall
+prevention, protection, assessments, tests, studies, services or advice to and/or for the plaintiff.
+97. That the defendants, and those persons who ordered, requested, recommended,
+advised, performed, rendered, or provided examinations, evaluations, supervision, safeguarding, fall
+prevention, protection, care, treatments, procedures, tests, studies, services, or advice to and/or for
+the plaintiff at said hospital were incompetent and/or unqualified to order, recommend, request,
+advise, perform, render, or provide such professional examinations, evaluations, care, treatments,
+procedures, tests, studies, services, or advice of, for, and to plaintiff.
+98. The defendant NORTH SHORE UNIVERSITY HOSPITAL – NORTHWELL
+HEALTH failed to promulgate, enforce, abide by, or follow appropriate rules, regulations,
+guidelines, procedures, policies, or protocols with respect to the performing, rendering or providing
+of medical procedures, examinations, evaluations, care, treatments, tests, studies, services,
+supervision, safeguarding, fall prevention, protection or advice to and/or for the patients at said
+hospital including the plaintiff herein.
+99. That as a result of the foregoing, the plaintiff was injured.
+100. That the foregoing injuries and damages to the plaintiff, LUIGI NAPOLITANO, were
+caused solely by virtue of the carelessness, negligence and malpractice on the part of the defendants,
+its servants, agents, affiliated physicians, physician assistants, interns, residents, aides, attendants,
+technicians, nurses and/or employees, and without any negligence on the part of the plaintiff
+contributing thereto.
+101. That the foregoing treatment of the plaintiff by the defendants were performed in a
+careless and negligent manner and not in accordance with the good and accepted standards of
+medical and hospital care and practice, thereby causing the plaintiff to sustain severe injuries and
+102. That by reason of the foregoing, this plaintiff was severely injured and damaged,
+rendered sick, sore, lame and disabled, sustained severe nervous shock and mental anguish, great
+physical pain and emotional upset, some of which injuries are permanent in nature and duration, and
+plaintiff will be permanently caused to suffer pain, inconvenience and other effects of such injuries;
+plaintiff incurred and in the future will necessarily incur further hospital and/or medical expenses in
+an effort to be cured of said injuries; and plaintiff has suffered and in the future will necessarily
+suffer additional loss of time and earnings from employment; and plaintiff will be unable to pursue
+the usual duties with the same degree of efficiency as prior to the negligence and malpractice of the
+defendants, all to plaintiff's great damage.
+103. That this action falls within one or more of the exceptions set forth in CPLR 1602.
+104. Pursuant to CPLR Section 1602(2)(iv), defendant is jointly and severally liable for all
+of plaintiff's damages, including but not limited to non-economic loss, irrespective of the provisions
+of CPLR Section 1601, by reason of the fact that defendants owed the plaintiff a non-delegable duty
+105. Pursuant to CPLR Section 1602(2)(iv), defendant is jointly and severally liable for all
+of plaintiff's damages, including but not limited to plaintiff's non-economic loss, irrespective of the
+provisions of CPLR Section 1601, by reason of the fact that said defendants are vicariously liable for
+the negligent acts and omissions of those who caused or contributed to the plaintiff's injuries and
+106. That by reason of the foregoing, plaintiff has been damaged in an amount which
+exceeds the monetary jurisdictional limits of any and all lower Courts which would otherwise have
+jurisdiction herein, in an amount to be determined upon the trial of this action.
+AS AND FOR A SECOND CAUSE OF ACTION:
+107. That plaintiff repeats, reiterates and realleges each and every allegation as contained
+in the First Cause of Action of the within Complaint, with the same force and effect as though each
+were more fully set forth at length herein.
+108. That at all times herein mentioned, the defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH had the duty to properly and adequately select and screen
+for hiring for retention or discharge as employees those physicians and/or medical staff who are not
+fit, suitable, qualified, skilled, properly trained, supervised and instructed.
+109. That all times herein mentioned, it was the duty of the said defendant NORTH
+SHORE UNIVERSITY HOSPITAL – NORTHWELL HEALTH to properly and adequately train,
+discipline, supervise, promulgate and put into effect appropriate rules applicable to the duties,
+activities and practices of its servants, agents, affiliated physicians and/or employees performing
+hospital, medical and/or nursing procedures.
+110. That all times herein mentioned, it was the duty of the said defendant NORTH
+SHORE UNIVERSITY HOSPITAL – NORTHWELL HEALTH to supervise, promulgate, enforce,
+instruct, advise, abide by, require or ensure the appropriate rules, regulations, guidelines, procedures,
+policies or protocols with respect to the duties, activities and practices of its servants, agents,
+affiliated physicians, nurses and/or employees performing medical procedures and/or examinations.
+111. That all times herein mentioned, it was the duty of the said defendant NORTH
+SHORE UNIVERSITY HOSPITAL – NORTHWELL HEALTH to entrust the care of the plaintiff to
+physicians and personnel who possessed the necessary and required skill, experience, judgment,
+diligence and capability perform such duties, activities and practices as were required and rendered
+to the plaintiff at said hospital.
+112. That at all times herein mentioned, the defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH failed, neglected and omitted to properly and adequately
+select and screen for hiring for retention or discharge as employees those physicians and or medical
+personnel who are not fit, suitable, qualified, skilled, properly trained, supervised and instructed.
+113. That all times herein mentioned, the said defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH failed, neglected and omitted to properly and adequately
+train, discipline, supervise, promulgate and put into effect appropriate rules applicable to the duties,
+activities and practices of its servants, agents, affiliated physicians and/or employees performing
+hospital, medical and/or nursing procedures.
+114. That all times herein mentioned, the said defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH failed, neglected and omitted to supervise, promulgate,
+enforce, instruct, advise, abide by, require or ensure the appropriate rules, regulations, guidelines,
+procedures, policies or protocols with respect to the duties, activities and practices of its servants,
+agents, affiliated physicians, nurses and/or employees performing medical procedures and/or
+115. That all times herein mentioned, the said defendant NORTH SHORE UNIVERSITY
+HOSPITAL – NORTHWELL HEALTH failed, neglected and omitted to entrust the care and
+supervision of the plaintiff to physicians and personnel who possessed the necessary and required
+skill, experience, judgment, diligence and capability perform such duties, activities and practices as
+were required and rendered to the plaintiff at said hospital.
+116. As a result of all of the foregoing, plaintiff has been injured and damaged in a sum
+which exceeds the jurisdictional limitations of all lower Courts which would otherwise have
+jurisdiction over this action.
+AS AND FOR A THIRD CAUSE OF ACTION:
+117. That plaintiff repeats, reiterates and realleges each and every allegation as contained
+in the First and Second Causes of Action of the within Complaint, with the same force and effect as
+though each were more fully set forth at length herein.
+118. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to promulgate, enforce, instruct, advise,
+abide by, require or ensure compliance with its own and/or appropriate rules, regulations, guidelines,
+procedures, by-laws, policies or protocols with respect to the inquiry, investigation and certification
+of malpractice insurance by physicians hired, retained, certified and/or recertified for privileges as
+physicians at said hospital.
+119. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to properly and adequately inspect,
+investigate and screen physicians for hiring or renewal of privileges at said hospital so as to
+definitively ascertain whether such physicians are in possession of adequate, appropriate and
+required credentials, licenses, privileges and references prior to such hiring and/or renewal of
+privileges at said hospital.
+120. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to properly and adequately inspect,
+investigate and screen physicians for hiring or renewal of privileges at said hospital so as to
+definitively ascertain whether such physicians are in possession of adequate, appropriate and
+required professional medical malpractice insurance prior to such hiring and/or renewal of privileges
+at said hospital.
+121. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to obtain, inspect, investigate and evaluate
+documentation of credentials, licenses and professional medical malpractice insurance prior to hiring
+or renewal of privileges of physicians at said hospital.
+122. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to properly and adequately inspect,
+investigate, research and screen physicians for hiring or renewal of privileges at said hospital so as to
+definitively ascertain whether complaints, grievances and/or suspensions have been issued against
+such physicians prior to such hiring and/or renewal of privileges at said hospital.
+123. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to properly and adequately inspect,
+investigate, research and screen physicians for hiring or renewal of privileges at said hospital so as to
+definitively ascertain whether such physicians are qualified to obtain and/or maintain such privileges
+at said hospital.
+124. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to promptly, properly, timely and
+adequately suspend the privileges of physicians who do not possess or have suffered the suspension
+of the necessary, required and appropriate credentials, privileges, licenses and professional medical
+malpractice insurance.
+125. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to prevent physicians who do not possess or
+have suffered the suspension of the necessary, required and appropriate credentials, licenses and
+medical malpractice insurance, from performing medical procedures upon patients of said hospital,
+including the plaintiff herein.
+126. That at all times herein mentioned, it was the duty of the defendant NORTH SHORE
+UNIVERSITY HOSPITAL – NORTHWELL HEALTH to immediately terminate, suspend and/or
+prevent physicians who do not possess or have suffered the suspension of the necessary, required
+and appropriate credentials, licenses and medical malpractice insurance, from performing medical
+procedures upon patients of said hospital, including the plaintiff herein.
+127. As a result of all of the foregoing, plaintiff has been injured and damaged in a sum
+which exceeds the jurisdictional limitations of all lower Courts which would otherwise have
+jurisdiction over this action.
+AS AND FOR A FOURTH CAUSE OF ACTION:
+128. That plaintiff repeats, reiterates and realleges each and every allegation as contained
+in the First, Second and Third Causes of Action of the within Complaint, with the same force and
+effect as though each were more fully set forth at length herein.
+129. That the foregoing occurrence, and the carelessness and negligence on the part of the
+defendants was not due to any action or negligence, in part or in whole, of the plaintiff herein, and
+the foregoing injuries could not have occurred but for the negligence of the defendants, their
+servants, agents and/or employees.
+130. That by reason of the foregoing, the defendants are absolutely liable for the careless
+and negligent treatment and resulting injuries to the plaintiff herein.
+140. As a result of all of the foregoing, plaintiff has been injured and damaged in a sum
+which exceeds the jurisdictional limitations of all lower Courts which would otherwise have
+jurisdiction over this action.
+AS AND FOR A FIFTH CAUSE OF ACTION
+141. That plaintiff repeats, reiterates and realleges each and every allegation as contained
+in the First, Second, Third and Fourth Causes of Action of the within Complaint, with the same force
+and effect as though each were more fully set forth at length herein.
+142. That at all times herein mentioned, the defendants failed to inform the plaintiff as to
+the exact nature and extent of plaintiff’s condition and failed to inform the plaintiff as to the risks,
+complications, consequences and dangers of the care, treatment and procedures the defendants
+undertook to perform and/or failed to perform upon the plaintiff, and further failed to inform the
+plaintiff as to the possible alternate methods of treatment applicable to the plaintiff’s condition.
+143. That had the plaintiff known of the foregoing nature and extent of the conditions and
+the risks, complications, consequences and dangers of the care, treatment and procedures the
+defendants undertook to perform and/or failed to perform, and had the plaintiff known the possible
+alternate methods of treatment applicable to the plaintiff’s condition, the plaintiff would have chosen
+other necessary, required and alternate methods of treatment so as to have avoided serious injury and
+severe worsening and deterioration of the condition of the plaintiff.
+144. That by reason of the failure to properly inform the plaintiff, and in failing to obtain
+the informed consent of the plaintiff, the plaintiff was caused to sustain serious damages and injuries.
+145. That by reason of the foregoing, plaintiff has been damaged in an amount which
+exceeds the monetary jurisdictional limits of any and all lower courts which would otherwise have
+jurisdiction herein, in an amount to be determined upon the trial of this action.
+WHEREFORE, plaintiff demands judgment against the defendant, the amount sought on
+each cause of action exceeding the monetary jurisdictional limits of any and all lower courts which
+would otherwise have jurisdiction herein, together with the costs and disbursements of this action,
+and with interest from the date of this occurrence.
+Dated: New York, New York
+Attorneys for Plaintiff
+Luigi Napolitano
+233 Broadway, Ste 900
+New York, New York 10279
+SUPREME COURT OF THE STATE OF NEW YORK
+R.N. and NORTH SHORE UNIVERSITY HOSPITAL -
+MARLA STEIN, Esq., an attorney duly admitted to practice law in the Courts of this State,
+affirms the following to be true under the penalties of perjury:
+That I am a partner in the law firm of BURNS & HARRIS, ESQS. attorneys for the plaintiff
+in the above-entitled action, and as such, am fully familiar with the facts and circumstances
+surrounding this matter based upon the file maintained in our office.
+That I make this Certificate of Merit, pursuant to Section 3012-a of the CPLR, and state as
+That I have reviewed the facts of this case and have consulted with at least one physician
+who is licensed to practice in this State, and whom I reasonably believe is knowledgeable in the
+relevant issues involved in this particular action, and that I have concluded on the basis of such
+review and consultation that there is a reasonable basis for the commencement of such action.
+Dated: New York, New York
+ATTORNEY VERIFICATION
+MARLA STEIN, ESQ., an attorney duly admitted to practice law in the Courts of the State
+of New York, shows:
+I am the attorney for the plaintiff in the within action and have read the foregoing
+COMPLAINT and know the contents thereof; the same is true upon information and belief.
+This verification is made by this affirmant and not by said plaintiff because said plaintiff
+reside(s) in a County other than the County wherein your affirmant maintains her office.
+The grounds of affirmant’s knowledge and belief are as follows: Conference with client(s)
+and notes and records contained in the file maintained in the regular course of business.
+The undersigned affirms that the foregoing statements are true under the penalties of perjury.
+Dated: New York, New York
+---
+
+Now write the case summary:
+<|end|>
+<|assistant|>
+
+[23:56:59.132] [OLLAMA GENERATE] ===== COMPLETE PROMPT END =====
+[00:00:13.677] [OLLAMA GENERATE] Generation complete: 307 tokens in 194.54s
+[00:00:13.677] [OLLAMA GENERATE] Output length: 1474 chars
+[00:00:13.677] [OLLAMA GENERATE] Output preview (first 100 chars): Okay, here's a case summary based on the provided text, aiming for a concise and informative overvie
+[00:00:13.678] [OLLAMA WORKER] Summary generated in 194.81 seconds.

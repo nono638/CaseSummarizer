@@ -7,11 +7,14 @@ This module initializes the CustomTkinter application and launches the main wind
 
 import sys
 import multiprocessing
-import sys
 import os
+from datetime import datetime
+
+# Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import customtkinter as ctk
+from src.config import LOGS_DIR
 
 # CRITICAL: Import src.ai BEFORE UI framework to avoid DirectML DLL conflicts on Windows
 # This pre-loads onnxruntime_genai before UI framework initializes
@@ -19,10 +22,40 @@ import src.ai  # noqa: F401
 
 from src.ui.main_window import MainWindow
 
+def setup_file_logging():
+    """Redirects stdout and stderr to a log file."""
+    if not os.path.exists(LOGS_DIR):
+        os.makedirs(LOGS_DIR)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = LOGS_DIR / f"main_log_{timestamp}.txt"
+    
+    class Logger:
+        def __init__(self, filepath):
+            self.terminal = sys.stdout
+            self.logfile = open(filepath, "w", encoding='utf-8')
+
+        def write(self, message):
+            self.terminal.write(message)
+            self.logfile.write(message)
+            self.flush()
+
+        def flush(self):
+            self.terminal.flush()
+            self.logfile.flush()
+
+    sys.stdout = Logger(log_filename)
+    sys.stderr = sys.stdout # Redirect stderr to the same file
+    print(f"--- Log started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---")
+    print(f"Logging to: {log_filename}")
+
 def main():
     """
     Main entry point for LocalScribe desktop application.
     """
+    # Setup file logging
+    setup_file_logging()
+
     # Enable multiprocessing support for Windows frozen executables
     multiprocessing.freeze_support()
 
@@ -33,6 +66,7 @@ def main():
     # Create and run the application
     app = MainWindow()
     app.mainloop()
+
 
 
 if __name__ == "__main__":

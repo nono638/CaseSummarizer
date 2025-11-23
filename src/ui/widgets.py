@@ -4,6 +4,7 @@ LocalScribe - Custom UI Widgets (CustomTkinter Refactor)
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 import os
+import psutil # For CPU/GPU monitoring
 
 # Import prompt configuration
 from ..prompt_config import get_prompt_config
@@ -28,7 +29,8 @@ class FileReviewTable(ctk.CTkFrame):
         }
         
         self._create_treeview()
-        
+        self.file_item_map = {} # To map filename to treeview item ID
+
     def _create_treeview(self):
         """Create the Treeview widget."""
         style = ttk.Style()
@@ -59,38 +61,55 @@ class FileReviewTable(ctk.CTkFrame):
         self.tree.pack(expand=True, fill="both")
 
     def add_result(self, result):
-        """Add a processing result to the table."""
+        """Add or update a processing result in the table."""
         filename = result.get('filename', 'Unknown')
+        
+        values, status_color_tag = self._prepare_result_for_display(result)
+
+        if filename in self.file_item_map:
+            # Update existing item
+            item_id = self.file_item_map[filename]
+            self.tree.item(item_id, values=values, tags=(status_color_tag,))
+        else:
+            # Insert new item
+            item_id = self.tree.insert("", "end", values=values, tags=(status_color_tag,))
+            self.file_item_map[filename] = item_id
+
+        # Configure colors for tags
+        self.tree.tag_configure('green', foreground='#28a745')
+        self.tree.tag_configure('yellow', foreground='#ffc107')
+        self.tree.tag_configure('red', foreground='#dc3545')
+        self.tree.tag_configure('pending', foreground='gray')
+
+
+    def _prepare_result_for_display(self, result):
+        """Prepares result data for display in the treeview."""
         status = result.get('status', 'error')
         confidence = result.get('confidence', 0)
         
         status_text, status_color_tag = self._get_status_display(status, confidence)
         method_display = self._get_method_display(result.get('method', 'unknown'))
-        confidence_display = f"{confidence}%" if status != 'error' else "—"
-        pages_display = str(result.get('page_count', 0)) or "—"
+        confidence_display = f"{confidence}%" if status != 'error' and confidence > 0 else "—"
+        pages_display = str(result.get('page_count', 0)) if result.get('page_count') else "—"
         size_display = self._format_file_size(result.get('file_size', 0)) if status != 'error' else "—"
 
         # Using a placeholder for the "Include" checkbox for now
         include_display = "✓" if status == 'success' and confidence >= 70 else " "
-
+        
         values = (
             include_display,
-            filename,
+            result.get('filename', 'Unknown'),
             status_text,
             method_display,
             confidence_display,
             pages_display,
             size_display
         )
-        self.tree.insert("", "end", values=values, tags=(status_color_tag,))
-
-        # Configure colors for tags
-        self.tree.tag_configure('green', foreground='#28a745')
-        self.tree.tag_configure('yellow', foreground='#ffc107')
-        self.tree.tag_configure('red', foreground='#dc3545')
+        return values, status_color_tag
 
     def _get_status_display(self, status, confidence):
         if status == 'error': return ("✗ Failed", "red")
+        if status == 'pending': return ("... Pending", "pending")
         if status == 'success' and confidence >= 70: return ("✓ Ready", "green")
         return ("⚠ Low Quality", "yellow")
 
@@ -105,9 +124,15 @@ class FileReviewTable(ctk.CTkFrame):
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024
             unit_index += 1
-        return f"{size:.1f} {units[unit_index]}"
+        
+        # Round to nearest integer for MB and GB, one decimal for B and KB
+        if unit_index >= 2: # MB or GB
+            return f"{round(size)} {units[unit_index]}"
+        else: # B or KB
+            return f"{size:.1f} {units[unit_index]}"
 
     def clear(self):
+        self.file_item_map.clear()
         for item in self.tree.get_children():
             self.tree.delete(item)
 
@@ -166,14 +191,44 @@ class OutputOptionsWidget(ctk.CTkFrame):
 
         self.individual_summaries_check = ctk.CTkCheckBox(self, text="Individual Summaries")
         self.individual_summaries_check.grid(row=4, column=0, padx=10, pady=5, sticky="w")
-        self.individual_summaries_check.select() # On by default
+        self.individual_summaries_check.deselect() # Off by default
 
         self.meta_summary_check = ctk.CTkCheckBox(self, text="Meta-Summary of All Documents")
         self.meta_summary_check.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        self.meta_summary_check.select() # On by default
 
         self.vocab_csv_check = ctk.CTkCheckBox(self, text="Rare Word List (CSV)")
         self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        self.vocab_csv_check.select() # On by default
 
+
+class SystemMonitorWidget(ctk.CTkFrame):
+    """Widget to display system resource usage (CPU/GPU)."""
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
+
+        self.cpu_label = ctk.CTkLabel(self, text="CPU: 0%", font=ctk.CTkFont(size=12))
+        self.cpu_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
+
+        self.gpu_label = ctk.CTkLabel(self, text="GPU: N/A", font=ctk.CTkFont(size=12))
+        self.gpu_label.grid(row=0, column=1, padx=5, pady=2, sticky="w")
+
+        self.update_stats()
+
+    def update_stats(self):
+        """Update CPU and GPU usage stats."""
+        # CPU Usage
+        cpu_percent = psutil.cpu_percent(interval=None)
+        self.cpu_label.configure(text=f"CPU: {cpu_percent:.1f}%")
+        
+        # NOTE: Getting GPU usage is platform-specific and complex.
+        # This is a placeholder for now. A library like 'py-nvml' for NVIDIA
+        # or platform-specific commands would be needed for a real implementation.
+        self.gpu_label.configure(text="GPU: N/A")
+
+        self.after(2000, self.update_stats) # Update every 2 seconds
 
 
 class DynamicOutputWidget(ctk.CTkFrame):
