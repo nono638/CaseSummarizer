@@ -1,45 +1,197 @@
 # Scratchpad - Future Ideas & Refinements
 
-## Ideas for Future Phases
+## Development Roadmap (Spec-Driven Phases)
 
-### Performance Optimization Ideas
-- Multi-threaded OCR processing for large documents
-- Caching mechanism for frequently processed documents
-- GPU acceleration option for AI model inference (if user has compatible GPU)
+### **Phase 2.2: Document Prioritization System** (Est. 3-4 hours)
+**Spec Reference:** Section 6 of Project_Specification_LocalScribe_v2.0_FINAL.md
 
-### UI/UX Enhancements
-- Drag-and-drop file upload
-- Dark mode theme
-- Keyboard shortcuts for common actions
-- Preview pane showing original document side-by-side with cleaned text
+When combined document text exceeds AI model context window (~6000 tokens), intelligently truncate based on priority:
+- **HIGH Priority:** complaint, answer, bill of particulars, summons (never truncated)
+- **MEDIUM Priority:** motion, affidavit, exhibit, deposition (truncate proportionally)
+- **LOW Priority:** notice, certificate, cover, stipulation (truncate first)
 
-### Advanced Features (Post-v1.0)
+**Implementation Steps:**
+1. Create `DocumentPriority` enum and priority assignment logic
+2. Implement token estimation and truncation algorithm (Section 6.4 of spec)
+3. Add "Priority" column to File Review Table
+4. Add Settings menu for jurisdiction presets (NY, California, Federal, Custom)
+5. Integrate with Ollama text generation pipeline
+
+---
+
+### **Phase 3: License Server Integration** (Est. 4-6 hours)
+**Spec Reference:** Section 4 of Project_Specification_LocalScribe_v2.0_FINAL.md
+
+Users need to validate licenses and download commercial models via Dropbox:
+- License key validation API (HTTP POST to `/api/validate_license`)
+- Quota tracking (daily/weekly/monthly/annual limits per license)
+- Dropbox model download with progress bar
+- Model storage management in `%APPDATA%/LocalScribe/models/`
+- License caching (24-hour validity before re-validation)
+
+**Current State:** Not implemented. App uses free Ollama models (gemma3:1b).
+
+---
+
+### **Phase 4: Vocabulary Extraction Enhancement** (Est. 2-3 hours)
+**Spec Reference:** Section 7.5.2 & 8.2 of Project_Specification_LocalScribe_v2.0_FINAL.md
+
+Complete the vocabulary extraction pipeline with per-term definitions:
+- Extract rare/technical terms + proper nouns (already working)
+- **Batch-generate definitions** for all terms with progress indicator
+- **Cache definitions locally** in `%APPDATA%/LocalScribe/cache/definitions.json` to avoid re-processing
+- CSV export with Term, Category, Definition, Source columns
+- User exclusion system (hide terms from future vocabulary lists)
+
+---
+
+### **Phase 5: Advanced Features** (Post-v1.0)
 - Batch processing mode (process multiple cases overnight)
 - Template system for custom summary formats
 - Integration with court reporter workflow tools
 - Export to Word/PDF with formatting
 - Compare mode (diff between versions of documents)
 
-### Quality Improvements
-- Unit test coverage for all modules
-- Integration tests with sample legal documents
-- Benchmark suite for performance testing
-- Automated UI testing with pytest-qt
+---
 
-### Documentation
-- User manual with screenshots
-- Video tutorials for common workflows
-- Troubleshooting guide
-- Developer documentation for extending the application
+## Summary Quality Improvements (Discussion: 2025-11-23)
+
+### **Current Issue: Summaries Are Unsatisfactory**
+
+**Identified Problem:** Current summaries (using gemma3:1b) lack depth and nuance; they read as generic case overviews rather than insightful, strategic analysis.
+
+**Root Cause Analysis:**
+- Model size: gemma3:1b is a 1-billion-parameter model optimized for speed, not quality
+- Context limitation: Truncation may be cutting off important details before summarization
+- Prompt engineering: Current prompts may not be extracting "why" and strategic implications
+
+### **Solution: Multi-Pronged Approach**
+
+#### **1. Upgrade to Larger Model** (Quick Win - Est. 1 hour)
+Test with **llama2:13b** or **mistral:7b** via Ollama:
+```bash
+ollama pull llama2:13b
+ollama pull mistral:7b
+```
+
+**Hypothesis:** 7B-13B models have substantially better reasoning than 1B models. This alone may significantly improve summary quality.
+
+**Next Steps:**
+1. Update model dropdown to offer both 1B (fast, basic) and 7B (slower, better quality) options
+2. Update time estimates in UI (7B will be 3-5x slower)
+3. A/B test output quality with same documents
+4. Log which model produces "best" summaries for future tuning
+
+---
+
+#### **2. Parallel Document Processing (Feature: Phase 2.5)** ⭐ **NEW PRIORITY**
+**User Request:** Process multiple documents simultaneously through Ollama with responsible CPU throttling.
+
+**Design Principles:**
+- **Non-blocking architecture:** Only the final meta-summary (combining individual summaries) is blocking
+- **User-controlled concurrency:** Let user choose CPU allocation:
+  - 1/4 cores: Low impact on laptop responsiveness
+  - 1/2 cores: Balanced (RECOMMENDED)
+  - 3/4 cores: Aggressive (for server/powerful machines)
+- **Graceful scaling:** On 12-core machine with 1/2 option → process 6 documents simultaneously
+
+**Implementation Sketch:**
+```python
+class AsyncDocumentProcessor:
+    def __init__(self, cpu_fraction=0.5):
+        """
+        cpu_fraction: 0.25 (1/4), 0.5 (1/2), 0.75 (3/4)
+        Calculates max_concurrent_jobs = ceil(cpu_count() * cpu_fraction)
+        """
+        self.max_concurrent = ceil(os.cpu_count() * cpu_fraction)
+        self.job_queue = asyncio.Queue()
+        self.active_jobs = {}
+
+    async def process_document_batch(self, documents):
+        """
+        - Spawn up to max_concurrent tasks to Ollama
+        - Each task: summarize one document independently
+        - Wait for all to complete
+        - Then generate meta-summary (blocking, single call)
+        """
+```
+
+**GUI Changes:**
+1. Add "Processing Concurrency" setting: Dropdown [1/4 cores | 1/2 cores | 3/4 cores]
+2. Display active job count: "Processing 4/6 documents... (4 cores active)"
+3. Progress bar per document (indeterminate, updates as they complete)
+
+---
+
+#### **3. System Monitor in GUI** ⭐ **NEW FEATURE**
+**User Request:** Show CPU usage in the GUI so user can see resource impact of their concurrency choice.
+
+**Implementation:**
+1. Add small status bar section at bottom-right: `CPU: 45% | RAM: 8.2 GB / 16 GB`
+2. Update every 1 second via background thread (psutil library)
+3. Color code: Green (<50%), Yellow (50-75%), Red (75%+)
+4. Optional detail tooltip: "Intel Core i7-11700K (8 cores) | Ollama using 4 cores"
+
+```python
+import psutil
+
+def get_system_stats():
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+    memory = psutil.virtual_memory()
+    return {
+        'cpu': cpu_percent,
+        'ram_used_gb': memory.used / 1024**3,
+        'ram_total_gb': memory.total / 1024**3
+    }
+```
+
+---
+
+## Summary Quality Roadmap (Approved Discussion Items)
+
+### **Immediate Actions (Next Session)**
+1. ✅ Test llama2:13b and mistral:7b with sample case documents
+2. ✅ Measure: time to generate summary + quality improvement vs 1B model
+3. ✅ Decision: Which model to recommend as default? (Likely 7B)
+
+### **Phase 2.5: Parallel Processing** (Est. 4-5 hours)
+- CPU fraction selector in Settings (1/4, 1/2, 3/4 cores)
+- AsyncDocumentProcessor with job queue
+- Progress UI showing "X/Y documents processing"
+- Per-document summary generation (no blocking until meta-summary)
+
+### **Phase 2.6: System Monitor Widget** (Est. 1-2 hours)
+- CPU% and RAM usage display in status bar
+- Background thread updating every 1 second
+- Color-coded indicators (Green/Yellow/Red)
+- Optional tooltip with system details
+
+### **Why This Matters:**
+- **Quality:** Larger models → better reasoning → more useful summaries
+- **Performance:** Parallel processing → faster overall throughput (e.g., 6 docs in ~5 min vs 6×2 min sequentially)
+- **Transparency:** User sees system impact of their choices (CPU%, RAM) → builds trust
+- **Responsible:** User controls concurrency → avoids system overload
+
+---
 
 ## Questions to Address Later
 - Should we support other file formats (DOCX, ODT)?
 - What's the best way to handle multi-language documents?
 - Should we add a "confidence threshold" setting that auto-rejects low-quality OCR?
-- Would users benefit from a "quick summary" mode (shorter processing time, less detail)?
+- Which larger model (7B, 13B) offers the best quality/speed trade-off for legal documents?
 
 ## Technical Debt to Monitor
-- None yet - project just starting
+- None critical at present
 
 ---
-*This file is for brainstorming only. Items here are NOT approved for implementation unless explicitly discussed with the user.*
+
+## Session Notes
+**2025-11-23 Discussion Summary:**
+- Current summaries unsatisfactory; likely due to 1B model limitations
+- Parallel document processing identified as high-priority feature for throughput
+- CPU core allocation strategy approved (user-controlled: 1/4, 1/2, 3/4)
+- System monitor (CPU%, RAM) requested for transparency
+- Meta-summary remains blocking (correct; prevents premature aggregation)
+
+---
+*This file captures approved roadmap items and discussion outcomes. Items here are ready for implementation unless explicitly marked as "Future Consideration."*
