@@ -124,24 +124,52 @@ class AsyncDocumentProcessor:
 ---
 
 #### **3. System Monitor in GUI** ⭐ **NEW FEATURE**
-**User Request:** Show CPU usage in the GUI so user can see resource impact of their concurrency choice.
+**User Request:** Display real-time CPU and RAM usage to diagnose bottlenecks and optimize concurrency settings.
+
+**Design:** Minimal, always visible; detailed info on hover.
 
 **Implementation:**
-1. Add small status bar section at bottom-right: `CPU: 45% | RAM: 8.2 GB / 16 GB`
-2. Update every 1 second via background thread (psutil library)
-3. Color code: Green (<50%), Yellow (50-75%), Red (75%+)
-4. Optional detail tooltip: "Intel Core i7-11700K (8 cores) | Ollama using 4 cores"
+1. **Status bar (bottom of window):** `CPU: 45% | RAM: 8.2 / 16 GB`
+2. **Update frequency:** Every 1 second via background thread (psutil library)
+3. **Color coding:**
+   - Green: <50% (plenty of headroom)
+   - Yellow: 50-75% (moderate usage, can increase async jobs)
+   - Red: 75%+ (bottlenecked, reduce async concurrency)
+4. **Hover tooltip (on status bar):** Reveals detailed specs
+   ```
+   Intel Core i7-11700K (8 physical cores, 16 logical threads)
+   Base: 3.6 GHz | Turbo: 5.0 GHz
+   Current CPU usage: 45% (3.6/8 cores active)
+   ```
+
+**Use Cases:**
+- User sees CPU: 28% → "I can crank up concurrency from 1/2 to 3/4 cores"
+- User sees CPU: 85% → "System is bottlenecked, reduce to 1/4 cores"
+- User hovers tooltip → understands their hardware context for performance expectations
 
 ```python
 import psutil
 
 def get_system_stats():
+    """Returns CPU%, RAM usage, and CPU model info."""
     cpu_percent = psutil.cpu_percent(interval=0.5)
     memory = psutil.virtual_memory()
+
+    # CPU model (platform-dependent)
+    try:
+        import platform
+        cpu_model = platform.processor()  # e.g., "Intel Core i7-11700K"
+    except:
+        cpu_model = "Unknown CPU"
+
+    core_count = os.cpu_count()
+
     return {
-        'cpu': cpu_percent,
+        'cpu_percent': cpu_percent,
         'ram_used_gb': memory.used / 1024**3,
-        'ram_total_gb': memory.total / 1024**3
+        'ram_total_gb': memory.total / 1024**3,
+        'cpu_model': cpu_model,
+        'core_count': core_count
     }
 ```
 
