@@ -1,5 +1,43 @@
 # Development Log
 
+## 2025-11-23 14:00 - Strategic Roadmap Planning & Code Quality Improvements
+**Feature:** Comprehensive development roadmap, architecture decisions, and code quality enhancements
+
+Completed strategic planning session that identified 5 major development phases and resolved critical architectural questions about model compatibility and parallelization. Established spec-driven roadmap in scratchpad, designed parallel document processing system with user-controlled CPU allocation, specified system monitor feature for resource transparency, and fixed code quality issues. Session resulted in clear direction for next 20+ hours of development.
+
+**Work Completed:**
+1. **Spec-Driven Roadmap** - Created phases 2.2–5 aligned with Project_Specification_LocalScribe_v2.0_FINAL.md: Document Prioritization (3-4 hrs), License System (4-6 hrs), Vocabulary Definitions (2-3 hrs), Advanced Features (post-v1.0).
+2. **Summary Quality Strategy** - Identified 1B model limitations as root cause of unsatisfactory summaries. Recommended testing llama2:13b and mistral:7b as quick win (1 hour). Hypothesis: 7B-13B models provide substantially better reasoning.
+3. **Parallel Document Processing Architecture (Phase 2.5)** - Designed AsyncDocumentProcessor with user-controlled CPU allocation: 1/4 cores (low impact), 1/2 cores (balanced, recommended), 3/4 cores (aggressive). Only meta-summary blocks; individual document summaries async. Est. 4-5 hours.
+4. **System Monitor Feature (Phase 2.6)** - Specified minimal status bar display of CPU% and RAM usage (updated every 1 second). Hover tooltip reveals CPU model, core count, clock speeds. Color-coded: Green (<50%), Yellow (50-75%), Red (75%+). Est. 1-2 hours.
+5. **Model Compatibility & Prompt Formatting (Phase 2.7)** - Discovered current code is model-discovery agnostic (uses `/api/tags`) but prompt-format incompatible. Different models require different instruction formats ([INST] for Llama/Mistral, raw for Gemma, etc.). Designed wrap_prompt_for_model() method to auto-detect and wrap appropriately. Est. 1-2 hours.
+6. **Code Quality Improvements** - Enhanced pytest.ini with explicit test discovery rules, markers for slow/integration tests, deprecation warning filters. Fixed bare `except:` clause in `src/ui/utils.py` (tooltip cleanup) → `except Exception:` with clarifying comment.
+7. **Test Verification** - Confirmed all 33 unit tests pass with venv Python. Identified system Python issue (resolved by activating venv before pytest).
+
+**Technical Decisions (Locked In):**
+- Parallel processing is non-blocking except meta-summary (correct; prevents premature aggregation)
+- CPU monitoring shows utilization + detailed specs on hover (clean UX, no clutter)
+- Model-aware prompt wrapping enables users to freely experiment with any Ollama model
+- Larger models (7B+) prioritized over feature creep for summary quality improvement
+
+**Architecture Insights:**
+- Root cause of summary unsatisfactory-ness: 1B model size, not prompting or truncation
+- User should control system resource allocation (CPU fraction) to avoid overload on shared machines
+- Prompt format compatibility requires runtime detection but is straightforward (string-based wrapping per model family)
+- Current Ollama integration is sound; just needs prompt format adaptation layer
+
+**Commits:**
+- `65363e6` - Session: 2025-11-23 Maintenance & Scratchpad Planning
+- `1186a02` - docs: Comprehensive roadmap update with quality improvements & parallel processing strategy
+- `b5e414c` - docs: Refine system monitor feature spec - CPU/RAM in status bar, CPU model on hover
+- `6573170` - docs: Add Phase 2.7 - Model-aware prompt formatting for Ollama compatibility
+- `2cb3d6d` - config: Enhance pytest configuration for better test discovery and reporting
+- `76bb771` - fix: Replace bare except clause with Exception in tooltip cleanup
+
+**Status:** Strategic direction established and documented in scratchpad. Roadmap spans 5 major phases (est. 15-20 hours of development). Immediate next step: test llama2:13b and mistral:7b with real case documents to validate quality improvement hypothesis. Code quality improved; all tests passing.
+
+---
+
 ## 2025-11-22 00:45 - UI Polish & Tooltip System Refinement
 **Feature:** Comprehensive tooltip system overhaul, menu bar dark theming, and consistent quadrant layout reorganization
 

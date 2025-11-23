@@ -1,13 +1,15 @@
 # LocalScribe - Human Summary
 
 ## Project Status
-**Phase 2.1 - UI Refactor Complete:** Application UI has been successfully migrated from Qt (PySide6/PyQt6) to **CustomTkinter**. This has resolved all critical, system-level DLL and threading issues, resulting in a stable and functional application.
+**Phase 2.1 - UI Refactor Complete** ✅ Application UI successfully migrated to CustomTkinter with all visual and interaction improvements finalized, application stable and production-ready.
+
+**Roadmap Established** ✅ (2025-11-23) 5-phase development roadmap created and documented in scratchpad, aligned with official project specification. Covers document prioritization, parallel processing, system monitoring, model compatibility, and license integration.
 
 **Current Branch:** `main`
-**Status:** ✅ **UI POLISH & REFINEMENT COMPLETE** - All visual and interaction improvements finalized, application stable and production-ready
+**Status:** ✅ **PRODUCTION-READY UI + STRATEGIC ROADMAP** - Application is stable, well-documented, and ready for next phase of feature development (Phase 2.2+)
 
-**Latest Session (2025-11-22 - UI Polish & Tooltip System Refinement):**
-Completed comprehensive UI polish including tooltip system fixes, menu bar dark theming, quadrant header styling, and consistent layout reorganization across all four UI quadrants.
+**Latest Session (2025-11-23 - Strategic Roadmap Planning & Code Quality):**
+Established comprehensive 5-phase development roadmap addressing all remaining features from the official specification. Identified summary quality improvement strategy (test larger models: llama2:13b, mistral:7b). Designed parallel document processing architecture with user-controlled CPU allocation (1/4, 1/2, 3/4 cores). Specified system monitor feature (CPU% + RAM display with CPU model on hover). Discovered and designed solution for model prompt format compatibility issue (Phase 2.7: wrap_prompt_for_model). Enhanced pytest configuration and fixed code quality issue (bare except clause).
 
 **Session 2025-11-22 Improvements:**
 1. **Tooltip System Redesign** - Implemented stable 500ms-delay tooltip system with proper event handling, eliminating flickering on all four help icons
@@ -88,6 +90,49 @@ All integration tests passing. **Complete workflow now functional:**
 - ✅ **Signal delivery** - Fixed checkbox state change signal timing in file table
 
 **Local Development:** Activate the virtual environment: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
+
+---
+
+## Development Roadmap (2025-11-23)
+
+**Strategic direction established for Phases 2.2 through 5.** All items are documented in `scratchpad.md` with implementation estimates and technical specifications.
+
+### Immediate Next Steps (Quick Wins - 1 hour each)
+1. **Test Larger AI Models** - Pull `llama2:13b` and `mistral:7b` to test summary quality improvement. Hypothesis: 7B-13B models provide substantially better reasoning than 1B models currently in use.
+
+### Planned Development Phases (15-20 hours total)
+
+| Phase | Feature | Time | Status | Spec Section |
+|-------|---------|------|--------|--------------|
+| 2.2 | Document Prioritization System | 3-4 hrs | Planned | Section 6 |
+| 2.5 | Parallel Document Processing | 4-5 hrs | Planned | New |
+| 2.6 | System Monitor Widget (CPU/RAM) | 1-2 hrs | Planned | New |
+| 2.7 | Model-Aware Prompt Formatting | 1-2 hrs | Planned | New |
+| 3 | License Server Integration | 4-6 hrs | Planned | Section 4 |
+| 4 | Vocabulary Definitions (Enhanced) | 2-3 hrs | Planned | Section 7.5.2, 8.2 |
+| 5 | Advanced Features | TBD | Future | Post-v1.0 |
+
+### Key Architecture Decisions (Locked In)
+
+✅ **Parallel Processing Design:**
+- AsyncDocumentProcessor with queue-based job management
+- User-controlled CPU allocation: 1/4, 1/2 (default), 3/4 cores
+- Only meta-summary is blocking; all individual summaries process asynchronously
+- Prevents system overload on shared machines
+
+✅ **System Transparency:**
+- Real-time CPU% and RAM display in status bar
+- Color-coded: Green (<50%), Yellow (50-75%), Red (75%+)
+- Hover tooltip reveals CPU model, core count, clock speeds
+- Helps users diagnose bottlenecks and optimize concurrency
+
+✅ **Model Compatibility:**
+- All Ollama-downloaded models auto-discovered via `/api/tags`
+- New `wrap_prompt_for_model()` detects model type and applies correct instruction format
+- Supports Llama, Mistral, Gemma, Neural-Chat, Dolphin, and extensible for new models
+- Enables users to freely experiment with different models without code changes
+
+---
 
 ## File Directory
 
