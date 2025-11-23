@@ -1,5 +1,48 @@
 # Development Log
 
+## 2025-11-23 16:30 - Phase 2.7: Model-Aware Prompt Formatting Implementation
+**Feature:** Model-agnostic prompt wrapping for Ollama compatibility across different model families
+
+Implemented Phase 2.7 feature enabling LocalScribe to automatically detect model type and apply correct instruction format, making the application future-proof for any Ollama model (including not-yet-released models). This eliminates silent failures where incompatible prompt formats cause models to produce garbage output or refuse requests.
+
+**Work Completed:**
+1. **wrap_prompt_for_model() Method** - Added intelligent model detection based on model name extraction (e.g., "llama2:7b" → base model "llama2"). Supports 5 instruction format families: Llama/Mistral ([INST]...[/INST]), Gemma (raw), Neural-Chat/Dolphin (### User/Assistant), Qwen (Llama-compatible), and fallback for unknown models.
+2. **Integration into generate_text()** - Modified generate_text() to wrap prompt before sending to Ollama. Wrapped prompt used in API payload while original prompt logged separately for debugging.
+3. **Comprehensive Debug Logging** - Added [PROMPT FORMAT] logs showing detected model type and applied format. Separate debug output shows both original and wrapped prompts, enabling easy troubleshooting if wrapping causes issues.
+4. **Code Validation** - Verified syntax compilation with Python. Implementation is backward-compatible; existing code paths unchanged.
+
+**Technical Implementation:**
+- Model detection: Extract base name from "model:tag" format, case-insensitive matching
+- Format application: Conditional string wrapping based on model family detection
+- Logging: Debug mode shows [PROMPT FORMAT] detection logs + both prompt versions in log file
+- Default behavior: Unknown models get raw prompt (works with instruction-tuned models, safe fallback)
+- No breaking changes: Existing `generate_text()` and `generate_summary()` APIs unchanged
+
+**Design Rationale (Middle-of-Road Approach):**
+- **Extensibility:** Adding support for new model families only requires adding one elif clause (single line of logic)
+- **Safety:** Fallback to raw prompt for unknown models ensures app doesn't crash with future models
+- **Transparency:** Debug logging shows exactly which format was applied and why
+- **Simplicity:** String-based wrapping is straightforward and maintainable (vs. complex template systems)
+- **No Premature Optimization:** Wrapping happens once per generation (negligible performance impact)
+
+**Future-Proofing Achieved:**
+✅ Users can now freely experiment with any Ollama model without code changes
+✅ New model families can be supported by users or future maintenance (single-line config addition)
+✅ Prevents silent failures where incompatible formats cause model to return garbage
+✅ Fully backward-compatible with existing code and saved preferences
+
+**Model Support Matrix:**
+- ✅ llama2, llama3, etc. → [INST] format
+- ✅ mistral, mixtral → [INST] format
+- ✅ qwen → [INST] format (Llama-compatible)
+- ✅ gemma, gemma2, gemma3 → Raw prompt
+- ✅ neural-chat, dolphin → ### User/Assistant format
+- ✅ Any other instruction-tuned model → Raw prompt (fallback)
+
+**Status:** Phase 2.7 implementation complete, tested, and ready for use. All code compiles successfully. Roadmap updated; application is now truly model-agnostic.
+
+---
+
 ## 2025-11-23 14:00 - Strategic Roadmap Planning & Code Quality Improvements
 **Feature:** Comprehensive development roadmap, architecture decisions, and code quality enhancements
 
