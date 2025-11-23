@@ -12,7 +12,7 @@ from pathlib import Path
 from queue import Queue, Empty
 
 from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, DynamicOutputWidget
-from src.ui.workers import ProcessingWorker
+from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
@@ -118,7 +118,8 @@ def create_tooltip(widget, text, position="right"):
         if tooltip_window:
             try:
                 tooltip_window.destroy()
-            except:
+            except (RuntimeError, AttributeError):
+                # RuntimeError: window already destroyed; AttributeError: invalid state
                 pass
             tooltip_window = None
 
@@ -149,12 +150,16 @@ class MainWindow(ctk.CTk):
         self.selected_files = []
         self.processing_results = []
         self.worker = None
-        
+        self.pending_ai_generation = None
+
         # AI Model Manager
         self.model_manager = ModelManager()
 
         # Threading Queue
         self.ui_queue = Queue()
+
+        # AI Worker Manager for Ollama summaries
+        self.ai_worker_manager = OllamaAIWorkerManager(self.ui_queue)
 
         # Initialize UI
         self._create_main_layout()
@@ -391,18 +396,53 @@ class MainWindow(ctk.CTk):
         self.processing_results = []
         self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
 
+        # Store AI generation parameters for after document cleaning completes
+        self.pending_ai_generation = {
+            "selected_model": selected_model,
+            "summary_length": summary_length,
+            "output_options": output_options
+        }
+
         self.worker = ProcessingWorker(
-            file_paths, 
-            self.ui_queue, 
-            self.model_manager, 
-            selected_model, 
-            summary_length, 
-            output_options
+            file_paths,
+            self.ui_queue
         )
         self.worker.start()
 
+    def _start_ai_generation(self, cleaned_documents, ai_params):
+        """Start AI summary generation after document cleaning is complete."""
+        try:
+            selected_model = ai_params["selected_model"]
+            summary_length = ai_params["summary_length"]
+            output_options = ai_params["output_options"]
+
+            # Prepare combined text from cleaned documents
+            combined_text = ""
+            for doc in cleaned_documents:
+                combined_text += f"\n\n--- {doc['filename']} ---\n{doc['cleaned_text']}"
+
+            self.status_label.configure(text="Generating AI summary...")
+            self.progress_bar.set(0.5)
+
+            # Send task to AI worker - using the correct format expected by ollama_worker
+            task_payload = {
+                "case_text": combined_text,
+                "max_words": summary_length,
+                "preset_id": selected_model  # Use the selected model as preset
+            }
+
+            self.ai_worker_manager.send_task("GENERATE_SUMMARY", task_payload)
+            debug_log(f"[MAIN WINDOW] Started AI generation with model: {selected_model}, length: {summary_length} words")
+
+        except Exception as e:
+            debug_log(f"[MAIN WINDOW] Error starting AI generation: {e}")
+            messagebox.showerror("AI Generation Error", f"Failed to start AI summary generation: {str(e)}")
+            self.select_files_btn.configure(state="normal")
+            self.generate_outputs_btn.configure(state="normal")
+            self.progress_bar.pack_forget()
+
     def _process_queue(self):
-        """Process messages from the worker thread queue."""
+        """Process messages from the worker thread queue and AI worker manager."""
         try:
             while True:
                 message_type, data = self.ui_queue.get_nowait()
@@ -411,7 +451,7 @@ class MainWindow(ctk.CTk):
                     percentage, message = data
                     self.progress_bar.set(percentage / 100.0)
                     self.status_label.configure(text=message)
-                
+
                 elif message_type == 'file_processed':
                     self.processing_results.append(data)
                     self.file_table.add_result(data)
@@ -420,25 +460,50 @@ class MainWindow(ctk.CTk):
 
                 elif message_type == 'meta_summary_generated':
                     self.summary_results.update_outputs(meta_summary=data)
-                
+
                 elif message_type == 'vocab_csv_generated':
                     self.summary_results.update_outputs(vocab_csv_data=data)
 
-                elif message_type == 'finished':
+                elif message_type == 'processing_finished':
+                    # Document cleaning finished; now generate AI summaries if requested
+                    cleaned_documents = data
+                    if self.pending_ai_generation:
+                        self._start_ai_generation(cleaned_documents, self.pending_ai_generation)
+                    else:
+                        # No AI generation requested, just finish up
+                        self.select_files_btn.configure(state="normal")
+                        self.generate_outputs_btn.configure(state="normal")
+                        self.progress_bar.pack_forget()
+                        self.status_label.configure(text="Processing complete.")
+
+                elif message_type == 'summary_result':
+                    # AI summary generated successfully
+                    debug_log(f"[MAIN WINDOW] Summary result received: {data}")
+                    self.summary_results.update_outputs(meta_summary=data.get('summary', ''))
+                    self.progress_bar.set(1.0)
+                    self.status_label.configure(text="Summary generation complete!")
                     self.select_files_btn.configure(state="normal")
-                    self.generate_outputs_btn.configure(state="normal") # Re-enable new button
+                    self.generate_outputs_btn.configure(state="normal")
                     self.progress_bar.pack_forget()
-                    self.status_label.configure(text="Processing complete.")
-                
+                    self.pending_ai_generation = None
+
                 elif message_type == 'error':
                     messagebox.showerror("Processing Error", data)
                     self.select_files_btn.configure(state="normal")
                     self.generate_outputs_btn.configure(state="normal") # Re-enable new button
                     self.progress_bar.pack_forget()
+                    self.pending_ai_generation = None
 
         except Empty:
             pass # No messages in queue
         finally:
+            # Also check AI worker manager for messages
+            if hasattr(self, 'ai_worker_manager'):
+                ai_messages = self.ai_worker_manager.check_for_messages()
+                for msg_type, msg_data in ai_messages:
+                    # Put AI messages back in the main queue for processing
+                    self.ui_queue.put((msg_type, msg_data))
+
             self.after(100, self._process_queue) # Poll again after 100ms
 
     def _check_ollama_service(self):

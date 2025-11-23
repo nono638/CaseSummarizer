@@ -37,6 +37,7 @@ OLLAMA_API_BASE = "http://localhost:11434"  # Default Ollama API endpoint
 OLLAMA_MODEL_NAME = "gemma3:1b"  # Default model for the application
 OLLAMA_MODEL_FALLBACK = "gemma3:1b"  # Fallback if the primary model fails
 OLLAMA_TIMEOUT_SECONDS = 600  # 10 minutes for long summaries
+QUEUE_TIMEOUT_SECONDS = 2.0  # Timeout for multiprocessing queue operations
 
 # --- New Model Configuration System ---
 MODEL_CONFIG_FILE = Path(__file__).parent.parent / "config" / "models.yaml"
