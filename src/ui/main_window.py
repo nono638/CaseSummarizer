@@ -146,7 +146,7 @@ class MainWindow(ctk.CTk):
 
     def __init__(self):
         super().__init__()
-        self.title("LocalScribe - Legal Document Processor")
+        self.title("LocalScribe v2.1 - 100% Offline Legal Document Processor")
         self.geometry("1200x800")
 
         # State
@@ -186,12 +186,11 @@ class MainWindow(ctk.CTk):
 
     def _create_menus(self):
         """Create a native-style menubar using tkinter.Menu with dark theme colors."""
-        # Dark grey colors to match CustomTkinter's palette
-        # Using darker grey (#404040) instead of pure #2b2b2b for menu bar readability
-        bg_color = "#404040"  # Dark grey background
-        fg_color = "#ffffff"  # White text
-        active_bg = "#505050" # Slightly lighter grey for hover
-        active_fg = "#ffffff" # White text on hover
+        # Darker colors to blend seamlessly with CustomTkinter dark theme
+        bg_color = "#212121"   # Very dark (blends with UI)
+        fg_color = "#ffffff"   # White text
+        active_bg = "#333333"  # Slightly lighter for hover
+        active_fg = "#ffffff"  # White text on hover
 
         self.menubar = Menu(self, bg=bg_color, fg=fg_color,
                            activebackground=active_bg, activeforeground=active_fg,
@@ -205,11 +204,11 @@ class MainWindow(ctk.CTk):
                         borderwidth=0, relief="flat",
                         disabledforeground="#666666")
         self.menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Select Files...", command=self.select_files)
+        file_menu.add_command(label="Select Files...", command=self.select_files, accelerator="Ctrl+O")
         file_menu.add_separator()
-        file_menu.add_command(label="Settings", command=self.show_settings)
+        file_menu.add_command(label="Settings", command=self.show_settings, accelerator="Ctrl+,")
         file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.quit)
+        file_menu.add_command(label="Exit", command=self.quit, accelerator="Ctrl+Q")
 
         help_menu = Menu(self.menubar, tearoff=0,
                         bg=bg_color, fg=fg_color,
@@ -217,7 +216,12 @@ class MainWindow(ctk.CTk):
                         borderwidth=0, relief="flat",
                         disabledforeground="#666666")
         self.menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="About", command=self.show_about)
+        help_menu.add_command(label="About LocalScribe v2.1", command=self.show_about)
+
+        # Bind keyboard shortcuts
+        self.bind("<Control-o>", lambda e: self.select_files())
+        self.bind("<Control-comma>", lambda e: self.show_settings())
+        self.bind("<Control-q>", lambda e: self.quit())
 
     def show_about(self):
         messagebox.showinfo("About LocalScribe", "LocalScribe v2.1\n\n100% Offline Legal Document Processor")
@@ -270,70 +274,100 @@ class MainWindow(ctk.CTk):
         bottom_left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
         bottom_right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0), pady=(5, 0))
 
-        # Configure quadrant frames to have a grid for internal layout
-        # Row 0: Labels (centered, full width)
-        # Row 1: Tooltip icons (left side)
-        # Row 2+: Content widgets
+        # Configure quadrant frames with borders and internal layout
+        # Row 0: Header with emoji inline
+        # Row 1+: Content widgets
         for frame in [top_left_frame, top_right_frame, bottom_left_frame, bottom_right_frame]:
-            frame.grid_rowconfigure(0, weight=0) # For labels
-            frame.grid_rowconfigure(1, weight=0) # For tooltip icons
-            frame.grid_rowconfigure(2, weight=1) # For content
+            frame.grid_rowconfigure(0, weight=0)  # Header row
+            frame.grid_rowconfigure(1, weight=1)  # Content row
             frame.grid_columnconfigure(0, weight=1)
+            # Add subtle border
+            frame.configure(border_width=1, border_color="#404040")
 
         # --- Populate Quadrants ---
-        # NOTE: All quadrant headers follow a consistent style convention:
-        # - Row 0: Labels (16pt, bold weight, centered, full width)
-        # - Row 1: Tooltip icons (14pt, left-aligned in column 0)
-        # - Row 2+: Content widgets
-        # - Future sections should follow this same pattern for UI consistency
+        # NOTE: Headers now have emojis inline: "📄 Document Selection"
+        # This prevents cutoff and provides better space utilization
 
-        # Top-Left: File Review Table and Tooltip
-        files_label = ctk.CTkLabel(top_left_frame, text="Document Selection", font=ctk.CTkFont(size=16, weight="bold"))
-        files_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
-        files_label.configure(anchor="center")
-        tooltip_icon_tl = ctk.CTkLabel(top_left_frame, text="📄", font=ctk.CTkFont(size=14))
-        tooltip_icon_tl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
-        create_tooltip(tooltip_icon_tl, "Select documents to process. The program distinguishes between digital PDFs (direct text extraction) and scanned PDFs (OCR required, which may introduce errors).")
+        # Top-Left: File Review Table
+        files_label = ctk.CTkLabel(
+            top_left_frame,
+            text="📄 Document Selection",
+            font=ctk.CTkFont(size=17, weight="bold")
+        )
+        files_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
+
+        create_tooltip(
+            files_label,
+            "Digital PDF: Text extracted directly. Scanned PDF: Uses Tesseract OCR (confidence-weighted cleaning, may introduce errors). TXT/RTF: Direct text extraction.\n\n"
+            "Batch: Up to 100 docs. ProcessingTime ≈ (avg_pages × model_size). Supports .pdf, .txt, .rtf.",
+            position="right"
+        )
 
         self.file_table = FileReviewTable(top_left_frame)
-        self.file_table.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        self.file_table.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
 
-        # Top-Right: Model Selection and Tooltip
-        model_label = ctk.CTkLabel(top_right_frame, text="AI Model Selection", font=ctk.CTkFont(size=16, weight="bold"))
-        model_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
-        model_label.configure(anchor="center")
-        tooltip_icon_tr = ctk.CTkLabel(top_right_frame, text="🤖", font=ctk.CTkFont(size=14))
-        tooltip_icon_tr.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
-        create_tooltip(tooltip_icon_tr, "Choose an AI model for summarization. Larger models may offer better quality but will take longer to process. All models run locally on your machine, ensuring privacy and PII safety.", position="right")
+        # Top-Right: Model Selection
+        model_label = ctk.CTkLabel(
+            top_right_frame,
+            text="🤖 AI Model Selection",
+            font=ctk.CTkFont(size=17, weight="bold")
+        )
+        model_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
+
+        create_tooltip(
+            model_label,
+            "Any Ollama model supported. LocalScribe auto-detects & applies model-specific instruction formats ([INST] for Llama/Mistral, raw for Gemma, etc.).\n\n"
+            "Size guidance: 1B=fast/basic, 7B=quality, 13B=best (slower). Larger = better reasoning. See Phase 2.7 for format compatibility.",
+            position="right"
+        )
 
         self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
-        self.model_selection.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
+        self.model_selection.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
 
-        # Bottom-Left: Dynamic Output Display and Tooltip
-        output_display_label = ctk.CTkLabel(bottom_left_frame, text="Generated Outputs", font=ctk.CTkFont(size=16, weight="bold"))
-        output_display_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
-        output_display_label.configure(anchor="center")
-        tooltip_icon_bl = ctk.CTkLabel(bottom_left_frame, text="📝", font=ctk.CTkFont(size=14))
-        tooltip_icon_bl.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
-        create_tooltip(tooltip_icon_bl, "View generated outputs here. Summaries are AI-generated and can be imperfect, but hopefully still useful. Use the dropdown to switch between individual summaries, the meta-summary, or the rare word list CSV.")
+        # Bottom-Left: Dynamic Output Display
+        output_display_label = ctk.CTkLabel(
+            bottom_left_frame,
+            text="📝 Generated Outputs",
+            font=ctk.CTkFont(size=17, weight="bold")
+        )
+        output_display_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
+
+        create_tooltip(
+            output_display_label,
+            "Individual summaries: Per-document outputs (from parallel processing). Meta-summary: Hierarchical summary of all docs (blocking final step). "
+            "Vocabulary: CSV of technical terms (category, definition, relevance). Dropdown switches between output types. Copy/Save buttons available.",
+            position="right"
+        )
 
         self.summary_results = DynamicOutputWidget(bottom_left_frame)
-        self.summary_results.grid(row=2, column=0, sticky="nsew", padx=5, pady=5)
+        self.summary_results.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
 
-        # Bottom-Right: Output Options and Tooltip
-        output_options_label = ctk.CTkLabel(bottom_right_frame, text="Output Options", font=ctk.CTkFont(size=16, weight="bold"))
-        output_options_label.grid(row=0, column=0, sticky="ew", padx=5, pady=(5, 0))
-        output_options_label.configure(anchor="center")
-        tooltip_icon_br = ctk.CTkLabel(bottom_right_frame, text="⚙️", font=ctk.CTkFont(size=14))
-        tooltip_icon_br.grid(row=1, column=0, sticky="w", padx=5, pady=(2, 5))
-        create_tooltip(tooltip_icon_br, "Configure desired outputs. Each selected output (individual summaries, meta-summary, rare word list) adds to the processing time. Only generate what you need.", position="right")
+        # Bottom-Right: Output Options
+        output_options_label = ctk.CTkLabel(
+            bottom_right_frame,
+            text="⚙️ Output Options",
+            font=ctk.CTkFont(size=17, weight="bold")
+        )
+        output_options_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
+
+        create_tooltip(
+            output_options_label,
+            "Word count: 50-500 words per summary (adjusts token budget). Outputs: Toggle which results to generate (save time by disabling unneeded outputs). "
+            "Parallel processing uses CPU fraction from Settings. Monitor system impact via status bar CPU/RAM display.",
+            position="right"
+        )
 
         self.output_options = OutputOptionsWidget(bottom_right_frame)
-        self.output_options.grid(row=2, column=0, sticky="ew", padx=5, pady=5)
+        self.output_options.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
 
-        self.generate_outputs_btn = ctk.CTkButton(bottom_right_frame, text="Generate All Outputs", command=self._start_generation)
-        self.generate_outputs_btn.grid(row=3, column=0, sticky="ew", padx=5, pady=5)
-        self.generate_outputs_btn.configure(state="disabled") # Disabled until files are selected
+        self.generate_outputs_btn = ctk.CTkButton(
+            bottom_right_frame,
+            text="Generate All Outputs",
+            command=self._start_generation,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.generate_outputs_btn.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+        self.generate_outputs_btn.configure(state="disabled")
 
     def _create_status_bar(self):
         """Create status bar for messages and system monitoring."""

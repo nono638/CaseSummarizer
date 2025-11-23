@@ -1,5 +1,90 @@
 # Development Log
 
+## 2025-11-23 18:15 - UI Polish & Accessibility Improvements
+**Feature:** Comprehensive UI refinements focused on visual hierarchy, dark theme consistency, and experienced-user guidance
+
+Implemented 8 GUI improvements to enhance user experience and professionalism. Moved emoji icons inline with quadrant headers (eliminating cutoff issues), rewrote tooltips with technical/advanced guidance (not beginner-oriented), fixed menu colors to darker theme (#212121), added keyboard shortcuts, improved typography and spacing, added quadrant borders, and increased overall padding. All changes compiled and tested.
+
+**Work Completed:**
+
+1. **Emoji-in-Title Redesign** - Eliminated separate icon row:
+   - Before: Separate row with emoji icon (wasted space, potential cutoff)
+   - After: Inline emoji + title → "📄 Document Selection" (clean, compact)
+   - All 4 quadrants updated: Documents, Models, Outputs, Options
+   - Freed up grid row; simplified layout complexity
+
+2. **Advanced User Tooltips** - Rewrote for experienced users:
+   - **Document Selection:** File type handling (OCR vs. direct), batch limits, format support
+   - **AI Model Selection:** Model auto-detection, instruction format compatibility (Phase 2.7), model size guidance (1B vs 7B vs 13B)
+   - **Generated Outputs:** Individual vs. meta-summary, parallel processing, vocabulary terms, output switching
+   - **Output Options:** Word count budget, parallel processing, CPU fraction settings, system monitor integration
+   - All tooltips now assume user familiarity with core concepts
+
+3. **Menu Color Fix** - Darker theme blend:
+   - Before: #404040 (medium grey, clashed with UI)
+   - After: #212121 (very dark, seamlessly blends)
+   - Hover state: #333333 (subtle, matches CustomTkinter)
+   - Consistent with app's dark aesthetic throughout
+
+4. **Keyboard Shortcuts** - Added to File menu:
+   - Ctrl+O → Select Files
+   - Ctrl+, → Settings
+   - Ctrl+Q → Exit
+   - Shortcuts displayed in menu (accelerator labels)
+   - Keyboard events bound in main window
+
+5. **Window Title Enhancement** - Version info visible:
+   - Before: "LocalScribe - Legal Document Processor"
+   - After: "LocalScribe v2.1 - 100% Offline Legal Document Processor"
+   - Version visible in taskbar/window bar for clarity
+
+6. **Quadrant Header Improvements** - Typography & spacing:
+   - Font size: 16pt → 17pt (more prominent)
+   - Weight: bold (already bold, kept for consistency)
+   - Top padding: 5px → 10px (breathing room)
+   - Bottom padding: 0px → 8px (separation from content)
+   - All headers consistently formatted
+
+7. **Quadrant Borders** - Visual separation:
+   - Added subtle border to all 4 quadrant frames
+   - Border color: #404040 (dark, matches theme)
+   - Border width: 1px (minimal, not intrusive)
+   - Improves visual definition without disruption
+
+8. **Padding Improvements** - Consistent spacing:
+   - Content padding: 5px → 10px (internal quadrant margins)
+   - Removed wasted spacing from eliminated icon row
+   - Generate button padding: increased for visual prominence
+   - Status bar padding: adjusted for new layout
+
+**Visual Improvements Summary:**
+
+```
+BEFORE:  📄 (separate)        AFTER:  📄 Document Selection
+         Document Selection           (content below)
+         (content below)
+```
+
+**Technical Details:**
+
+- Quadrant grid refactored: Row 0 (header) + Row 1+ (content) instead of Row 0 (header) + Row 1 (icons) + Row 2 (content)
+- Tooltip attached to label directly (not separate icon)
+- Frame borders applied via `.configure(border_width=1, border_color="#404040")`
+- Keyboard shortcuts bound in `_create_menus()` using `self.bind()`
+- All changes backward compatible; no API modifications
+
+**User Experience Impact:**
+
+- **Visual:** Cleaner, more professional appearance; better visual hierarchy
+- **Efficiency:** Emoji placement prevents accidental cutoff; no wasted space
+- **Guidance:** Advanced tooltips provide technical context without over-explaining
+- **Accessibility:** Larger headers, increased padding, subtle borders improve scannability
+- **Dark Theme:** Consistent coloring throughout (menu, quadrants, borders, backgrounds)
+
+**Status:** All 8 improvements implemented and compiled successfully. No breaking changes. UI is more polished, dark theme is cohesive, and tooltips serve experienced users effectively.
+
+---
+
 ## 2025-11-23 17:45 - Phase 2.6: System Monitor Widget (CPU/RAM Status Bar)
 **Feature:** Real-time system resource monitoring with color-coded status indicators and hover tooltips
 
