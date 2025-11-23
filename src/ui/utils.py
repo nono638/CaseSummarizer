@@ -87,7 +87,8 @@ def create_tooltip(widget, text, position="right"):
         if tooltip_window:
             try:
                 tooltip_window.destroy()
-            except:
+            except Exception:
+                # Window may have already been destroyed by another event
                 pass
             tooltip_window = None
 
