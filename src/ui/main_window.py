@@ -13,9 +13,11 @@ from queue import Queue, Empty
 
 from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, DynamicOutputWidget
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
+from src.ui.dialogs import SettingsDialog
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
+from src.user_preferences import get_user_preferences
 
 # Helper function to create tooltips for CustomTkinter widgets
 def create_tooltip(widget, text, position="right"):
@@ -204,6 +206,8 @@ class MainWindow(ctk.CTk):
         self.menubar.add_cascade(label="File", menu=file_menu)
         file_menu.add_command(label="Select Files...", command=self.select_files)
         file_menu.add_separator()
+        file_menu.add_command(label="Settings", command=self.show_settings)
+        file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.quit)
 
         help_menu = Menu(self.menubar, tearoff=0,
@@ -216,6 +220,19 @@ class MainWindow(ctk.CTk):
 
     def show_about(self):
         messagebox.showinfo("About LocalScribe", "LocalScribe v2.1\n\n100% Offline Legal Document Processor")
+
+    def show_settings(self):
+        """Open the Settings dialog."""
+        prefs = get_user_preferences()
+        current_fraction = prefs.get_cpu_fraction()
+
+        def on_save(cpu_fraction):
+            """Callback when user saves settings."""
+            prefs.set_cpu_fraction(cpu_fraction)
+            messagebox.showinfo("Settings Saved", f"CPU allocation set to {int(cpu_fraction * 100)}%")
+
+        dialog = SettingsDialog(self, current_fraction, on_save_callback=on_save)
+        self.wait_window(dialog)  # Wait for dialog to close
 
     def _create_toolbar(self):
         """Create toolbar with file selection controls."""

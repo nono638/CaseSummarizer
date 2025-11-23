@@ -34,7 +34,10 @@ class UserPreferencesManager:
         """
         default_structure = {
             "model_defaults": {},
-            "last_used_model": None
+            "last_used_model": None,
+            "processing": {
+                "cpu_fraction": 0.5  # Default: 1/2 cores (0.25, 0.5, or 0.75)
+            }
         }
 
         try:
@@ -115,6 +118,28 @@ class UserPreferencesManager:
         if "model_defaults" in self._preferences:
             self._preferences["model_defaults"].pop(model_name, None)
             self._save_preferences()
+
+    def get_cpu_fraction(self) -> float:
+        """
+        Get the CPU fraction for parallel document processing.
+
+        Returns:
+            float: CPU fraction (0.25, 0.5, or 0.75). Defaults to 0.5
+        """
+        return self._preferences.get("processing", {}).get("cpu_fraction", 0.5)
+
+    def set_cpu_fraction(self, cpu_fraction: float) -> None:
+        """
+        Set the CPU fraction for parallel document processing.
+
+        Args:
+            cpu_fraction: CPU fraction (0.25, 0.5, or 0.75)
+        """
+        if "processing" not in self._preferences:
+            self._preferences["processing"] = {}
+
+        self._preferences["processing"]["cpu_fraction"] = cpu_fraction
+        self._save_preferences()
 
 
 # Global instance
