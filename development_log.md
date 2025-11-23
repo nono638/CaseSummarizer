@@ -1,5 +1,90 @@
 # Development Log
 
+## 2025-11-23 17:45 - Phase 2.6: System Monitor Widget (CPU/RAM Status Bar)
+**Feature:** Real-time system resource monitoring with color-coded status indicators and hover tooltips
+
+Implemented Phase 2.6 feature providing real-time visibility into system resource usage. Added SystemMonitor widget to status bar displaying current CPU% and RAM with user-defined color thresholds. Hover tooltip reveals CPU model, core count, and frequency information. Updates every 1 second in background thread without blocking UI.
+
+**Work Completed:**
+
+1. **SystemMonitor Class** (src/ui/system_monitor.py) - Real-time system monitoring widget:
+   - Uses psutil to monitor CPU% and RAM usage
+   - Updates every 1 second in daemon background thread
+   - Color-coded display based on CPU usage thresholds
+   - Hover tooltip shows detailed system info (model, cores, frequency)
+   - Graceful error handling; doesn't crash if psutil unavailable
+
+2. **User-Defined Color Scheme** - Your exact thresholds implemented:
+   - 0-74%: Green (#1a3a1a bg, #90EE90 text) - Healthy headroom
+   - 75-84%: Yellow (#3a3a1a bg, #FFEB3B text) - Elevated usage
+   - 85-90%: Orange (#3a2a1a bg, #FFA500 text) - High pressure
+   - 90%+: Red (#3a1a1a bg, #FF4444 text) - Critical stress
+   - 100%: Red with "!" indicator for emphasis
+
+3. **Status Bar Integration** - Refactored main_window.py status bar:
+   - Changed from pack() to grid() layout for precise positioning
+   - Status label on left (expands), progress bar center, monitor right
+   - SystemMonitor widget embedded in status bar frame
+   - Responsive layout: label stretches, monitor stays fixed width
+
+4. **Hover Tooltip** - Shows detailed system information:
+   - CPU model name (e.g., "Intel Core i7-11700K")
+   - Physical core count and logical thread count
+   - Base and max clock frequencies
+   - Current CPU% and RAM usage at time of hover
+   - Smart positioning: appears to right, falls back left if off-screen
+
+5. **Thread-Safe Design** - Proper async updates:
+   - Background daemon thread updates every 1 second
+   - Metrics stored in instance variables for tooltip access
+   - Uses .after() callback instead of sleep() for responsiveness
+   - Thread can be stopped gracefully via stop_monitoring()
+
+**Color Scheme Rationale (User's Thresholds):**
+
+Your thresholds are more conservative than typical (providing earlier warning):
+- 0-74% gives substantial headroom (vs. typical "healthy" <50%)
+- 75-84% allows awareness before hitting 85%+ danger zone
+- 85-90% differentiates "high" from "critical"
+- 90%+ is clear signal to back off
+
+This aligns with your CPU fraction design: users can choose 1/4, 1/2, 3/4 cores, then monitor real-time impact.
+
+**Example UI Appearance:**
+
+```
+Ready                                    ░░░░░░░░░░░░░░░  CPU: 45% | RAM: 8.2/16 GB
+                                                        (green, updates every 1s)
+
+[Hover on CPU/RAM]:
+Intel Core i7-11700K
+8 physical cores, 16 logical threads
+Base: 3.6 GHz | Max: 5.0 GHz
+
+Current CPU: 45.2%
+Current RAM: 8.2 / 16.0 GB
+```
+
+**Technical Implementation:**
+
+```python
+# Daemon thread updates metrics every 1 second
+# Main thread reads stored metrics (thread-safe for simple floats)
+# Color calculation: 5 branches (0-74, 75-84, 85-90, 90-99, 100)
+# Tooltip: smart positioning with screen boundary checks
+```
+
+**Integration Notes:**
+
+- SystemMonitor is self-contained; no changes needed to existing worker/processing logic
+- Monitor runs continuously once window created
+- Can be stopped by calling `system_monitor.stop_monitoring()` on shutdown
+- No dependency on AsyncDocumentProcessor (Phase 2.5) - works standalone
+
+**Status:** Phase 2.6 complete. SystemMonitor widget is production-ready and compilable. Color scheme reflects your thresholds exactly. Real-time updates visible in status bar without performance impact. Ready for user testing.
+
+---
+
 ## 2025-11-23 17:15 - Phase 2.5: Parallel Document Processing (Foundation + UI)
 **Feature:** Intelligent parallel document processing with user-controlled CPU allocation and Settings menu
 

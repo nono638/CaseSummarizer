@@ -14,6 +14,7 @@ from queue import Queue, Empty
 from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, DynamicOutputWidget
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
 from src.ui.dialogs import SettingsDialog
+from src.ui.system_monitor import SystemMonitor
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
@@ -335,14 +336,23 @@ class MainWindow(ctk.CTk):
         self.generate_outputs_btn.configure(state="disabled") # Disabled until files are selected
 
     def _create_status_bar(self):
-        """Create status bar for messages."""
+        """Create status bar for messages and system monitoring."""
         self.status_bar_frame = ctk.CTkFrame(self, height=25, corner_radius=0)
         self.status_bar_frame.grid(row=2, column=0, sticky="ew")
+        self.status_bar_frame.grid_columnconfigure(0, weight=1)  # Status label expands
+        self.status_bar_frame.grid_columnconfigure(1, weight=0)  # Progress bar fixed
+        self.status_bar_frame.grid_columnconfigure(2, weight=0)  # Monitor fixed
+
         self.status_label = ctk.CTkLabel(self.status_bar_frame, text="Ready", anchor="w")
-        self.status_label.pack(side="left", padx=10)
-        
+        self.status_label.grid(row=0, column=0, sticky="ew", padx=10)
+
         self.progress_bar = ctk.CTkProgressBar(self.status_bar_frame, mode="determinate")
         self.progress_bar.set(0)
+        self.progress_bar.grid(row=0, column=1, sticky="e", padx=(5, 5))
+
+        # Add system monitor (CPU/RAM display with hover tooltip)
+        self.system_monitor = SystemMonitor(self.status_bar_frame)
+        self.system_monitor.grid(row=0, column=2, sticky="e", padx=(0, 5))
         
     def select_files(self):
         """Open file dialog and update selected files."""
