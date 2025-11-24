@@ -369,7 +369,7 @@ def test_pipeline_graceful_failure():
 1. **CLAUDE.md** - Add Phase 3 definition: "Preprocessing for Model Inference"
 2. **human_summary.md** - Add to Phase 2 progress
 3. **development_log.md** - Log completion of preprocessing module
-4. **Project_Specification** - Add Section 5.5: "Pre-Model Text Preprocessing"
+4. **PROJECT_OVERVIEW.md** - Add Section 5.5: "Pre-Model Text Preprocessing"
 5. **README.md** - Document preprocessing pipeline usage
 
 ---
