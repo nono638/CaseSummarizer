@@ -30,11 +30,20 @@ class DebugLogger:
         timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted = f"[{timestamp}] {message}"
 
-        # Write to console
-        print(formatted)
-        sys.stdout.flush()
+        # Write to console with error handling for Unicode characters
+        try:
+            print(formatted)
+            sys.stdout.flush()
+        except UnicodeEncodeError:
+            # If Unicode encoding fails, write directly to stdout buffer with error handling
+            try:
+                sys.stdout.buffer.write((formatted + "\n").encode('utf-8', errors='replace'))
+                sys.stdout.buffer.flush()
+            except Exception:
+                # Last resort: skip console output if all else fails
+                pass
 
-        # Write to file
+        # Write to file (always succeeds since file is UTF-8)
         if self._log_file:
             self._log_file.write(formatted + "\n")
             self._log_file.flush()
