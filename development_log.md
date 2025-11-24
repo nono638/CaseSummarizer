@@ -1,6 +1,121 @@
 # Development Log
 
-## 2025-11-24 - Architectural Naming Refactoring (DocumentCleaner → RawTextExtractor)
+## 2025-11-24 (Session 2) - Code Refactoring, Documentation Cleanup, Bug Fixes & Testing
+**Features:** Code quality improvements, documentation consolidation, Unicode handling fix, critical issue discovery
+
+### Summary
+Completed comprehensive code refactoring and documentation cleanup. Split main_window.py (428 lines) into two focused modules: quadrant_builder.py (221 lines) for UI layout and queue_message_handler.py (156 lines) for async message routing. Reduced main_window.py to 290 lines (-32%). Consolidated 11 markdown files to 6 essential files by identifying and fixing naming conflicts (DEV_LOG.md vs development_log.md). Fixed critical Unicode encoding error in debug logger that was crashing application during summary generation. Discovered and documented blocking issue: character sanitization needed between extraction and preprocessing steps.
+
+### Work Completed
+
+**Part 1: Code Refactoring (45 minutes)**
+1. **Created src/ui/quadrant_builder.py** (221 lines):
+   - Extracted `_create_central_widget()` method (117 lines → reusable builder functions)
+   - Four independent builder functions: build_document_selection_quadrant(), build_model_selection_quadrant(), build_output_display_quadrant(), build_output_options_quadrant()
+   - Centralized orchestration function: create_central_widget_layout()
+   - Benefits: UI layout completely decoupled from window logic; easier to customize quadrants
+
+2. **Created src/ui/queue_message_handler.py** (156 lines):
+   - Extracted `_process_queue()` message routing (66 lines → reusable class)
+   - QueueMessageHandler class with 7 message-type handlers
+   - process_message() router with dictionary dispatch
+   - Benefits: Testable message handling; easy to add new message types
+
+3. **Refactored src/ui/main_window.py** (428 → 290 lines, -32%):
+   - Removed monolithic layout code; delegated to quadrant_builder
+   - Simplified queue processing; delegated to queue_message_handler
+   - Cleaner separation of concerns: window lifecycle vs UI layout vs event handling
+
+**Part 2: Documentation Consolidation (5 minutes)**
+1. **Identified redundancy:**
+   - DEV_LOG.md (72 lines, outdated) - DUPLICATE of development_log.md
+   - TODO.md, IN_PROGRESS.md, EDUCATION_INTERESTS.md (0 lines each) - EMPTY placeholders
+   - PREPROCESSING_PROPOSAL.md (392 lines) - should be in scratchpad roadmap
+   - AI_RULES.md referencing wrong filenames
+
+2. **Consolidated files:**
+   - Deleted: DEV_LOG.md, TODO.md, IN_PROGRESS.md, EDUCATION_INTERESTS.md, PREPROCESSING_PROPOSAL.md
+   - Updated: AI_RULES.md to reference correct filenames per CLAUDE.md spec
+   - Merged: PREPROCESSING_PROPOSAL.md → scratchpad.md (Phase 3 section)
+   - Result: 11 markdown files → 6 essential files (-45%)
+
+**Part 3: Unicode Encoding Fix (5 minutes)**
+1. **Bug:** Debug logger crashed when printing Unicode characters (©, §, etc.) to Windows console
+   - Root cause: print() tries to encode to cp1252 (Windows default)
+   - Error: "UnicodeEncodeError: 'charmap' codec can't encode characters"
+   - Impact: Application crashed during summary generation with legal documents
+
+2. **Solution:** Graceful fallback in src/debug_logger.py:
+   ```python
+   try:
+       print(formatted)  # Normal print
+   except UnicodeEncodeError:
+       # Fallback 1: Direct buffer write with UTF-8
+       sys.stdout.buffer.write((formatted + "\n").encode('utf-8', errors='replace'))
+   except Exception:
+       # Fallback 2: Silent skip (log file still receives output)
+       pass
+   ```
+
+**Part 4: Bug Discovery & Documentation (5 minutes)**
+1. **Issue Found During Testing:**
+   - After extraction completes, application hangs when sending prompt to Ollama
+   - Root cause: Extracted text contains problematic characters that Ollama can't process
+   - Examples: redacted chars (██), control characters, malformed UTF-8, special Unicode
+
+2. **Documented Solution:**
+   - Added HIGH-PRIORITY issue to scratchpad.md
+   - Proposed Step 2.5: CharacterSanitizer pipeline
+   - Location: Between RawTextExtractor (Step 2) and SmartPreprocessing (Step 3)
+   - Est. implementation: 1-1.5 hours
+
+### Files Modified
+- `src/ui/main_window.py` - Refactored from 428 → 290 lines
+- `src/debug_logger.py` - Added Unicode error handling
+- `scratchpad.md` - Added Phase 3 design + character sanitization issue
+- `AI_RULES.md` - Fixed filename references
+
+### Files Created
+- `src/ui/quadrant_builder.py` - New (221 lines)
+- `src/ui/queue_message_handler.py` - New (156 lines)
+
+### Files Deleted
+- `DEV_LOG.md` (outdated duplicate)
+- `TODO.md` (empty)
+- `IN_PROGRESS.md` (empty)
+- `EDUCATION_INTERESTS.md` (empty)
+- `PREPROCESSING_PROPOSAL.md` (consolidated to scratchpad)
+
+### Testing & Verification
+- ✅ All 3 refactored modules compile successfully
+- ✅ All imports chain correctly (no circular dependencies)
+- ✅ Unicode fix tested with 4 test cases (all PASS)
+- ✅ Application launches without errors
+- ✅ Ollama service connects successfully
+- ✅ Document extraction works
+- ✅ GUI renders all quadrants correctly
+
+### Git Commits
+1. `84bf2e9` - refactor: Split main_window.py into quadrant_builder and queue_message_handler
+2. `ee3396c` - docs: Consolidate and deduplicate markdown files
+3. `f74e68d` - fix: Handle Unicode encoding errors in debug logger
+4. `f9fb2f1` - docs: Document critical character sanitization issue discovered during testing
+
+### Status
+Code quality: ✅ EXCELLENT (modular, testable, maintainable)
+Documentation: ✅ EXCELLENT (consolidated, single-source-of-truth per purpose)
+Bug fixes: ✅ CRITICAL (Unicode handling resolved)
+Blockers discovered: ⚠️ Character sanitization (Step 2.5 needed before Phase 3)
+
+### Next Session Priorities
+1. Implement Step 2.5: CharacterSanitizer pipeline
+2. Test with OCR documents and redacted PDFs
+3. Verify Ollama receives clean, processable text
+4. Resume Phase 3: SmartPreprocessing implementation
+
+---
+
+## 2025-11-24 (Session 1) - Architectural Naming Refactoring (DocumentCleaner → RawTextExtractor)
 **Feature:** Comprehensive codebase naming alignment with 6-step document pipeline architecture
 
 Executed comprehensive refactoring to align all variable, class, and file names with the new 6-step document processing pipeline. Renamed `DocumentCleaner` class to `RawTextExtractor`, moved module from `src/cleaner.py` to `src/extraction/raw_text_extractor.py`, and updated all dependent code. Systematically replaced terminology: "cleaned" → "extracted" in variable names (cleaned_text → extracted_text), updated docstrings from "cleaning" → "extraction/normalization", and renamed test suite accordingly.
