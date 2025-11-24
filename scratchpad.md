@@ -349,4 +349,46 @@ src/preprocessing/
 
 ---
 
+## CRITICAL: Character Sanitization Step (Between Steps 2→3)
+**Status:** Issue discovered during testing 2025-11-24
+**Priority:** HIGH (blocks AI generation on problematic documents)
+
+### Problem
+After RawTextExtractor (Step 2) completes successfully, extracted text sometimes contains:
+- Control characters (non-breaking spaces, zero-width characters, etc.)
+- Redacted/masked characters (██ from PDFs with redaction)
+- Malformed UTF-8 sequences (especially from OCR)
+- Special Unicode characters that Ollama can't process
+
+These characters cause Ollama to hang or return garbled output during summarization.
+
+### Solution Required
+**Add Step 2.5: Character Sanitization Pipeline** (before Step 3 Smart Preprocessing)
+
+This should:
+1. Detect problematic character ranges (control chars, private-use Unicode, etc.)
+2. Replace with safe equivalents:
+   - Redacted chars (██) → [REDACTED]
+   - Non-breaking spaces → regular spaces
+   - Control characters → remove or replace with space
+   - Invalid UTF-8 sequences → remove or replace with ?
+3. Preserve document integrity (don't remove important content)
+4. Log what was sanitized for debugging
+
+### Implementation Location
+```
+Step 2: RawTextExtractor (✅ complete)
+Step 2.5: CharacterSanitizer (⬅️ NEW - add here)
+Step 3: SmartPreprocessingPipeline (planned)
+Step 4: VocabularyExtraction (existing)
+```
+
+### Testing Notes
+- Test with OCR documents (likely to have spurious chars)
+- Test with redacted PDFs (██ characters)
+- Test with mixed-encoding documents
+- Verify Ollama receives clean, processable text
+
+---
+
 *This file captures approved roadmap items and discussion outcomes. Items here are ready for implementation unless explicitly marked as "Future Consideration."*
