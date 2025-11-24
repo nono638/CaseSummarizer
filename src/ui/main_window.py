@@ -11,13 +11,12 @@ from datetime import datetime
 from pathlib import Path
 from queue import Queue, Empty
 
-from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
-from src.ui.dynamic_output import DynamicOutputWidget
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
 from src.ui.dialogs import SettingsDialog
 from src.ui.system_monitor import SystemMonitor
-from src.ui.tooltip_helper import create_tooltip
 from src.ui.menu_handler import create_menus
+from src.ui.quadrant_builder import create_central_widget_layout
+from src.ui.queue_message_handler import QueueMessageHandler
 from src.extraction import RawTextExtractor
 from src.ai import ModelManager
 from src.debug_logger import debug_log
@@ -48,6 +47,9 @@ class MainWindow(ctk.CTk):
 
         # AI Worker Manager for Ollama summaries
         self.ai_worker_manager = OllamaAIWorkerManager(self.ui_queue)
+
+        # Queue message handler for decoupled event handling
+        self.message_handler = QueueMessageHandler(self)
 
         # Initialize UI
         self._create_main_layout()
@@ -99,122 +101,23 @@ class MainWindow(ctk.CTk):
         self.files_label.grid(row=0, column=2, padx=10, pady=10)
 
     def _create_central_widget(self):
-        """Create the four-quadrant central widget."""
-        self.main_content_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.main_content_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
-        
-        # Configure a 2x2 grid
-        self.main_content_frame.grid_columnconfigure(0, weight=1) # Left column
-        self.main_content_frame.grid_columnconfigure(1, weight=1) # Right column
-        self.main_content_frame.grid_rowconfigure(0, weight=1)    # Top row
-        self.main_content_frame.grid_rowconfigure(1, weight=1)    # Bottom row
+        """
+        Create the four-quadrant central widget using the quadrant builder.
 
-        # Create frames for each quadrant
-        top_left_frame = ctk.CTkFrame(self.main_content_frame)
-        top_right_frame = ctk.CTkFrame(self.main_content_frame)
-        bottom_left_frame = ctk.CTkFrame(self.main_content_frame)
-        bottom_right_frame = ctk.CTkFrame(self.main_content_frame)
+        This method delegates all layout construction to the builder module,
+        keeping main_window.py focused on state management and event handling.
+        """
+        (
+            self.main_content_frame,
+            self.file_table,
+            self.model_selection,
+            self.summary_results,
+            self.output_options,
+            self.generate_outputs_btn
+        ) = create_central_widget_layout(self, self.model_manager)
 
-        # Place frames in the grid
-        top_left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=(0, 5))
-        top_right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=(0, 5))
-        bottom_left_frame.grid(row=1, column=0, sticky="nsew", padx=(0, 5), pady=(5, 0))
-        bottom_right_frame.grid(row=1, column=1, sticky="nsew", padx=(5, 0), pady=(5, 0))
-
-        # Configure quadrant frames with borders and internal layout
-        # Row 0: Header with emoji inline
-        # Row 1+: Content widgets
-        for frame in [top_left_frame, top_right_frame, bottom_left_frame, bottom_right_frame]:
-            frame.grid_rowconfigure(0, weight=0)  # Header row
-            frame.grid_rowconfigure(1, weight=1)  # Content row
-            frame.grid_columnconfigure(0, weight=1)
-            # Add subtle border
-            frame.configure(border_width=1, border_color="#404040")
-
-        # --- Populate Quadrants ---
-        # NOTE: Headers now have emojis inline: "📄 Document Selection"
-        # This prevents cutoff and provides better space utilization
-
-        # Top-Left: File Review Table
-        files_label = ctk.CTkLabel(
-            top_left_frame,
-            text="📄 Document Selection",
-            font=ctk.CTkFont(size=17, weight="bold")
-        )
-        files_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
-
-        create_tooltip(
-            files_label,
-            "Digital PDF: Text extracted directly. Scanned PDF: Uses Tesseract OCR (confidence evaluation may result in higher errors). TXT/RTF: Direct text extraction.\n\n"
-            "Batch: Up to 100 docs. ProcessingTime ≈ (avg_pages × model_size). Supports .pdf, .txt, .rtf.",
-            position="right"
-        )
-
-        self.file_table = FileReviewTable(top_left_frame)
-        self.file_table.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
-
-        # Top-Right: Model Selection
-        model_label = ctk.CTkLabel(
-            top_right_frame,
-            text="🤖 AI Model Selection",
-            font=ctk.CTkFont(size=17, weight="bold")
-        )
-        model_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
-
-        create_tooltip(
-            model_label,
-            "Any Ollama model supported. LocalScribe auto-detects & applies model-specific instruction formats ([INST] for Llama/Mistral, raw for Gemma, etc.).\n\n"
-            "Size guidance: 1B=fast/basic, 7B=quality, 13B=best (slower). Larger = better reasoning. See Phase 2.7 for format compatibility.",
-            position="right"
-        )
-
-        self.model_selection = ModelSelectionWidget(top_right_frame, self.model_manager)
-        self.model_selection.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-
-        # Bottom-Left: Dynamic Output Display
-        output_display_label = ctk.CTkLabel(
-            bottom_left_frame,
-            text="📝 Generated Outputs",
-            font=ctk.CTkFont(size=17, weight="bold")
-        )
-        output_display_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
-
-        create_tooltip(
-            output_display_label,
-            "Individual summaries: Per-document outputs (from parallel processing). Meta-summary: Hierarchical summary of all docs (blocking final step). "
-            "Vocabulary: CSV of technical terms (category, definition, relevance). Dropdown switches between output types. Copy/Save buttons available.",
-            position="right"
-        )
-
-        self.summary_results = DynamicOutputWidget(bottom_left_frame)
-        self.summary_results.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
-
-        # Bottom-Right: Output Options
-        output_options_label = ctk.CTkLabel(
-            bottom_right_frame,
-            text="⚙️ Output Options",
-            font=ctk.CTkFont(size=17, weight="bold")
-        )
-        output_options_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
-
-        create_tooltip(
-            output_options_label,
-            "Word count: 50-500 words per summary (adjusts token budget). Outputs: Toggle which results to generate (save time by disabling unneeded outputs). "
-            "Parallel processing uses CPU fraction from Settings. Monitor system impact via status bar CPU/RAM display.",
-            position="right"
-        )
-
-        self.output_options = OutputOptionsWidget(bottom_right_frame)
-        self.output_options.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
-
-        self.generate_outputs_btn = ctk.CTkButton(
-            bottom_right_frame,
-            text="Generate All Outputs",
-            command=self._start_generation,
-            font=ctk.CTkFont(size=12, weight="bold")
-        )
-        self.generate_outputs_btn.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
-        self.generate_outputs_btn.configure(state="disabled")
+        # Bind the generate button command
+        self.generate_outputs_btn.configure(command=self._start_generation)
 
     def _create_status_bar(self):
         """Create status bar for messages and system monitoring."""
@@ -350,60 +253,19 @@ class MainWindow(ctk.CTk):
             self.progress_bar.grid_remove()
 
     def _process_queue(self):
-        """Process messages from the worker thread queue and AI worker manager."""
+        """
+        Process messages from the worker thread queue and AI worker manager.
+
+        Uses the QueueMessageHandler for decoupled, testable message routing.
+        """
         try:
             while True:
                 message_type, data = self.ui_queue.get_nowait()
-
-                if message_type == 'progress':
-                    percentage, message = data
-                    self.progress_bar.set(percentage / 100.0)
-                    self.status_label.configure(text=message)
-
-                elif message_type == 'file_processed':
-                    self.processing_results.append(data)
-                    self.file_table.add_result(data)
-                    if data.get('summary'): # Individual document summary
-                        self.summary_results.update_outputs(document_summaries={data['filename']: data['summary']})
-
-                elif message_type == 'meta_summary_generated':
-                    self.summary_results.update_outputs(meta_summary=data)
-
-                elif message_type == 'vocab_csv_generated':
-                    self.summary_results.update_outputs(vocab_csv_data=data)
-
-                elif message_type == 'processing_finished':
-                    # Document extraction finished; now generate AI summaries if requested
-                    extracted_documents = data
-                    if self.pending_ai_generation:
-                        self._start_ai_generation(extracted_documents, self.pending_ai_generation)
-                    else:
-                        # No AI generation requested, just finish up
-                        self.select_files_btn.configure(state="normal")
-                        self.generate_outputs_btn.configure(state="normal")
-                        self.progress_bar.grid_remove()
-                        self.status_label.configure(text="Processing complete.")
-
-                elif message_type == 'summary_result':
-                    # AI summary generated successfully
-                    debug_log(f"[MAIN WINDOW] Summary result received: {data}")
-                    self.summary_results.update_outputs(meta_summary=data.get('summary', ''))
-                    self.progress_bar.set(1.0)
-                    self.status_label.configure(text="Summary generation complete!")
-                    self.select_files_btn.configure(state="normal")
-                    self.generate_outputs_btn.configure(state="normal")
-                    self.progress_bar.grid_remove()
-                    self.pending_ai_generation = None
-
-                elif message_type == 'error':
-                    messagebox.showerror("Processing Error", data)
-                    self.select_files_btn.configure(state="normal")
-                    self.generate_outputs_btn.configure(state="normal") # Re-enable new button
-                    self.progress_bar.grid_remove()
-                    self.pending_ai_generation = None
+                # Delegate to message handler for routing and processing
+                self.message_handler.process_message(message_type, data)
 
         except Empty:
-            pass # No messages in queue
+            pass  # No messages in queue
         finally:
             # Also check AI worker manager for messages
             if hasattr(self, 'ai_worker_manager'):
@@ -412,7 +274,7 @@ class MainWindow(ctk.CTk):
                     # Put AI messages back in the main queue for processing
                     self.ui_queue.put((msg_type, msg_data))
 
-            self.after(100, self._process_queue) # Poll again after 100ms
+            self.after(100, self._process_queue)  # Poll again after 100ms
 
     def _check_ollama_service(self):
         """Check if Ollama service is running on startup."""
