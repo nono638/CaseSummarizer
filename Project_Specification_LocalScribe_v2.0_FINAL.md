@@ -23,7 +23,7 @@ The app executes a 4-step process:
 
 ### 3.1 Required Technologies
 * **Language:** Python 3.10+
-*   **Virtual Environment:** `.venv` (mandatory for all development; always use `.\venv\Scripts\python.exe` for any Python-related commands to ensure isolation and prevent global installations).
+*   **Virtual Environment:** `.venv` (mandatory for all development; always use `.\\.venv\Scripts\python.exe` for any Python-related commands to ensure isolation and prevent global installations).
 * **UI Framework:** **CustomTkinter** (Modern and robust Tkinter UI library)
 * **Local AI Engine:** **`llama-cpp-python`** (to run GGUF models on CPU with streaming support)
 * **Local OCR Engine:** **Tesseract** (via `pytesseract`). Must be bundled with the application.

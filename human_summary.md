@@ -89,7 +89,7 @@ All integration tests passing. **Complete workflow now functional:**
 - ⚠️ **Progress dialog responsiveness** - Improved with event loop fix, may need further refinement
 - ✅ **Signal delivery** - Fixed checkbox state change signal timing in file table
 
-**Local Development:** Activate the virtual environment: `venv\Scripts\activate` (Windows) or `source venv/bin/activate` (Mac/Linux)
+**Local Development:** Activate the virtual environment: `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate` (Mac/Linux)
 
 ---
 

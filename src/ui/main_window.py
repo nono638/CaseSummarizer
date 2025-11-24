@@ -2,7 +2,7 @@
 LocalScribe - Main Window (CustomTkinter Refactor)
 """
 import customtkinter as ctk
-from tkinter import filedialog, messagebox, ttk, Menu
+from tkinter import filedialog, messagebox, ttk
 import os
 import sys
 import platform
@@ -11,132 +11,17 @@ from datetime import datetime
 from pathlib import Path
 from queue import Queue, Empty
 
-from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget, DynamicOutputWidget
+from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
+from src.ui.dynamic_output import DynamicOutputWidget
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
 from src.ui.dialogs import SettingsDialog
 from src.ui.system_monitor import SystemMonitor
+from src.ui.tooltip_helper import create_tooltip
+from src.ui.menu_handler import create_menus
 from src.cleaner import DocumentCleaner
 from src.ai import ModelManager
 from src.debug_logger import debug_log
 from src.user_preferences import get_user_preferences
-
-# Helper function to create tooltips for CustomTkinter widgets
-def create_tooltip(widget, text, position="right"):
-    """
-    Create a stable tooltip that appears on hover without flickering.
-    Uses delayed display and proper positioning to prevent enter/leave loops.
-
-    Args:
-        widget: The widget to attach the tooltip to
-        text: The tooltip text to display
-        position: "right" (default) or "left" - which side of the widget the tooltip appears
-    """
-    tooltip_window = None
-    show_timer = None
-
-    def schedule_show():
-        """Schedule tooltip to appear after delay (prevents flickering)."""
-        nonlocal show_timer
-        cancel_show()  # Cancel any existing scheduled show
-        show_timer = widget.after(500, show_tooltip_delayed)  # 500ms delay
-
-    def cancel_show():
-        """Cancel scheduled tooltip display."""
-        nonlocal show_timer
-        if show_timer:
-            widget.after_cancel(show_timer)
-            show_timer = None
-
-    def show_tooltip_delayed():
-        """Display tooltip (called after delay)."""
-        nonlocal tooltip_window, show_timer
-        show_timer = None
-
-        # If tooltip already exists, don't create another
-        if tooltip_window:
-            return
-
-        # Force widget geometry update before querying position
-        widget.update_idletasks()
-
-        # Create tooltip window using toplevel parent for proper hierarchy
-        tooltip_window = ctk.CTkToplevel(widget.winfo_toplevel())
-        tooltip_window.wm_overrideredirect(True)  # Remove window decorations
-        tooltip_window.wm_attributes("-topmost", True)  # Keep on top
-        tooltip_window.wm_attributes("-toolwindow", True)  # Prevent taskbar appearance on Windows
-
-        label = ctk.CTkLabel(tooltip_window, text=text,
-                             bg_color=("#333333", "#333333"),  # Dark background
-                             text_color=("white", "white"),  # White text
-                             corner_radius=5,
-                             wraplength=200)  # Wrap text after 200 pixels
-        label.pack(padx=5, pady=5)
-
-        # Force tooltip to calculate its size (use update_idletasks for reliable sizing)
-        tooltip_window.update_idletasks()
-        tooltip_width = tooltip_window.winfo_width()
-        tooltip_height = tooltip_window.winfo_height()
-
-        # Get widget position on screen (after widget geometry is finalized)
-        widget_x = widget.winfo_rootx()
-        widget_y = widget.winfo_rooty()
-        widget_width = widget.winfo_width()
-        widget_height = widget.winfo_height()
-
-        # Get screen dimensions
-        screen_width = widget.winfo_screenwidth()
-        screen_height = widget.winfo_screenheight()
-
-        # Position tooltip with cascading fallback logic
-        if position == "left":
-            # Try left side first
-            x = widget_x - tooltip_width - 15
-        else:  # position == "right" (default)
-            # Try right side first
-            x = widget_x + widget_width + 15
-
-        # Check boundaries and apply cascading fallback
-        if x + tooltip_width > screen_width:
-            # Right position would go off-screen, try left
-            x = widget_x - tooltip_width - 15
-
-        if x < 0:
-            # Left position would go off-screen, clamp to screen edge
-            x = max(0, min(widget_x, screen_width - tooltip_width - 10))
-
-        # Position vertically centered with the widget, with bounds checking
-        y = widget_y + (widget_height // 2) - (tooltip_height // 2)
-        y = max(0, min(y, screen_height - tooltip_height))
-
-        tooltip_window.wm_geometry(f"+{x}+{y}")
-
-        # Ensure tooltip appears and is on top
-        tooltip_window.lift()
-        tooltip_window.update_idletasks()
-
-    def hide_tooltip(event):
-        """Hide tooltip immediately (no delay)."""
-        nonlocal tooltip_window
-        cancel_show()  # Cancel any pending show
-        if tooltip_window:
-            try:
-                tooltip_window.destroy()
-            except (RuntimeError, AttributeError):
-                # RuntimeError: window already destroyed; AttributeError: invalid state
-                pass
-            tooltip_window = None
-
-    def on_enter(event):
-        """Handle mouse entering widget - schedule tooltip display."""
-        schedule_show()
-
-    def on_leave(event):
-        """Handle mouse leaving widget - hide tooltip immediately."""
-        hide_tooltip(event)
-
-    # Bind to the widget (icon)
-    widget.bind("<Enter>", on_enter)
-    widget.bind("<Leave>", on_leave)
 
 
 class MainWindow(ctk.CTk):
@@ -185,46 +70,8 @@ class MainWindow(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
 
     def _create_menus(self):
-        """Create a native-style menubar using tkinter.Menu with dark theme colors."""
-        # Darker colors to blend seamlessly with CustomTkinter dark theme
-        bg_color = "#212121"   # Very dark (blends with UI)
-        fg_color = "#ffffff"   # White text
-        active_bg = "#333333"  # Slightly lighter for hover
-        active_fg = "#ffffff"  # White text on hover
-
-        self.menubar = Menu(self, bg=bg_color, fg=fg_color,
-                           activebackground=active_bg, activeforeground=active_fg,
-                           borderwidth=1, relief="flat",
-                           disabledforeground="#666666")
-        self.config(menu=self.menubar)
-
-        file_menu = Menu(self.menubar, tearoff=0,
-                        bg=bg_color, fg=fg_color,
-                        activebackground=active_bg, activeforeground=active_fg,
-                        borderwidth=0, relief="flat",
-                        disabledforeground="#666666")
-        self.menubar.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Select Files...", command=self.select_files, accelerator="Ctrl+O")
-        file_menu.add_separator()
-        file_menu.add_command(label="Settings", command=self.show_settings, accelerator="Ctrl+,")
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.quit, accelerator="Ctrl+Q")
-
-        help_menu = Menu(self.menubar, tearoff=0,
-                        bg=bg_color, fg=fg_color,
-                        activebackground=active_bg, activeforeground=active_fg,
-                        borderwidth=0, relief="flat",
-                        disabledforeground="#666666")
-        self.menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="About LocalScribe v2.1", command=self.show_about)
-
-        # Bind keyboard shortcuts
-        self.bind("<Control-o>", lambda e: self.select_files())
-        self.bind("<Control-comma>", lambda e: self.show_settings())
-        self.bind("<Control-q>", lambda e: self.quit())
-
-    def show_about(self):
-        messagebox.showinfo("About LocalScribe", "LocalScribe v2.1\n\n100% Offline Legal Document Processor")
+        """Create menubar with File and Help menus using menu_handler module."""
+        create_menus(self, self.select_files, self.show_settings, self.quit)
 
     def show_settings(self):
         """Open the Settings dialog."""
@@ -451,7 +298,7 @@ class MainWindow(ctk.CTk):
         """Start background processing of selected documents."""
         self.select_files_btn.configure(state="disabled")
         self.generate_outputs_btn.configure(state="disabled") # Disable new button
-        self.progress_bar.pack(side="right", padx=10, pady=5, fill="x", expand=True)
+        self.progress_bar.grid()  # Make progress bar visible (already gridded at column 1)
         # DO NOT clear the file table - users need to see which files are being processed
         # The table entries will be updated with status as files are processed
         self.processing_results = []
@@ -500,7 +347,7 @@ class MainWindow(ctk.CTk):
             messagebox.showerror("AI Generation Error", f"Failed to start AI summary generation: {str(e)}")
             self.select_files_btn.configure(state="normal")
             self.generate_outputs_btn.configure(state="normal")
-            self.progress_bar.pack_forget()
+            self.progress_bar.grid_remove()
 
     def _process_queue(self):
         """Process messages from the worker thread queue and AI worker manager."""
@@ -534,7 +381,7 @@ class MainWindow(ctk.CTk):
                         # No AI generation requested, just finish up
                         self.select_files_btn.configure(state="normal")
                         self.generate_outputs_btn.configure(state="normal")
-                        self.progress_bar.pack_forget()
+                        self.progress_bar.grid_remove()
                         self.status_label.configure(text="Processing complete.")
 
                 elif message_type == 'summary_result':
@@ -545,14 +392,14 @@ class MainWindow(ctk.CTk):
                     self.status_label.configure(text="Summary generation complete!")
                     self.select_files_btn.configure(state="normal")
                     self.generate_outputs_btn.configure(state="normal")
-                    self.progress_bar.pack_forget()
+                    self.progress_bar.grid_remove()
                     self.pending_ai_generation = None
 
                 elif message_type == 'error':
                     messagebox.showerror("Processing Error", data)
                     self.select_files_btn.configure(state="normal")
                     self.generate_outputs_btn.configure(state="normal") # Re-enable new button
-                    self.progress_bar.pack_forget()
+                    self.progress_bar.grid_remove()
                     self.pending_ai_generation = None
 
         except Empty:

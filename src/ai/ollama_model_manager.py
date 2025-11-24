@@ -25,6 +25,7 @@ from ..prompt_config import get_prompt_config
 from ..prompt_template_manager import PromptTemplateManager
 from ..utils.logger import debug
 from ..debug_logger import debug_log
+from .prompt_formatter import wrap_prompt_for_model
 
 
 class OllamaModelManager:
@@ -128,55 +129,6 @@ class OllamaModelManager:
             size_bytes /= 1024
         return f"{size_bytes:.1f} TB"
 
-    def wrap_prompt_for_model(self, model_name: str, prompt: str) -> str:
-        """
-        Wrap prompt in model-specific instruction format for compatibility.
-
-        Different Ollama models expect different prompt formats:
-        - Llama/Mistral: [INST]...[/INST]
-        - Gemma: Raw prompt (no wrapping needed)
-        - Neural-Chat: ### User / ### Assistant format
-        - Dolphin: ### User / ### Assistant format
-        - Others: Raw prompt (fallback for unknown models)
-
-        Args:
-            model_name: Model identifier (e.g., "llama2:7b", "mistral:7b")
-            prompt: The instruction/summary prompt
-
-        Returns:
-            str: Prompt wrapped in model-specific format
-        """
-        # Extract base model name (everything before the colon)
-        base_model = model_name.split(':')[0].lower() if ':' in model_name else model_name.lower()
-
-        debug(f"[PROMPT FORMAT] Detected model type: {base_model} (full name: {model_name})")
-
-        # Apply model-specific wrapping
-        if any(x in base_model for x in ['llama', 'mistral']):
-            wrapped = f"[INST] {prompt} [/INST]"
-            debug(f"[PROMPT FORMAT] Applied Llama/Mistral format (wrapped with [INST]...[/INST])")
-            return wrapped
-
-        elif 'gemma' in base_model:
-            debug(f"[PROMPT FORMAT] Applied Gemma format (raw prompt, no wrapping)")
-            return prompt
-
-        elif any(x in base_model for x in ['neural-chat', 'dolphin']):
-            wrapped = f"### User:\n{prompt}\n\n### Assistant:"
-            debug(f"[PROMPT FORMAT] Applied Neural-Chat/Dolphin format")
-            return wrapped
-
-        elif 'qwen' in base_model:
-            # Qwen models use a similar format to Llama
-            wrapped = f"[INST] {prompt} [/INST]"
-            debug(f"[PROMPT FORMAT] Applied Qwen format (Llama-compatible)")
-            return wrapped
-
-        else:
-            # Default: raw prompt (fallback for unknown/future models)
-            debug(f"[PROMPT FORMAT] Unknown model type, using raw prompt (will work with instruction-tuned models)")
-            return prompt
-
     def load_model(self, model_name: str = None) -> bool:
         """
         Load a model via Ollama (pulls if not already available).
@@ -272,7 +224,7 @@ class OllamaModelManager:
 
         try:
             # Wrap prompt for model-specific format compatibility (Phase 2.7)
-            wrapped_prompt = self.wrap_prompt_for_model(self.model_name, prompt)
+            wrapped_prompt = wrap_prompt_for_model(self.model_name, prompt)
             debug_log(f"[OLLAMA GENERATE] Wrapped prompt length: {len(wrapped_prompt)} chars")
 
             # Build request payload
