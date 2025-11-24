@@ -2,42 +2,60 @@
 
 **100% Offline Legal Document Processor for Court Reporters**
 
-LocalScribe is a private, secure Windows desktop application that processes legal documents entirely on your computer. No data ever leaves your machine, ensuring complete PII/PHI protection.
+LocalScribe is a private, secure Windows desktop application that processes legal documents entirely on your computer. No data ever leaves your machine, ensuring complete PII/PHI protection. Uses local Ollama AI models for document summarization with zero cloud connectivity.
+
+## Document Processing Pipeline
+
+LocalScribe implements a **6-step document processing pipeline**:
+
+1. **Text Extraction** - Extracts raw text from PDFs (digital & OCR), TXT, RTF files with confidence scoring
+2. **Basic Normalization** - Removes page numbers, de-hyphenates lines, filters junk content while preserving legal terms
+3. **Smart Preprocessing** - Removes title pages, headers/footers, line numbers, converts Q./A. format (planned)
+4. **Vocabulary Extraction** - Identifies unusual terms, categorizes them, and provides definitions
+5. **Semantic Chunking** - Uses LangChain to split documents into semantically coherent chunks
+6. **AI Summarization** - Generates both per-document and meta-summaries using local Ollama models
 
 ## Features
 
 - **Multi-Document Processing:** Combine complaints, answers, exhibits, and motions into one comprehensive case summary
-- **Smart OCR:** Automatic detection and OCR processing of scanned documents
-- **Intelligent Text Cleaning:** Removes headers, footers, and junk while preserving legal content
-- **Local AI:** Runs Google Gemma 2 models completely offline on your CPU
-- **Vocabulary Extraction:** Identifies technical terms and proper nouns with definitions
+- **Smart OCR Detection:** Automatic OCR for scanned documents using Tesseract
+- **Text Extraction & Normalization:** Removes headers, footers, and junk while preserving legal content (Steps 1-2)
+- **Local AI Summarization:** Runs Ollama AI models completely offline on your CPU (no internet required)
+- **Vocabulary Extraction:** Identifies technical terms and proper nouns with definitions (Step 4)
+- **Parallel Processing:** Process multiple documents concurrently with user-controlled CPU allocation
+- **Real-Time System Monitor:** View CPU and RAM usage in status bar
+- **Model-Aware Formatting:** Automatically detects model type (Llama, Mistral, Gemma, etc.) and applies correct instruction format
 
 ## Current Status
 
-**Phase 2: Desktop UI** (In Progress)
+**Phase 2.7: Complete** ✅ (Production-ready UI with system monitoring and model compatibility)
 
 ### Phase 1: Complete ✅
-- ✅ Text extraction from digital PDFs, TXT, and RTF files
+- ✅ Text extraction from digital PDFs, TXT, and RTF files (Step 1)
 - ✅ OCR processing with Tesseract
-- ✅ Confidence scoring
-- ✅ Text cleaning (line filtering, de-hyphenation, whitespace normalization)
+- ✅ Basic text normalization (Step 2): de-hyphenation, page removal, whitespace normalization
 - ✅ Case number extraction
-- ✅ Error handling (file size limits, corrupted files, password-protected PDFs)
-- ✅ Debug mode with performance timing
+- ✅ Confidence scoring with error handling
 - ✅ 24 passing unit tests
 
-### Phase 2: Desktop UI (Current)
-- ✅ UI skeleton built with CustomTkinter, resolving system-level DLL conflicts
-- ✅ Native-looking dropdown menus for a standard user experience
-- ✅ File selection and processing initiated from the UI
-- ✅ UI framework refactored for stability and cross-platform compatibility
+### Phase 2: Complete ✅
+- ✅ **2.1** - UI refactor to CustomTkinter with native look and feel
+- ✅ **2.2** - Document prioritization system
+- ✅ **2.3** - AI summary generation with Ollama integration
+- ✅ **2.4** - Streaming token display with real-time updates
+- ✅ **2.5** - Parallel document processing with CPU allocation control
+- ✅ **2.6** - System monitor widget (CPU%, RAM display with CPU model on hover)
+- ✅ **2.7** - Model-aware prompt formatting (auto-detects instruction format per model)
+
+### Phase 3: Planned 🔜
+- Smart preprocessing pipeline (remove title pages, headers/footers, convert Q./A. format)
+- Enhanced vocabulary definitions
+- License server integration
+- Advanced features (post-v1.0)
 
 ### What's Next
-- Phase 3: AI model integration (summary generation)
-- Phase 4: Vocabulary extraction
-- Phase 5: License system
-- Phase 6: Settings and polish
-- Phase 7: Packaging for distribution
+- Phase 3: Advanced text preprocessing
+- Phase 4+: Enhanced vocabulary, licensing, distribution packaging
 
 ## Requirements
 
@@ -156,40 +174,43 @@ python -m src.main
 - TXT (plain text)
 - RTF (rich text format)
 
-### Command Line Interface (Phase 1)
+### Command Line Interface (Text Extraction - Steps 1-2)
 
 **NOTE:** Make sure virtual environment is activated first: `venv\Scripts\activate`
 
+Extract and normalize text from legal documents:
+
 ### Basic Usage
 ```bash
-python -m src.cleaner --input document.pdf
+python -m src.extraction.raw_text_extractor --input document.pdf
 ```
 
 ### Process Multiple Files
 ```bash
-python -m src.cleaner --input complaint.pdf answer.pdf exhibit_a.pdf
+python -m src.extraction.raw_text_extractor --input complaint.pdf answer.pdf exhibit_a.pdf
 ```
 
 ### Specify Output Directory
 ```bash
-python -m src.cleaner --input *.pdf --output-dir ./cleaned
+python -m src.extraction.raw_text_extractor --input *.pdf --output-dir ./extracted
 ```
 
 ### Debug Mode
 ```bash
 # Windows PowerShell
-$env:DEBUG="true"; python -m src.cleaner --input test.pdf
+$env:DEBUG="true"; python -m src.extraction.raw_text_extractor --input test.pdf
 
 # Windows Command Prompt
-set DEBUG=true && python -m src.cleaner --input test.pdf
+set DEBUG=true && python -m src.extraction.raw_text_extractor --input test.pdf
 
 # Mac/Linux
-DEBUG=true python -m src.cleaner --input test.pdf
+DEBUG=true python -m src.extraction.raw_text_extractor --input test.pdf
 ```
 
 This will show:
 - Verbose logging of all processing steps
-- Performance timing for each operation
+- Performance timing for each operation (Step 1, Step 2)
+- Confidence scoring and text quality metrics
 - Detailed error information
 
 ## Testing
@@ -199,9 +220,9 @@ Run the test suite:
 pytest tests/ -v
 ```
 
-Run specific test file:
+Run specific test file (Steps 1-2 extraction tests):
 ```bash
-pytest tests/test_cleaner.py -v
+pytest tests/test_raw_text_extractor.py -v
 ```
 
 ## Project Structure
@@ -209,35 +230,71 @@ pytest tests/test_cleaner.py -v
 ```
 CaseSummarizer/
 ├── src/
-│   ├── main.py             # GUI application entry point
-│   ├── cleaner.py          # Document pre-processing engine
-│   ├── config.py           # Configuration constants
+│   ├── main.py              # GUI application entry point
+│   ├── extraction/          # Steps 1-2: Text extraction & basic normalization
+│   │   ├── raw_text_extractor.py  # Core extraction engine
+│   │   └── __init__.py            # Package exports
+│   ├── config.py            # Configuration constants
+│   ├── document_processor.py # Job queue specification
+│   ├── ai/
+│   │   ├── ollama_model_manager.py  # Ollama integration (Step 6)
+│   │   └── prompt_formatter.py      # Model-aware prompt formatting
 │   ├── ui/
-│   │   ├── main_window.py  # Main application window
-│   │   └── widgets.py      # Custom widgets (File Review Table)
+│   │   ├── main_window.py   # Main application window (Phase 2.7)
+│   │   ├── workers.py       # Background processing threads
+│   │   ├── widgets.py       # Custom widgets (file table, summary display)
+│   │   ├── system_monitor.py # Real-time CPU/RAM monitor (Phase 2.6)
+│   │   ├── menu_handler.py  # Menu bar operations
+│   │   ├── tooltip_helper.py # Tooltip positioning utilities
+│   │   └── dialogs.py       # Progress dialogs
+│   ├── prompt_config.py     # Prompt template management
+│   ├── prompt_template_manager.py # Prompt discovery & validation
+│   ├── user_preferences.py  # User settings persistence
+│   ├── vocabulary/          # Step 4: Vocabulary extraction
+│   │   └── text_vocabulary_extractor.py
 │   └── utils/
-│       └── logger.py       # Logging with debug mode support
+│       └── logger.py        # Logging with debug mode support
 ├── tests/
-│   ├── test_cleaner.py     # Unit tests for cleaner module
-│   └── sample_docs/        # Sample documents for testing
-├── data/
-│   ├── keywords/           # Legal keyword lists (to be added)
-│   └── frequency/          # Word frequency lists (to be added)
-├── requirements.txt        # Python dependencies
-└── docs/                   # Documentation
+│   ├── test_raw_text_extractor.py  # Unit tests for Steps 1-2 (24 tests)
+│   └── sample_docs/                # Sample legal documents
+├── config/
+│   ├── prompt_parameters.json  # AI model settings (temperature, top_p, etc.)
+│   └── prompts/                # Prompt templates by model
+├── requirements.txt         # Python dependencies
+└── README.md               # This file
 
 Documentation Files:
-├── development_log.md             # Development history
-├── human_summary.md               # High-level status
-├── scratchpad.md                  # Future ideas
-└── Project_Specification_LocalScribe_v2.0_FINAL.md  # Complete spec
+├── development_log.md                              # Timestamped development history
+├── human_summary.md                                # High-level project status
+├── scratchpad.md                                   # Future ideas and enhancements
+├── PREPROCESSING_PROPOSAL.md                       # Step 3 design specification
+└── Project_Specification_LocalScribe_v2.0_FINAL.md # Complete technical spec (PRIMARY SOURCE OF TRUTH)
+```
+
+### Planned Directory Structure (v3.0)
+
+When Steps 3-6 are refactored into modular packages:
+
+```
+src/
+├── extraction/           (Steps 1-2: ✅ Implemented)
+├── preprocessing/        (Step 3: Planned)
+├── vocabulary/          (Step 4: Planned refactor)
+├── chunking/            (Step 5: Planned refactor)
+├── summarization/       (Step 6: Planned refactor)
+└── ai/                  (Model integrations)
 ```
 
 ## Documentation
 
-- **project_overview.md** - Quick reference for project goals, tech stack, and current status
-- **development_log.md** - Detailed log of all changes and features
-- **Project_Specification_LocalScribe_v2.0_FINAL.md** - Complete technical specification (1148 lines)
+**PRIMARY SOURCE OF TRUTH:**
+- **Project_Specification_LocalScribe_v2.0_FINAL.md** - Complete technical specification with architecture, implementation details, and design decisions
+
+**Development & Status:**
+- **development_log.md** - Timestamped log of all code changes, features, and bug fixes
+- **human_summary.md** - High-level status report updated at end of each session
+- **PREPROCESSING_PROPOSAL.md** - Detailed design for Step 3 (Smart Preprocessing Pipeline)
+- **scratchpad.md** - Brainstorming document for future ideas and refinements
 
 ## Development Guidelines
 
@@ -250,12 +307,34 @@ This project follows strict development guidelines documented in `claude.md`:
 - **Error Handling:** User-friendly messages with detailed logging
 - **Testing:** Tests for complex business logic
 
+## Models & AI Integration
+
+LocalScribe uses **Ollama** for local AI model execution. The following models are compatible and recommended:
+
+- **Phi 3.5/3.1** (1-3.8B parameters) - Excellent quality, very fast (recommended)
+- **Mistral 7B** (7B parameters) - Higher quality summaries, moderate speed
+- **Llama 2 13B** (13B parameters) - Highest quality, slower on CPU
+- **Gemma 2B/7B** - Google's open models, good performance
+- **TinyLlama 1.1B** - Ultra-lightweight, good for resource-constrained systems
+
+All models run entirely offline on your CPU with zero cloud connectivity. Download via Ollama:
+```bash
+ollama pull phi:3.5
+ollama pull mistral:7b
+```
+
 ## License
 
 [To be determined - Commercial application]
 
-Models: Google Gemma 2 (requires attribution per Google's terms)
+Model Requirements:
+- Ollama models are open-source and respect their respective licenses (Meta Llama, Mistral AI, etc.)
+- No external API calls or cloud dependencies
+- Complete data privacy guaranteed
 
-## Acknowledgments
+## Project Information
 
-Powered by Google Gemma 2 models
+**Architecture:** 6-step document processing pipeline
+**Tech Stack:** Python 3.10+, CustomTkinter (UI), Ollama (AI), Tesseract (OCR), LangChain (chunking)
+**Primary Source of Truth:** Project_Specification_LocalScribe_v2.0_FINAL.md
+**Status:** Phase 2.7 Complete - Production-Ready UI with AI Integration
