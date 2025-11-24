@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(conda config:*)"
+      "Bash(conda config:*)",
+      "Bash(..venvScriptspython.exe -c \"from src.extraction import RawTextExtractor; print(''[SUCCESS] RawTextExtractor imported successfully''); print(f''Class: {RawTextExtractor.__name__}'')\")",
+      "Bash(python -m py_compile:*)",
+      "Bash(git add:*)",
+      "Bash(git reset:*)",
+      "Bash(git commit:*)",
+      "Bash(nul)",
+      "Bash(python -m pytest:*)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/test_raw_text_extractor.py -v --tb=line)",
+      "Bash(python -c:*)",
+      "Bash(git push:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

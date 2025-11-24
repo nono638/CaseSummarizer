@@ -3,7 +3,7 @@
 ## Development Roadmap (Spec-Driven Phases)
 
 ### **Phase 2.2: Document Prioritization System** (Est. 3-4 hours)
-**Spec Reference:** Section 6 of Project_Specification_LocalScribe_v2.0_FINAL.md
+**Spec Reference:** Section 6 of PROJECT_OVERVIEW.md
 
 When combined document text exceeds AI model context window (~6000 tokens), intelligently truncate based on priority:
 - **HIGH Priority:** complaint, answer, bill of particulars, summons (never truncated)
@@ -20,7 +20,7 @@ When combined document text exceeds AI model context window (~6000 tokens), inte
 ---
 
 ### **Phase 3: License Server Integration** (Est. 4-6 hours)
-**Spec Reference:** Section 4 of Project_Specification_LocalScribe_v2.0_FINAL.md
+**Spec Reference:** Section 4 of PROJECT_OVERVIEW.md
 
 Users need to validate licenses and download commercial models via Dropbox:
 - License key validation API (HTTP POST to `/api/validate_license`)
@@ -34,7 +34,7 @@ Users need to validate licenses and download commercial models via Dropbox:
 ---
 
 ### **Phase 4: Vocabulary Extraction Enhancement** (Est. 2-3 hours)
-**Spec Reference:** Section 7.5.2 & 8.2 of Project_Specification_LocalScribe_v2.0_FINAL.md
+**Spec Reference:** Section 7.5.2 & 8.2 of PROJECT_OVERVIEW.md
 
 Complete the vocabulary extraction pipeline with per-term definitions:
 - Extract rare/technical terms + proper nouns (already working)

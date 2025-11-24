@@ -34,7 +34,7 @@ Executed comprehensive refactoring to align all variable, class, and file names 
 
 5. **Documentation Files Updated**:
    - `human_summary.md` - Updated file listing and added "Planned Future Directory Structure (v3.0)"
-   - `Project_Specification_LocalScribe_v2.0_FINAL.md` - Updated all code examples and references
+   - `PROJECT_OVERVIEW.md` - Updated all code examples and references
    - `PREPROCESSING_PROPOSAL.md` - Updated architecture diagram and terminology
    - `src/document_processor.py` - Updated comment documenting extracted text source
 

@@ -137,7 +137,7 @@ All integration tests passing. **Complete workflow now functional:**
 ## File Directory
 
 ### Documentation Files
-- **Project_Specification_LocalScribe_v2.0_FINAL.md** - Complete technical specification for LocalScribe (PRIMARY SOURCE OF TRUTH, 1148 lines)
+- **PROJECT_OVERVIEW.md** - Complete technical specification for LocalScribe (PRIMARY SOURCE OF TRUTH, 1148 lines)
 - **development_log.md** - Timestamped log of all code changes and features (UPDATED with multiprocessing fix)
 - **human_summary.md** - This file; high-level status report for human consumption
 - **scratchpad.md** - Brainstorming document for future ideas and potential enhancements

@@ -264,11 +264,11 @@ CaseSummarizer/
 └── README.md               # This file
 
 Documentation Files:
-├── development_log.md                              # Timestamped development history
-├── human_summary.md                                # High-level project status
-├── scratchpad.md                                   # Future ideas and enhancements
-├── PREPROCESSING_PROPOSAL.md                       # Step 3 design specification
-└── Project_Specification_LocalScribe_v2.0_FINAL.md # Complete technical spec (PRIMARY SOURCE OF TRUTH)
+├── development_log.md                    # Timestamped development history
+├── human_summary.md                      # High-level project status
+├── scratchpad.md                         # Future ideas and enhancements
+├── PREPROCESSING_PROPOSAL.md             # Step 3 design specification
+└── PROJECT_OVERVIEW.md                   # Complete technical spec (PRIMARY SOURCE OF TRUTH)
 ```
 
 ### Planned Directory Structure (v3.0)
@@ -288,7 +288,7 @@ src/
 ## Documentation
 
 **PRIMARY SOURCE OF TRUTH:**
-- **Project_Specification_LocalScribe_v2.0_FINAL.md** - Complete technical specification with architecture, implementation details, and design decisions
+- **PROJECT_OVERVIEW.md** - Complete technical specification with architecture, implementation details, and design decisions
 
 **Development & Status:**
 - **development_log.md** - Timestamped log of all code changes, features, and bug fixes
@@ -336,5 +336,5 @@ Model Requirements:
 
 **Architecture:** 6-step document processing pipeline
 **Tech Stack:** Python 3.10+, CustomTkinter (UI), Ollama (AI), Tesseract (OCR), LangChain (chunking)
-**Primary Source of Truth:** Project_Specification_LocalScribe_v2.0_FINAL.md
+**Primary Source of Truth:** PROJECT_OVERVIEW.md
 **Status:** Phase 2.7 Complete - Production-Ready UI with AI Integration
