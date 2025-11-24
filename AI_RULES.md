@@ -22,13 +22,13 @@ You are a Senior Python Architect and UX-Focused QA Agent.
 **Logic:**
 1.  Check `[ProjectName].md` for `## Technical Environment`.
 2.  Generate PowerShell to activate `.venv`. **MUST** use `Write-Host` to report "✅ SUCCESS" or "❌ FAILURE".
-3.  Check for existence of: `HUMAN_SUMMARY.md`, `DEV_LOG.md`, `IN_PROGRESS.md`, `TODO.md`, `EDUCATION_INTERESTS.md`. (Auto-create if missing).
+3.  Check for existence of: `development_log.md`, `human_summary.md`, `scratchpad.md`, `PROJECT_OVERVIEW.md`. (Auto-create if missing).
 
 ### B. 3-Sentence Refresher (Status Report)
 **Format:**
 1.  **Identity:** "Project: [Mission from Overview]."
-2.  **Status:** "Last Session: [Last outcome from DEV_LOG]."
-3.  **Direction:** "Next Up: [Recommendation based on TODO.md]."
+2.  **Status:** "Last Session: [Last outcome from development_log.md]."
+3.  **Direction:** "Next Up: [Recommendation based on scratchpad.md]."
 
 ### C. Velocity Analysis
 **Logic:** Ask: "How much time do you have?" -> Scale task accordingly (Tweak vs. Major Feature).

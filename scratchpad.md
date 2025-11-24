@@ -294,4 +294,59 @@ def get_system_stats():
 - Meta-summary remains blocking (correct; prevents premature aggregation)
 
 ---
+
+## Phase 3: Smart Preprocessing Pipeline (Step 3 Architecture)
+**Status:** Detailed design ready, awaiting implementation
+**Spec Reference:** PROJECT_OVERVIEW.md Section 5 (preprocessing overview)
+
+### Purpose
+Clean extracted text (post-OCR/extraction, pre-model) for better summarization quality. Handles title pages, line numbers, headers/footers, and Q./A. formatting.
+
+### Module Structure
+```
+src/preprocessing/
+├── __init__.py                    (exports PreprocessingPipeline)
+├── base.py                        (BasePreprocessor abstract class)
+├── title_page_remover.py          (Remove title/cover pages)
+├── line_number_remover.py         (Remove line numbers from margin)
+├── header_footer_remover.py       (Remove headers/footers)
+├── qa_converter.py                (Convert "Q. text" → "Question: text")
+└── pipeline.py                    (Orchestrate all preprocessors)
+```
+
+### Implementation Details
+- **BasePreprocessor:** Abstract class with `process(text) → str` method
+- **TitlePageRemover:** Detect and remove metadata-heavy first sections (case numbers, dates, firm names)
+- **LineNumberRemover:** Remove margins with line numbers (1, 2, 3... 123, 124...)
+- **HeaderFooterRemover:** Identify and remove repetitive page headers/footers (case name, page X of Y)
+- **QAConverter:** Expand Q./A. notation to "Question:"/"Answer:" for deposition text clarity
+- **PreprocessingPipeline:** Orchestrate all preprocessors; return text + logs + stats
+
+### Integration Strategy
+1. Call `PreprocessingPipeline.process(combined_text)` in `src/ui/workers.py` before AI generation
+2. Feed preprocessed text to `OllamaModelManager.generate_text()`
+3. Log preprocessing results (which preprocessors ran, what was removed)
+4. Graceful failure: Return original text if any preprocessor fails
+
+### Testing Approach
+- Unit tests for each preprocessor with sample documents
+- Integration test: full pipeline with broken preprocessor (verify graceful degradation)
+- Debug logging: show what was removed and why
+
+### Implementation Estimate
+- Base class + 4 preprocessors: 50 min
+- Pipeline orchestrator: 15 min
+- Worker integration: 10 min
+- Tests: 15 min
+- **Total: ~1.5 hours**
+
+### Next Steps When Implementing
+1. Create `src/preprocessing/` package
+2. Implement from BasePreprocessor → specific preprocessors → pipeline
+3. Add integration tests before hooking into workers
+4. Update development_log.md with completion
+5. Update human_summary.md file directory
+
+---
+
 *This file captures approved roadmap items and discussion outcomes. Items here are ready for implementation unless explicitly marked as "Future Consideration."*
