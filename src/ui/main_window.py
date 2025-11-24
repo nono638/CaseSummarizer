@@ -18,7 +18,7 @@ from src.ui.dialogs import SettingsDialog
 from src.ui.system_monitor import SystemMonitor
 from src.ui.tooltip_helper import create_tooltip
 from src.ui.menu_handler import create_menus
-from src.cleaner import DocumentCleaner
+from src.extraction import RawTextExtractor
 from src.ai import ModelManager
 from src.debug_logger import debug_log
 from src.user_preferences import get_user_preferences
@@ -145,7 +145,7 @@ class MainWindow(ctk.CTk):
 
         create_tooltip(
             files_label,
-            "Digital PDF: Text extracted directly. Scanned PDF: Uses Tesseract OCR (confidence-weighted cleaning, may introduce errors). TXT/RTF: Direct text extraction.\n\n"
+            "Digital PDF: Text extracted directly. Scanned PDF: Uses Tesseract OCR (confidence evaluation may result in higher errors). TXT/RTF: Direct text extraction.\n\n"
             "Batch: Up to 100 docs. ProcessingTime ≈ (avg_pages × model_size). Supports .pdf, .txt, .rtf.",
             position="right"
         )
@@ -304,7 +304,7 @@ class MainWindow(ctk.CTk):
         self.processing_results = []
         self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
 
-        # Store AI generation parameters for after document cleaning completes
+        # Store AI generation parameters for after document extraction completes
         self.pending_ai_generation = {
             "selected_model": selected_model,
             "summary_length": summary_length,
@@ -317,17 +317,17 @@ class MainWindow(ctk.CTk):
         )
         self.worker.start()
 
-    def _start_ai_generation(self, cleaned_documents, ai_params):
-        """Start AI summary generation after document cleaning is complete."""
+    def _start_ai_generation(self, extracted_documents, ai_params):
+        """Start AI summary generation after document extraction is complete."""
         try:
             selected_model = ai_params["selected_model"]
             summary_length = ai_params["summary_length"]
             output_options = ai_params["output_options"]
 
-            # Prepare combined text from cleaned documents
+            # Prepare combined text from extracted documents
             combined_text = ""
-            for doc in cleaned_documents:
-                combined_text += f"\n\n--- {doc['filename']} ---\n{doc['cleaned_text']}"
+            for doc in extracted_documents:
+                combined_text += f"\n\n--- {doc['filename']} ---\n{doc['extracted_text']}"
 
             self.status_label.configure(text="Generating AI summary...")
             self.progress_bar.set(0.5)
@@ -373,10 +373,10 @@ class MainWindow(ctk.CTk):
                     self.summary_results.update_outputs(vocab_csv_data=data)
 
                 elif message_type == 'processing_finished':
-                    # Document cleaning finished; now generate AI summaries if requested
-                    cleaned_documents = data
+                    # Document extraction finished; now generate AI summaries if requested
+                    extracted_documents = data
                     if self.pending_ai_generation:
-                        self._start_ai_generation(cleaned_documents, self.pending_ai_generation)
+                        self._start_ai_generation(extracted_documents, self.pending_ai_generation)
                     else:
                         # No AI generation requested, just finish up
                         self.select_files_btn.configure(state="normal")

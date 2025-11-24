@@ -146,7 +146,7 @@ All integration tests passing. **Complete workflow now functional:**
 
 ### Source Code
 - **src/main.py** - Desktop GUI application entry point (uses CustomTkinter).
-- **src/cleaner.py** (~700 lines) - Main document processing module with PDF/TXT/RTF extraction, OCR, text cleaning, case number extraction, and progress callbacks
+- **src/extraction/raw_text_extractor.py** (~700 lines) - Raw text extraction module (Steps 1-2 of pipeline): PDF/TXT/RTF extraction, OCR, basic text normalization, case number extraction, and progress callbacks
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
 - **src/prompt_template_manager.py** - Prompt template discovery, loading, validation, and formatting system
@@ -167,7 +167,7 @@ All integration tests passing. **Complete workflow now functional:**
 - **src/utils/__init__.py** - Utils package initialization
 
 ### Tests
-- **tests/test_cleaner.py** (24 unit tests - ALL PASSING) - Comprehensive test coverage for DocumentCleaner
+- **tests/test_raw_text_extractor.py** (24 unit tests - ALL PASSING) - Comprehensive test coverage for RawTextExtractor (Steps 1-2)
 - **tests/sample_docs/test_complaint.txt** - Sample legal document for testing
 - **tests/sample_docs/test_motion.rtf** - Sample RTF legal document for testing
 - **tests/output/** - Test output directory (gitignored)
@@ -188,13 +188,48 @@ All integration tests passing. **Complete workflow now functional:**
 - **Zero Setup:** New browser sessions are instantly ready to run tests and process documents
 - **Cached State:** Container caching makes subsequent sessions start in seconds
 
+## Planned Future Directory Structure (v3.0)
+
+When implementing the remaining pipeline steps, the codebase will be reorganized as:
+
+```
+src/
+├── extraction/           (Steps 1-2: ✅ Implemented)
+│   ├── raw_text_extractor.py
+│   └── __init__.py
+│
+├── preprocessing/        (Step 3: Planned)
+│   ├── base.py
+│   ├── pipeline.py
+│   ├── basic/
+│   │   └── ocr_error_fixer.py
+│   └── smart/
+│       ├── line_number_remover.py
+│       ├── header_footer_remover.py
+│       └── ...
+│
+├── vocabulary/          (Step 4: Planned)
+│   └── text_vocabulary_extractor.py
+│
+├── chunking/            (Step 5: Refactor from root)
+│   └── engine.py
+│
+├── summarization/       (Step 6: Refactor from root)
+│   └── progressive.py
+│
+└── ai/                  (Model integrations)
+    └── ollama_model_manager.py
+```
+
+**Current Status:** Steps 1-2 complete in `src/extraction/`. Steps 3-6 will be refactored into this structure in v3.0.
+
 ## Phase 1 Accomplishments
 
 ### Core Document Processing ✅
 ✅ Multi-format support: PDF (digital & scanned), TXT, RTF
 ✅ OCR integration with Tesseract
 ✅ Dictionary-based confidence scoring for text quality
-✅ Smart text cleaning with legal document preservation
+✅ Smart text normalization with legal document preservation (Step 2)
 
 ### Advanced Text Cleaning ✅
 ✅ De-hyphenation across line breaks

@@ -1,8 +1,14 @@
 """
-Document Pre-processing Module (The "Cleaner")
-Extracts and cleans text from legal documents (PDF, TXT, RTF).
+Raw Text Extraction Module
 
-This is the core Phase 1 module that can run standalone via command line.
+Extracts raw text from legal documents (PDF, TXT, RTF) and applies basic
+normalization (de-hyphenation, page number removal, whitespace normalization).
+
+This module implements Steps 1-2 of the document processing pipeline:
+- Step 1: Extract text from files (PDF digital/OCR, TXT, RTF)
+- Step 2: Apply basic text normalization (OCR error fixing, structural normalization)
+
+This module can be used standalone via command line or as part of the larger document processing pipeline.
 """
 
 import os
@@ -37,17 +43,21 @@ from src.config import (
 from src.utils import debug, info, warning, error, Timer
 
 
-class DocumentCleaner:
+class RawTextExtractor:
     """
-    Processes legal documents to extract clean, usable text.
+    Extracts and normalizes raw text from legal documents.
 
     Handles PDF (digital and scanned), TXT, and RTF files.
-    Returns cleaned text with confidence scores and processing metadata.
+    Returns extracted text with confidence scores and processing metadata.
+
+    This class implements Steps 1-2 of the document pipeline:
+    1. Text Extraction: Reads PDF/TXT/RTF and applies OCR if needed
+    2. Basic Normalization: De-hyphenation, page number removal, whitespace normalization
     """
 
     def __init__(self, jurisdiction: str = "ny"):
         """
-        Initialize the DocumentCleaner.
+        Initialize the RawTextExtractor.
 
         Args:
             jurisdiction: Legal jurisdiction for keyword loading (ny, ca, federal)
@@ -56,7 +66,7 @@ class DocumentCleaner:
         self.legal_keywords: Set[str] = set()
         self.english_words: Set[str] = set()
 
-        with Timer("DocumentCleaner initialization"):
+        with Timer("RawTextExtractor initialization"):
             self._load_keywords()
             self._load_dictionary()
 
@@ -92,7 +102,7 @@ class DocumentCleaner:
 
     def process_document(self, file_path: str, progress_callback=None) -> Dict:
         """
-        Process a single document.
+        Process a single document (extraction + basic normalization).
 
         Args:
             file_path: Path to the document file
@@ -106,9 +116,9 @@ class DocumentCleaner:
                 - status: 'success', 'warning', or 'error'
                 - method: 'direct_read', 'digital_text', 'ocr', 'rtf_extraction'
                 - confidence: OCR confidence score (0-100)
-                - cleaned_text: Cleaned text content
-                - pages: Number of pages (for PDFs)
-                - size_mb: File size in MB
+                - extracted_text: Extracted and normalized text content
+                - page_count: Number of pages (for PDFs)
+                - file_size: File size in bytes
                 - case_numbers: List of detected case numbers
                 - error_message: Error description (if status is 'error')
         """
@@ -131,7 +141,7 @@ class DocumentCleaner:
             'status': 'success',
             'method': None,
             'confidence': 0,
-            'cleaned_text': '',
+            'extracted_text': '',
             'page_count': None,  # Changed from 'pages' to match FileReviewTable
             'file_size': 0,      # Changed from 'size_mb' to store bytes (not MB)
             'case_numbers': [],
@@ -180,21 +190,21 @@ class DocumentCleaner:
 
                 report_progress("Extracting case numbers", 60)
 
-                # Extract case numbers from raw text (before cleaning removes short lines)
-                if result['status'] != 'error' and result['cleaned_text']:
-                    result['case_numbers'] = self._extract_case_numbers(result['cleaned_text'])
+                # Extract case numbers from raw text (before normalization removes short lines)
+                if result['status'] != 'error' and result['extracted_text']:
+                    result['case_numbers'] = self._extract_case_numbers(result['extracted_text'])
                     if result['case_numbers']:
                         debug(f"Found case numbers: {result['case_numbers']}")
 
-                report_progress("Cleaning text", 70)
+                report_progress("Normalizing text", 70)
 
-                # Apply text cleaning
-                if result['status'] != 'error' and result['cleaned_text']:
-                    with Timer("Text cleaning"):
-                        result['cleaned_text'] = self._clean_text(result['cleaned_text'])
+                # Apply basic text normalization
+                if result['status'] != 'error' and result['extracted_text']:
+                    with Timer("Text normalization"):
+                        result['extracted_text'] = self._normalize_text(result['extracted_text'])
 
-                    # Check if cleaning resulted in empty text
-                    if len(result['cleaned_text'].strip()) == 0:
+                    # Check if normalization resulted in empty text
+                    if len(result['extracted_text'].strip()) == 0:
                         result['status'] = 'error'
                         result['error_message'] = "Unable to extract readable text. File may be corrupted or contain only images."
                         error(result['error_message'])
@@ -205,7 +215,7 @@ class DocumentCleaner:
                         result['status'] = 'warning'
 
                 report_progress("Complete", 100)
-                debug(f"DEBUG_CLEANER: Final result for {filename} - file_size: {result['file_size']}, page_count: {result['page_count']}")
+                debug(f"DEBUG_EXTRACTOR: Final result for {filename} - file_size: {result['file_size']}, page_count: {result['page_count']}")
 
         except Exception as e:
             result['status'] = 'error'
@@ -240,7 +250,7 @@ class DocumentCleaner:
             return {
                 'method': method,
                 'confidence': 100,
-                'cleaned_text': text,
+                'extracted_text': text,
                 'status': 'success'
             }
         except Exception as e:
@@ -277,7 +287,7 @@ class DocumentCleaner:
             return {
                 'method': 'digital_text',
                 'confidence': 100,
-                'cleaned_text': text,
+                'extracted_text': text,
                 'page_count': page_count,
                 'status': 'success'
             }
@@ -393,7 +403,7 @@ class DocumentCleaner:
             return {
                 'method': 'ocr',
                 'confidence': int(confidence),
-                'cleaned_text': ocr_text,
+                'extracted_text': ocr_text,
                 'page_count': page_count or len(images),
                 'status': 'success'
             }
@@ -469,11 +479,11 @@ class DocumentCleaner:
 
         return list(set(case_numbers))  # Remove duplicates
 
-    def _clean_text(self, raw_text: str) -> str:
+    def _normalize_text(self, raw_text: str) -> str:
         """
-        Apply cleaning rules to raw text.
+        Apply basic text normalization rules (Step 2 of pipeline).
 
-        Rules:
+        Normalization Rules:
         1. De-hyphenation (rejoin words split across lines) - FIRST to preserve content
         2. Page number removal
         3. Line filtering (remove short lines, require lowercase or legal headers)
@@ -483,9 +493,9 @@ class DocumentCleaner:
             raw_text: Raw extracted text
 
         Returns:
-            Cleaned text
+            Normalized text
         """
-        debug("Applying text cleaning rules")
+        debug("Applying text normalization rules")
 
         # Rule 1: De-hyphenation (do this FIRST before line filtering)
         # Remove hyphen + newline when it's clearly a word break
@@ -502,7 +512,7 @@ class DocumentCleaner:
         text = '\n'.join(lines_without_page_nums)
 
         # Rule 3: Line Filtering
-        cleaned_lines = []
+        normalized_lines = []
         for line in text.split('\n'):
             # Minimum length check
             if len(line) <= MIN_LINE_LENGTH:
@@ -531,38 +541,38 @@ class DocumentCleaner:
 
             # Keep line if it passes all tests
             if (has_lowercase or is_legal_header) and alpha_count > other_count:
-                cleaned_lines.append(line)
+                normalized_lines.append(line)
 
-        text = '\n'.join(cleaned_lines)
+        text = '\n'.join(normalized_lines)
 
         # Rule 4: Whitespace Normalization
         # Remove excess blank lines (max 1 between paragraphs)
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
         text = text.strip()
 
-        debug(f"Cleaning reduced text from {len(raw_text)} to {len(text)} characters")
+        debug(f"Normalization reduced text from {len(raw_text)} to {len(text)} characters")
 
         return text
 
 
 def main():
-    """Command-line interface for the cleaner."""
+    """Command-line interface for the raw text extractor."""
     parser = argparse.ArgumentParser(
-        description="LocalScribe Document Cleaner - Extract and clean text from legal documents",
+        description="LocalScribe Raw Text Extractor - Extract and normalize text from legal documents",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Process a single file
-  python cleaner.py --input complaint.pdf
+  python raw_text_extractor.py --input complaint.pdf
 
   # Process multiple files
-  python cleaner.py --input file1.pdf file2.pdf file3.pdf
+  python raw_text_extractor.py --input file1.pdf file2.pdf file3.pdf
 
   # Specify output directory and jurisdiction
-  python cleaner.py --input *.pdf --output-dir ./cleaned --jurisdiction ny
+  python raw_text_extractor.py --input *.pdf --output-dir ./extracted --jurisdiction ny
 
   # Debug mode (verbose logging)
-  DEBUG=true python cleaner.py --input test.pdf
+  DEBUG=true python raw_text_extractor.py --input test.pdf
         """
     )
 
@@ -575,8 +585,8 @@ Examples:
 
     parser.add_argument(
         '--output-dir',
-        default='./cleaned',
-        help='Output directory for cleaned text files (default: ./cleaned)'
+        default='./extracted',
+        help='Output directory for extracted text files (default: ./extracted)'
     )
 
     parser.add_argument(
@@ -592,26 +602,26 @@ Examples:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initialize cleaner
-    info(f"Initializing LocalScribe Document Cleaner (jurisdiction: {args.jurisdiction})")
-    cleaner = DocumentCleaner(jurisdiction=args.jurisdiction)
+    # Initialize extractor
+    info(f"Initializing LocalScribe Raw Text Extractor (jurisdiction: {args.jurisdiction})")
+    extractor = RawTextExtractor(jurisdiction=args.jurisdiction)
 
     # Process files
     results = []
     for file_path in args.input:
-        result = cleaner.process_document(file_path)
+        result = extractor.process_document(file_path)
         results.append(result)
 
-        # Save cleaned text if successful
-        if result['status'] in ['success', 'warning'] and result['cleaned_text']:
+        # Save extracted text if successful
+        if result['status'] in ['success', 'warning'] and result['extracted_text']:
             # Create output filename
-            output_filename = f"{Path(result['filename']).stem}_cleaned.txt"
+            output_filename = f"{Path(result['filename']).stem}_extracted.txt"
             output_path = output_dir / output_filename
 
             with open(output_path, 'w', encoding='utf-8') as f:
-                f.write(result['cleaned_text'])
+                f.write(result['extracted_text'])
 
-            info(f"Saved cleaned text to: {output_path}")
+            info(f"Saved extracted text to: {output_path}")
 
     # Print summary report
     print("\n" + "=" * 60)

@@ -99,7 +99,7 @@ The app executes a 4-step process:
 ## 5. Pre-processing Pipeline (The "Cleaner")
 
 ### 5.1 Overview
-The cleaner is the most critical component. It processes each document independently to extract clean, readable text and assign confidence scores.
+The extractor is the most critical component. It processes each document independently to extract clean, readable text and assign confidence scores.
 
 **Input:** List of file paths (PDF, TXT, RTF)
 **Output:** For each file:
@@ -865,12 +865,12 @@ def export_vocabulary_csv(vocab_table, output_path):
 
 ### 9.1 Phase 1: Pre-processing Engine (IMPLEMENT FIRST)
 
-**Goal:** Build a standalone, testable `cleaner.py` module that can process documents from the command line.
+**Goal:** Build a standalone, testable `extractor.py` module that can process documents from the command line.
 
 **Requirements:**
 ```bash
 # Command line interface
-python cleaner.py --input file1.pdf file2.pdf --output-dir ./cleaned --jurisdiction ny
+python extractor.py --input file1.pdf file2.pdf --output-dir ./cleaned --jurisdiction ny
 
 # Output:
 # - Creates ./cleaned/file1_cleaned.txt
@@ -880,44 +880,44 @@ python cleaner.py --input file1.pdf file2.pdf --output-dir ./cleaned --jurisdict
 
 **Module Structure:**
 ```python
-# cleaner.py
-class DocumentCleaner:
+# src/extraction/raw_text_extractor.py
+class RawTextExtractor:
     def __init__(self, jurisdiction="ny"):
         self.jurisdiction = jurisdiction
         self.legal_keywords = self.load_keywords()
         self.english_words = self.load_dictionary()
-    
+
     def process_document(self, file_path):
         """
-        Process a single document.
-        Returns: (cleaned_text, confidence, method, status, error_message)
+        Process a single document (extraction + basic normalization).
+        Returns: (extracted_text, confidence, method, status, error_message)
         """
         pass
-    
+
     def sniff_file_type(self, file_path):
         """Detect if PDF, TXT, RTF."""
         pass
-    
+
     def extract_text_from_pdf(self, pdf_path):
         """Use pdfplumber to extract text."""
         pass
-    
+
     def calculate_dictionary_confidence(self, text):
         """Calculate % of words that are valid English."""
         pass
-    
+
     def perform_ocr(self, pdf_path):
         """Run Tesseract OCR and return text + confidence."""
         pass
-    
-    def clean_text(self, raw_text):
-        """Apply cleaning rules 1-3."""
+
+    def normalize_text(self, raw_text):
+        """Apply normalization rules (de-hyphenation, page removal, filtering)."""
         pass
-    
+
     def load_keywords(self):
         """Load legal keywords for jurisdiction."""
         pass
-    
+
     def load_dictionary(self):
         """Load NLTK English words."""
         pass
@@ -925,19 +925,19 @@ class DocumentCleaner:
 # Test it
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Clean legal documents")
+
+    parser = argparse.ArgumentParser(description="Extract and normalize text from legal documents")
     parser.add_argument("--input", nargs="+", required=True, help="Input files")
-    parser.add_argument("--output-dir", default="./cleaned", help="Output directory")
+    parser.add_argument("--output-dir", default="./extracted", help="Output directory")
     parser.add_argument("--jurisdiction", default="ny", help="Jurisdiction (ny, ca, federal)")
-    
+
     args = parser.parse_args()
-    
-    cleaner = DocumentCleaner(jurisdiction=args.jurisdiction)
+
+    extractor = RawTextExtractor(jurisdiction=args.jurisdiction)
     
     results = []
     for file_path in args.input:
-        result = cleaner.process_document(file_path)
+        result = extractor.process_document(file_path)
         results.append(result)
         
         # Save cleaned text
@@ -964,14 +964,14 @@ if __name__ == "__main__":
 - [ ] Handle files >500MB correctly
 - [ ] Process multiple files in batch
 
-**Deliverable:** A working `cleaner.py` that can be run independently before UI development begins.
+**Deliverable:** A working `extractor.py` that can be run independently before UI development begins.
 
 ---
 
 ## 10. Development Phases Summary
 
 ### Phase 1: Pre-processing Engine (2-3 weeks)
-**Deliverable:** Command-line `cleaner.py` module
+**Deliverable:** Command-line `extractor.py` module
 
 ### Phase 2: Basic UI Shell (2 weeks)
 **Deliverable:** CustomTkinter main window with file selection and preprocessing integration

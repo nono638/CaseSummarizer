@@ -6,7 +6,7 @@ import traceback
 from queue import Queue, Empty
 from pathlib import Path
 
-from src.cleaner import DocumentCleaner
+from src.extraction import RawTextExtractor
 from src.debug_logger import debug_log
 from src.progressive_summarizer import ProgressiveSummarizer
 from src.vocabulary_extractor import VocabularyExtractor
@@ -16,7 +16,7 @@ from src.ui.ollama_worker import ollama_generation_worker_process
 
 class ProcessingWorker(threading.Thread):
     """
-    Background worker for processing documents (cleaning, chunking).
+    Background worker for document extraction and normalization (Steps 1-2).
     Communicates with the main UI via a queue.
     """
     def __init__(self, file_paths, ui_queue, jurisdiction="ny"):
@@ -24,7 +24,7 @@ class ProcessingWorker(threading.Thread):
         self.file_paths = file_paths
         self.ui_queue = ui_queue
         self.jurisdiction = jurisdiction
-        self.cleaner = DocumentCleaner(jurisdiction=self.jurisdiction)
+        self.extractor = RawTextExtractor(jurisdiction=self.jurisdiction)
         self.processed_results = [] # Store results for later AI processing
         self._stop_event = threading.Event() # Event for graceful stopping
 
@@ -33,7 +33,7 @@ class ProcessingWorker(threading.Thread):
         self._stop_event.set()
 
     def run(self):
-        """Execute document cleaning and pre-processing in background thread."""
+        """Execute document extraction and normalization (Steps 1-2) in background thread."""
         try:
             total_files = len(self.file_paths)
             self.processed_results = []
@@ -47,7 +47,7 @@ class ProcessingWorker(threading.Thread):
                 percentage = int((idx / total_files) * 100)
                 filename = os.path.basename(file_path)
                 
-                self.ui_queue.put(('progress', (percentage, f"Processing and cleaning {filename}...")))
+                self.ui_queue.put(('progress', (percentage, f"Extracting and normalizing {filename}...")))
 
                 def progress_callback(msg):
                     if self._stop_event.is_set():
@@ -56,15 +56,15 @@ class ProcessingWorker(threading.Thread):
                     self.ui_queue.put(('progress', (percentage, msg)))
 
                 try:
-                    cleaned_result = self.cleaner.process_document(file_path, progress_callback=progress_callback)
+                    extracted_result = self.extractor.process_document(file_path, progress_callback=progress_callback)
                 except InterruptedError:
-                    debug_log("[PROCESSING WORKER] Document cleaning interrupted by user.")
+                    debug_log("[PROCESSING WORKER] Document extraction interrupted by user.")
                     self.ui_queue.put(('error', "Document processing cancelled."))
                     return # Exit gracefully
                 
                 # Store the cleaned result for subsequent AI processing
-                self.processed_results.append(cleaned_result)
-                self.ui_queue.put(('file_processed', cleaned_result))
+                self.processed_results.append(extracted_result)
+                self.ui_queue.put(('file_processed', extracted_result))
             
             if not self._stop_event.is_set(): # Only send finished if not stopped
                 self.ui_queue.put(('processing_finished', self.processed_results))

@@ -21,7 +21,7 @@ class DocumentJob:
     """Represents a document to be processed."""
     file_path: str
     document_id: str  # Unique identifier for tracking
-    case_text: str  # Already-cleaned text from DocumentCleaner
+    case_text: str  # Already-extracted and normalized text from RawTextExtractor
     max_words: int = 200
     preset_id: str = "factual-summary"
 
