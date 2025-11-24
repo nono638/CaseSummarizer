@@ -1,5 +1,60 @@
 # Development Log
 
+## 2025-11-24 - Architectural Naming Refactoring (DocumentCleaner → RawTextExtractor)
+**Feature:** Comprehensive codebase naming alignment with 6-step document pipeline architecture
+
+Executed comprehensive refactoring to align all variable, class, and file names with the new 6-step document processing pipeline. Renamed `DocumentCleaner` class to `RawTextExtractor`, moved module from `src/cleaner.py` to `src/extraction/raw_text_extractor.py`, and updated all dependent code. Systematically replaced terminology: "cleaned" → "extracted" in variable names (cleaned_text → extracted_text), updated docstrings from "cleaning" → "extraction/normalization", and renamed test suite accordingly.
+
+**Work Completed:**
+
+1. **Class Refactoring** - DocumentCleaner → RawTextExtractor:
+   - Renamed class to clarify it performs Steps 1-2 of pipeline (extraction + basic normalization)
+   - Updated docstrings to specify "Implements Steps 1-2 of document pipeline"
+   - Created new `src/extraction/` package with module organization
+
+2. **Variable Rename Chain** - All terminology updates:
+   - `cleaned_text` → `extracted_text` (across result dictionaries and return values)
+   - `cleaned_result` → `extracted_result` (10+ occurrences in workers.py and main_window.py)
+   - `cleaned_documents` → `extracted_documents` (AI generation parameters)
+   - `cleaned_lines` → `normalized_lines` (internal processing)
+   - Output filename: `_cleaned.txt` → `_extracted.txt`
+
+3. **Documentation & Import Updates**:
+   - Updated all import statements: `from src.cleaner import DocumentCleaner` → `from src.extraction import RawTextExtractor`
+   - Updated progress messages in UI: "cleaning" → "extraction and normalization"
+   - Updated method docstrings to clarify step-specific functionality
+   - Updated command-line interface help text
+
+4. **Test Suite Migration**:
+   - Renamed `tests/test_cleaner.py` → `tests/test_raw_text_extractor.py`
+   - Updated fixture names: `cleaner` → `extractor`
+   - Updated all assertion keys: `result['cleaned_text']` → `result['extracted_text']`
+   - Updated test class names and method names for clarity
+   - All 24 tests passing after migration
+
+5. **Documentation Files Updated**:
+   - `human_summary.md` - Updated file listing and added "Planned Future Directory Structure (v3.0)"
+   - `Project_Specification_LocalScribe_v2.0_FINAL.md` - Updated all code examples and references
+   - `PREPROCESSING_PROPOSAL.md` - Updated architecture diagram and terminology
+   - `src/document_processor.py` - Updated comment documenting extracted text source
+
+**Files Modified:** 8 core files
+**Files Created:** 3 (src/extraction/__init__.py, PREPROCESSING_PROPOSAL.md moved to tracked)
+**Files Deleted:** 2 (src/cleaner.py, tests/test_cleaner.py refactored into new structure)
+
+**Architecture Established:**
+- Steps 1-2: RawTextExtractor (extraction + basic normalization) ✅
+- Step 3: Smart Preprocessing Pipeline (designed, ready for implementation)
+- Step 4: Vocabulary Extraction (existing module, will be moved to src/vocabulary/)
+- Step 5: Chunking Engine (existing module, will be moved to src/chunking/)
+- Step 6: Progressive Summarization (existing module, will be moved to src/summarization/)
+
+**Verification:** All imports verified, no remaining references to old class name, all 24 tests passing.
+
+**Status:** Naming refactoring complete and committed (commit eecb92d). Codebase now has clear semantic structure aligned with pipeline architecture. Ready for Phase 3 implementation (smart preprocessing pipeline).
+
+---
+
 ## 2025-11-23 18:15 - UI Polish & Accessibility Improvements
 **Feature:** Comprehensive UI refinements focused on visual hierarchy, dark theme consistency, and experienced-user guidance
 

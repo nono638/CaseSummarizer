@@ -8,8 +8,8 @@
 **Current Branch:** `main`
 **Status:** ✅ **PRODUCTION-READY UI + STRATEGIC ROADMAP** - Application is stable, well-documented, and ready for next phase of feature development (Phase 2.2+)
 
-**Latest Session (2025-11-23 - Strategic Roadmap Planning & Code Quality):**
-Established comprehensive 5-phase development roadmap addressing all remaining features from the official specification. Identified summary quality improvement strategy (test larger models: llama2:13b, mistral:7b). Designed parallel document processing architecture with user-controlled CPU allocation (1/4, 1/2, 3/4 cores). Specified system monitor feature (CPU% + RAM display with CPU model on hover). Discovered and designed solution for model prompt format compatibility issue (Phase 2.7: wrap_prompt_for_model). Enhanced pytest configuration and fixed code quality issue (bare except clause).
+**Latest Session (2025-11-24 - Architectural Refactoring & Naming Standardization):**
+Completed comprehensive codebase refactoring to align all naming with the 6-step document pipeline architecture. Renamed `DocumentCleaner` class to `RawTextExtractor`, restructured module from `src/cleaner.py` to `src/extraction/raw_text_extractor.py`, and systematically updated all terminology (cleaned → extracted, cleaning → extraction/normalization). Updated 8 core Python files, 3 documentation files, and migrated test suite—all 24 tests passing. Codebase now has clear semantic structure supporting future phase development. Established detailed "Planned Directory Structure (v3.0)" documentation for post-implementation refactoring.
 
 **Session 2025-11-22 Improvements:**
 1. **Tooltip System Redesign** - Implemented stable 500ms-delay tooltip system with proper event handling, eliminating flickering on all four help icons
