@@ -7,6 +7,7 @@ normalization (de-hyphenation, page number removal, whitespace normalization).
 This module implements Steps 1-2 of the document processing pipeline:
 - Step 1: Extract text from files (PDF digital/OCR, TXT, RTF)
 - Step 2: Apply basic text normalization (OCR error fixing, structural normalization)
+- Step 2.5: Character sanitization (fix mojibake, remove control chars, redaction handling)
 
 This module can be used standalone via command line or as part of the larger document processing pipeline.
 """
@@ -27,6 +28,9 @@ import pytesseract
 # NLP
 import nltk
 from nltk.corpus import words
+
+# Character sanitization
+from src.sanitization import CharacterSanitizer
 
 # Local imports
 from src.config import (
@@ -50,9 +54,10 @@ class RawTextExtractor:
     Handles PDF (digital and scanned), TXT, and RTF files.
     Returns extracted text with confidence scores and processing metadata.
 
-    This class implements Steps 1-2 of the document pipeline:
+    This class implements Steps 1-2.5 of the document pipeline:
     1. Text Extraction: Reads PDF/TXT/RTF and applies OCR if needed
     2. Basic Normalization: De-hyphenation, page number removal, whitespace normalization
+    2.5: Character Sanitization: Fix mojibake, remove control chars, handle redactions
     """
 
     def __init__(self, jurisdiction: str = "ny"):
@@ -65,6 +70,7 @@ class RawTextExtractor:
         self.jurisdiction = jurisdiction
         self.legal_keywords: Set[str] = set()
         self.english_words: Set[str] = set()
+        self.character_sanitizer = CharacterSanitizer()
 
         with Timer("RawTextExtractor initialization"):
             self._load_keywords()
@@ -208,6 +214,21 @@ class RawTextExtractor:
                         result['status'] = 'error'
                         result['error_message'] = "Unable to extract readable text. File may be corrupted or contain only images."
                         error(result['error_message'])
+
+                report_progress("Sanitizing characters", 80)
+
+                # Apply character sanitization (Step 2.5)
+                # Fixes mojibake, removes control chars, handles redactions, transliterates accents
+                if result['status'] != 'error' and result['extracted_text']:
+                    with Timer("Character sanitization"):
+                        sanitized_text, sanitization_stats = self.character_sanitizer.sanitize(result['extracted_text'])
+                        result['extracted_text'] = sanitized_text
+
+                        # Log sanitization details
+                        if any(sanitization_stats.values()):
+                            debug(f"Character sanitization stats: {sanitization_stats}")
+                            for log_entry in self.character_sanitizer.get_log():
+                                debug(f"  - {log_entry}")
 
                 # Set status based on confidence
                 if result['status'] == 'success':
