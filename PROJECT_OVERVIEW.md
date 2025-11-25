@@ -1532,6 +1532,143 @@ RawTextExtractor.process_document()
 
 ---
 
-**Document Version:** 2.0 (Final)  
-**Date:** November 12, 2025  
+## 12. Code Patterns & Conventions
+
+### 12.1 Transformation Pipeline Variable Naming
+
+**Pattern:** All text transformation stages use `text_` prefix + camelCase description.
+
+**Rationale:**
+- Clear transformation flow in debuggers and logs
+- Explicit memory management for large files (up to 500MB)
+- Easy to identify transformation stages and their order
+- Maintains consistency across document processing pipeline
+
+**Convention:**
+```python
+# ❌ BAD: Variable reassignment obscures transformation flow
+text = dehyphenate(text)
+text = remove_page_numbers(text)
+
+# ✅ GOOD: Descriptive names show stages
+text_dehyphenated = dehyphenate(text_rawExtracted)
+text_withPageNumbersRemoved = remove_page_numbers(text_dehyphenated)
+```
+
+**Naming Format:**
+- Start with `text_` prefix (identifies as text data)
+- Followed by camelCase descriptor
+- Descriptor is past-tense form (what was DONE to the text)
+- Examples:
+  - `text_rawExtracted` (initial extraction from file)
+  - `text_dehyphenated` (after de-hyphenation)
+  - `text_withPageNumbersRemoved` (after removing page markers)
+  - `text_mojibakeFixed` (after encoding recovery)
+  - `text_sanitized` (final clean text)
+
+**Current Pipeline (11 Stages):**
+
+| Stage | Variable Name | Module | Method |
+|-------|---------------|--------|--------|
+| 1 | `text_rawExtracted` | RawTextExtractor | `process_document()` |
+| 2 | `text_dehyphenated` | RawTextExtractor | `_normalize_text()` |
+| 3 | `text_withPageNumbersRemoved` | RawTextExtractor | `_normalize_text()` |
+| 4 | `text_lineFiltered` | RawTextExtractor | `_normalize_text()` |
+| 5 | `text_normalized` | RawTextExtractor | `_normalize_text()` |
+| 6 | `text_mojibakeFixed` | CharacterSanitizer | `sanitize()` |
+| 7 | `text_unicodeNormalized` | CharacterSanitizer | `sanitize()` |
+| 8 | `text_transliterated` | CharacterSanitizer | `sanitize()` |
+| 9 | `text_redactionsHandled` | CharacterSanitizer | `sanitize()` |
+| 10 | `text_problematicCharsRemoved` | CharacterSanitizer | `sanitize()` |
+| 11 | `text_sanitized` | CharacterSanitizer | `sanitize()` |
+
+### 12.2 Memory Management Pattern
+
+**For Large Files (100MB-500MB):**
+
+Explicit `del` statements prevent memory bloat when processing large documents:
+
+```python
+# Transform text and capture new state
+text_transformed = transform_function(text_input)
+
+# Delete old variable to free memory immediately
+try:
+    del text_input
+except NameError:
+    pass  # Variable may not exist in all code paths
+```
+
+**Why this matters:**
+- Without `del`: Peak memory can reach 1GB for 500MB files (multiple stages coexist)
+- With `del`: Peak memory stays ~500MB (old stage freed before next)
+- Python's reference counting frees memory immediately when ref count hits 0
+- Garbage collection is not fast enough for large document processing
+
+**Special Case - Conditional Branches:**
+
+When a transformation is optional, don't delete aliased variables:
+
+```python
+if should_transliterate:
+    text_transliterated = unidecode(text_input)  # New object
+    try:
+        del text_input  # ✅ Safe to delete
+    except NameError:
+        pass
+else:
+    text_transliterated = text_input  # Alias - don't delete!
+```
+
+### 12.3 Helper Methods - Keep Generic Signatures
+
+**Rule:** Only orchestration-level code uses descriptive variable names.
+
+Helper methods maintain generic signatures to stay reusable:
+
+```python
+# ✅ CORRECT: Generic helper signature
+def _fix_mojibake(self, text: str) -> Tuple[str, int]:
+    """Fix encoding corruption using ftfy."""
+    original = text
+    text = ftfy.fix_text(text)
+    return text, fixes
+
+# ❌ WRONG: Overly specific signature breaks reusability
+def _fix_mojibake(self, text_rawExtracted: str) -> Tuple[str, int]:
+    # Hard to test, violates encapsulation
+```
+
+**Rationale:**
+- Helper methods are implementation details
+- Descriptive naming is for orchestration/flow control level only
+- Generic parameters are more reusable and testable
+- Keeps method signatures stable as naming conventions evolve
+
+### 12.4 Applying This Pattern to New Stages
+
+When adding new transformation stages (e.g., Phase 3C Smart Preprocessing):
+
+1. **Name the new variable** following `text_` + camelCase pattern
+   - `text_titlePageRemoved`
+   - `text_headerFootersRemoved`
+   - `text_qaFormatConverted`
+
+2. **Add memory cleanup**
+   ```python
+   text_new = transform(text_old)
+   try:
+       del text_old
+   except NameError:
+       pass
+   ```
+
+3. **Update this table** (Section 12.1) to reflect new stages
+
+4. **Document in development_log.md** that new stage follows this pattern
+
+---
+
+**Document Version:** 2.1 (Updated with Code Patterns)
+**Date:** November 25, 2025
 **Status:** Ready for Implementation

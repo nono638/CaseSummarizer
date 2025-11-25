@@ -35,7 +35,7 @@ class MainWindow(ctk.CTk):
 
         # State
         self.selected_files = []
-        self.processing_results = []
+        self.processed_results = []
         self.worker = None
         self.pending_ai_generation = None
 
@@ -204,7 +204,7 @@ class MainWindow(ctk.CTk):
         self.progress_bar.grid()  # Make progress bar visible (already gridded at column 1)
         # DO NOT clear the file table - users need to see which files are being processed
         # The table entries will be updated with status as files are processed
-        self.processing_results = []
+        self.processed_results = []
         self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
 
         # Store AI generation parameters for after document extraction completes

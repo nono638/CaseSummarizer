@@ -504,6 +504,12 @@ class RawTextExtractor:
         """
         Apply basic text normalization rules (Step 2 of pipeline).
 
+        4-stage normalization pipeline with descriptive variable names:
+        1. De-hyphenation → text_dehyphenated
+        2. Page number removal → text_withPageNumbersRemoved
+        3. Line filtering → text_lineFiltered
+        4. Whitespace normalization → text_normalized
+
         Normalization Rules:
         1. De-hyphenation (rejoin words split across lines) - FIRST to preserve content
         2. Page number removal
@@ -514,27 +520,38 @@ class RawTextExtractor:
             raw_text: Raw extracted text
 
         Returns:
-            Normalized text
+            text_normalized: Fully normalized text
         """
         debug("Applying text normalization rules")
 
-        # Rule 1: De-hyphenation (do this FIRST before line filtering)
+        # Stage 1: De-hyphenation (do this FIRST before line filtering)
         # Remove hyphen + newline when it's clearly a word break
-        text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
+        raw_text_len = len(raw_text)  # Capture length before deletion
+        text_dehyphenated = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
+        try:
+            del raw_text
+        except NameError:
+            pass
 
-        # Rule 2: Page Number Removal
-        lines = text.split('\n')
+        # Stage 2: Page Number Removal
+        lines = text_dehyphenated.split('\n')
         lines_without_page_nums = []
         for line in lines:
             if not self._is_page_number(line):
                 lines_without_page_nums.append(line)
             else:
                 debug(f"Removed page number: {line}")
-        text = '\n'.join(lines_without_page_nums)
+        text_withPageNumbersRemoved = '\n'.join(lines_without_page_nums)
+        try:
+            del text_dehyphenated
+            del lines
+            del lines_without_page_nums
+        except NameError:
+            pass
 
-        # Rule 3: Line Filtering
+        # Stage 3: Line Filtering
         normalized_lines = []
-        for line in text.split('\n'):
+        for line in text_withPageNumbersRemoved.split('\n'):
             # Minimum length check
             if len(line) <= MIN_LINE_LENGTH:
                 # Exception: Allow short legal headers even if under minimum length
@@ -564,16 +581,25 @@ class RawTextExtractor:
             if (has_lowercase or is_legal_header) and alpha_count > other_count:
                 normalized_lines.append(line)
 
-        text = '\n'.join(normalized_lines)
+        text_lineFiltered = '\n'.join(normalized_lines)
+        try:
+            del text_withPageNumbersRemoved
+            del normalized_lines
+        except NameError:
+            pass
 
-        # Rule 4: Whitespace Normalization
+        # Stage 4: Whitespace Normalization
         # Remove excess blank lines (max 1 between paragraphs)
-        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-        text = text.strip()
+        text_normalized = re.sub(r'\n\s*\n\s*\n+', '\n\n', text_lineFiltered)
+        text_normalized = text_normalized.strip()
+        try:
+            del text_lineFiltered
+        except NameError:
+            pass
 
-        debug(f"Normalization reduced text from {len(raw_text)} to {len(text)} characters")
+        debug(f"Normalization reduced text from {raw_text_len} to {len(text_normalized)} characters")
 
-        return text
+        return text_normalized
 
 
 def main():
