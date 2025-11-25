@@ -20,6 +20,7 @@ Optionally uses unidecode for transliteration (ASCII-safe output).
 import unicodedata
 import ftfy
 import re
+import time
 from typing import Tuple, Dict, List
 
 try:
@@ -60,19 +61,19 @@ class CharacterSanitizer:
         """
         Sanitize text and return cleaned text + statistics.
 
-        6-stage pipeline with descriptive variable names:
-        1. Mojibake fix → text_mojibakeFixed
-        2. Unicode normalization → text_unicodeNormalized
-        3. Transliteration (optional) → text_transliterated
-        4. Redaction handling → text_redactionsHandled
-        5. Problematic char removal → text_problematicCharsRemoved
-        6. Whitespace cleanup → text_sanitized
+        6-stage pipeline with comprehensive logging:
+        1. Fix mojibake using ftfy
+        2. Normalize Unicode (NFKC form)
+        3. Transliterate stray accents (optional, requires unidecode)
+        4. Handle redacted characters (██ → [REDACTED])
+        5. Remove/replace problematic characters
+        6. Clean up excessive whitespace
 
         Args:
             text: Raw extracted text from PDF/OCR
 
         Returns:
-            (text_sanitized, stats_dict) where stats_dict contains:
+            (cleaned_text, stats_dict) where stats_dict contains:
             - chars_removed: Count of removed characters
             - mojibake_fixed: Count of mojibake fixes
             - control_chars_removed: Count of control characters removed
@@ -91,60 +92,100 @@ class CharacterSanitizer:
         }
 
         # Stage 1: Fix mojibake (encoding corruption)
-        text_mojibakeFixed, mojibake_count = self._fix_mojibake(text)
-        stats["mojibake_fixed"] = mojibake_count
+        self._log("Stage 1: Mojibake recovery (ftfy)")
+        start = time.time()
+        original_len = len(text)
         try:
-            del text
-        except NameError:
-            pass
+            text, mojibake_count = self._fix_mojibake(text)
+            stats["mojibake_fixed"] = mojibake_count
+            duration = time.time() - start
+            self._log(f"  ✅ SUCCESS ({duration:.3f}s) - Fixed {mojibake_count} chars")
+            self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 2: Normalize Unicode (NFKC form)
-        text_unicodeNormalized = self._normalize_unicode(text_mojibakeFixed)
+        self._log("Stage 2: Unicode normalization (NFKC)")
+        start = time.time()
+        original_len = len(text)
         try:
-            del text_mojibakeFixed
-        except NameError:
-            pass
+            text = self._normalize_unicode(text)
+            duration = time.time() - start
+            self._log(f"  ✅ SUCCESS ({duration:.3f}s)")
+            self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 3: Transliterate stray accents (ê → e, é → e, etc.)
         if self.transliterate:
-            text_transliterated, trans_count = self._transliterate_text(text_unicodeNormalized)
-            stats["transliterations"] = trans_count
+            self._log("Stage 3: Transliteration (accent conversion)")
+            start = time.time()
+            original_len = len(text)
             try:
-                del text_unicodeNormalized
-            except NameError:
-                pass
+                text, trans_count = self._transliterate_text(text)
+                stats["transliterations"] = trans_count
+                duration = time.time() - start
+                self._log(f"  ✅ SUCCESS ({duration:.3f}s) - Transliterated {trans_count} chars")
+                self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+            except Exception as e:
+                duration = time.time() - start
+                self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+                raise
         else:
-            # Alias: no transliteration, skip deletion
-            text_transliterated = text_unicodeNormalized
+            self._log("Stage 3: Transliteration (SKIPPED - disabled)")
 
         # Stage 4: Handle redacted characters (██ → [REDACTED])
-        text_redactionsHandled, redactions = self._handle_redactions(text_transliterated)
-        stats["redactions_replaced"] = redactions
+        self._log("Stage 4: Redaction handling")
+        start = time.time()
+        original_len = len(text)
         try:
-            del text_transliterated
-        except NameError:
-            pass
+            text, redactions = self._handle_redactions(text)
+            stats["redactions_replaced"] = redactions
+            duration = time.time() - start
+            self._log(f"  ✅ SUCCESS ({duration:.3f}s) - Replaced {redactions} redaction chars")
+            self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
-        # Stage 5: Remove/replace problematic characters (control chars, zero-width, private-use)
-        text_problematicCharsRemoved, removed, control_removed, private_use = \
-            self._clean_problematic_chars(text_redactionsHandled)
-        stats["control_chars_removed"] = control_removed
-        stats["private_use_removed"] = private_use
+        # Stage 5: Remove/replace problematic characters
+        self._log("Stage 5: Problematic character removal")
+        start = time.time()
+        original_len = len(text)
         try:
-            del text_redactionsHandled
-        except NameError:
-            pass
+            text, removed, control_removed, private_use = self._clean_problematic_chars(text)
+            stats["control_chars_removed"] = control_removed
+            stats["private_use_removed"] = private_use
+            duration = time.time() - start
+            self._log(f"  ✅ SUCCESS ({duration:.3f}s) - Removed {control_removed} control + {private_use} private-use chars")
+            self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 6: Clean up excessive whitespace
-        text_sanitized = self._clean_whitespace(text_problematicCharsRemoved)
+        self._log("Stage 6: Whitespace normalization")
+        start = time.time()
+        original_len = len(text)
         try:
-            del text_problematicCharsRemoved
-        except NameError:
-            pass
+            text = self._clean_whitespace(text)
+            duration = time.time() - start
+            self._log(f"  ✅ SUCCESS ({duration:.3f}s)")
+            self._log(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            self._log(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         stats["chars_removed"] = removed + control_removed + private_use
 
-        return text_sanitized, stats
+        return text, stats
 
     def _fix_mojibake(self, text: str) -> Tuple[str, int]:
         """

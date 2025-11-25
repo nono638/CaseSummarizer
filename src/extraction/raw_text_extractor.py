@@ -14,6 +14,7 @@ This module can be used standalone via command line or as part of the larger doc
 
 import os
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional
 import argparse
@@ -500,15 +501,15 @@ class RawTextExtractor:
 
         return list(set(case_numbers))  # Remove duplicates
 
-    def _normalize_text(self, raw_text: str) -> str:
+    def _normalize_text(self, text: str) -> str:
         """
         Apply basic text normalization rules (Step 2 of pipeline).
 
-        4-stage normalization pipeline with descriptive variable names:
-        1. De-hyphenation → text_dehyphenated
-        2. Page number removal → text_withPageNumbersRemoved
-        3. Line filtering → text_lineFiltered
-        4. Whitespace normalization → text_normalized
+        4-stage normalization pipeline with comprehensive logging:
+        1. De-hyphenation
+        2. Page number removal
+        3. Line filtering
+        4. Whitespace normalization
 
         Normalization Rules:
         1. De-hyphenation (rejoin words split across lines) - FIRST to preserve content
@@ -517,89 +518,116 @@ class RawTextExtractor:
         4. Whitespace normalization
 
         Args:
-            raw_text: Raw extracted text
+            text: Raw extracted text
 
         Returns:
-            text_normalized: Fully normalized text
+            Fully normalized text
         """
         debug("Applying text normalization rules")
 
         # Stage 1: De-hyphenation (do this FIRST before line filtering)
-        # Remove hyphen + newline when it's clearly a word break
-        raw_text_len = len(raw_text)  # Capture length before deletion
-        text_dehyphenated = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', raw_text)
+        debug("  Stage 1: De-hyphenation")
+        start = time.time()
+        original_len = len(text)
+
         try:
-            del raw_text
-        except NameError:
-            pass
+            text = re.sub(r'(\w+)-\s*\n\s*(\w+)', r'\1\2', text)
+            duration = time.time() - start
+            debug(f"    ✅ SUCCESS ({duration:.3f}s) - Rejoin hyphenated words")
+            debug(f"       Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            debug(f"    ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 2: Page Number Removal
-        lines = text_dehyphenated.split('\n')
-        lines_without_page_nums = []
-        for line in lines:
-            if not self._is_page_number(line):
-                lines_without_page_nums.append(line)
-            else:
-                debug(f"Removed page number: {line}")
-        text_withPageNumbersRemoved = '\n'.join(lines_without_page_nums)
+        debug("  Stage 2: Page number removal")
+        start = time.time()
+        original_len = len(text)
+
         try:
-            del text_dehyphenated
-            del lines
-            del lines_without_page_nums
-        except NameError:
-            pass
+            lines = text.split('\n')
+            lines_filtered = []
+            for line in lines:
+                if not self._is_page_number(line):
+                    lines_filtered.append(line)
+                else:
+                    debug(f"    Removed page number: {line}")
+            removed_count = len(lines) - len(lines_filtered)
+            text = '\n'.join(lines_filtered)
+            duration = time.time() - start
+            debug(f"    ✅ SUCCESS ({duration:.3f}s) - Removed {removed_count} page markers")
+            debug(f"       Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            debug(f"    ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 3: Line Filtering
-        normalized_lines = []
-        for line in text_withPageNumbersRemoved.split('\n'):
-            # Minimum length check
-            if len(line) <= MIN_LINE_LENGTH:
-                # Exception: Allow short legal headers even if under minimum length
+        debug("  Stage 3: Line filtering")
+        start = time.time()
+        original_len = len(text)
+
+        try:
+            normalized_lines = []
+            for line in text.split('\n'):
+                # Minimum length check
+                if len(line) <= MIN_LINE_LENGTH:
+                    # Exception: Allow short legal headers even if under minimum length
+                    is_legal_header = (
+                        line.isupper() and
+                        len(line) < 50 and
+                        any(keyword in line for keyword in self.legal_keywords)
+                    )
+                    if not is_legal_header:
+                        continue
+
+                # Check if line has lowercase letters
+                has_lowercase = any(c.islower() for c in line)
+
+                # Check if it's a legal header (all caps + contains legal keyword)
                 is_legal_header = (
                     line.isupper() and
                     len(line) < 50 and
                     any(keyword in line for keyword in self.legal_keywords)
                 )
-                if not is_legal_header:
-                    continue
 
-            # Check if line has lowercase letters
-            has_lowercase = any(c.islower() for c in line)
+                # Count character types
+                alpha_count = sum(c.isalpha() for c in line)
+                other_count = sum(not c.isalpha() and not c.isspace() for c in line)
 
-            # Check if it's a legal header (all caps + contains legal keyword)
-            is_legal_header = (
-                line.isupper() and
-                len(line) < 50 and
-                any(keyword in line for keyword in self.legal_keywords)
-            )
+                # Keep line if it passes all tests
+                if (has_lowercase or is_legal_header) and alpha_count > other_count:
+                    normalized_lines.append(line)
 
-            # Count character types
-            alpha_count = sum(c.isalpha() for c in line)
-            other_count = sum(not c.isalpha() and not c.isspace() for c in line)
-
-            # Keep line if it passes all tests
-            if (has_lowercase or is_legal_header) and alpha_count > other_count:
-                normalized_lines.append(line)
-
-        text_lineFiltered = '\n'.join(normalized_lines)
-        try:
-            del text_withPageNumbersRemoved
-            del normalized_lines
-        except NameError:
-            pass
+            removed_count = len(text.split('\n')) - len(normalized_lines)
+            text = '\n'.join(normalized_lines)
+            duration = time.time() - start
+            debug(f"    ✅ SUCCESS ({duration:.3f}s) - Filtered {removed_count} lines")
+            debug(f"       Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            debug(f"    ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
         # Stage 4: Whitespace Normalization
-        # Remove excess blank lines (max 1 between paragraphs)
-        text_normalized = re.sub(r'\n\s*\n\s*\n+', '\n\n', text_lineFiltered)
-        text_normalized = text_normalized.strip()
+        debug("  Stage 4: Whitespace normalization")
+        start = time.time()
+        original_len = len(text)
+
         try:
-            del text_lineFiltered
-        except NameError:
-            pass
+            # Remove excess blank lines (max 1 between paragraphs)
+            text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+            text = text.strip()
+            duration = time.time() - start
+            debug(f"    ✅ SUCCESS ({duration:.3f}s) - Normalize whitespace")
+            debug(f"       Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+        except Exception as e:
+            duration = time.time() - start
+            debug(f"    ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+            raise
 
-        debug(f"Normalization reduced text from {raw_text_len} to {len(text_normalized)} characters")
-
-        return text_normalized
+        return text
 
 
 def main():

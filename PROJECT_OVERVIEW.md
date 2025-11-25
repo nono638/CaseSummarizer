@@ -1534,95 +1534,96 @@ RawTextExtractor.process_document()
 
 ## 12. Code Patterns & Conventions
 
-### 12.1 Transformation Pipeline Variable Naming
+### 12.1 Transformation Pipeline Logging Pattern
 
-**Pattern:** All text transformation stages use `text_` prefix + camelCase description.
+**Pattern:** All transformation stages use variable reassignment (`text = transform(text)`) with comprehensive logging for observability.
 
 **Rationale:**
-- Clear transformation flow in debuggers and logs
-- Explicit memory management for large files (up to 500MB)
-- Easy to identify transformation stages and their order
-- Maintains consistency across document processing pipeline
+- **Pythonic:** Trusts Python's automatic garbage collection (standard practice)
+- **Simple Code:** No verbose memory management clutters transformation logic
+- **Better Observability:** Comprehensive logging shows exactly what happened at each stage
+- **Performance Insights:** Timing data for each stage helps identify bottlenecks
+- **Debugging Support:** Success/failure logs make troubleshooting easier
 
 **Convention:**
 ```python
-# ❌ BAD: Variable reassignment obscures transformation flow
-text = dehyphenate(text)
-text = remove_page_numbers(text)
+# ❌ BAD: No logging, unclear what happened
+text = transform(text)
 
-# ✅ GOOD: Descriptive names show stages
-text_dehyphenated = dehyphenate(text_rawExtracted)
-text_withPageNumbersRemoved = remove_page_numbers(text_dehyphenated)
+# ✅ GOOD: Logged transformation with metrics
+debug("Starting Stage N: [Stage Name]")
+start_time = time.time()
+original_len = len(text)
+
+try:
+    text = transform(text)
+    duration = time.time() - start_time
+    debug(f"  ✅ SUCCESS ({duration:.3f}s) - [Action summary]")
+    debug(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+except Exception as e:
+    duration = time.time() - start_time
+    debug(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+    raise
 ```
 
-**Naming Format:**
-- Start with `text_` prefix (identifies as text data)
-- Followed by camelCase descriptor
-- Descriptor is past-tense form (what was DONE to the text)
-- Examples:
-  - `text_rawExtracted` (initial extraction from file)
-  - `text_dehyphenated` (after de-hyphenation)
-  - `text_withPageNumbersRemoved` (after removing page markers)
-  - `text_mojibakeFixed` (after encoding recovery)
-  - `text_sanitized` (final clean text)
+**Logging Categories:**
+
+1. **Execution Tracking**
+   - "Starting Stage N: [Stage Name]"
+   - "✅ SUCCESS: [Stage Name]"
+   - "❌ FAILED: [Stage Name]"
+
+2. **Performance Timing**
+   - Duration in seconds with 3 decimal places (e.g., "0.125s", "1.234s")
+   - Included in both success and failure messages
+   - Helps identify slow stages for optimization
+
+3. **Text Metrics**
+   - Input character count
+   - Output character count
+   - Delta (difference) with +/- sign to show growth/shrinkage
+   - Item counts for line-based operations (e.g., "Removed 5 page markers")
+
+4. **Error Details**
+   - Exception type (e.g., "ValueError", "IOError")
+   - Exception message for context
+   - Always re-raised to stop processing and propagate to caller
 
 **Current Pipeline (11 Stages):**
 
-| Stage | Variable Name | Module | Method |
-|-------|---------------|--------|--------|
-| 1 | `text_rawExtracted` | RawTextExtractor | `process_document()` |
-| 2 | `text_dehyphenated` | RawTextExtractor | `_normalize_text()` |
-| 3 | `text_withPageNumbersRemoved` | RawTextExtractor | `_normalize_text()` |
-| 4 | `text_lineFiltered` | RawTextExtractor | `_normalize_text()` |
-| 5 | `text_normalized` | RawTextExtractor | `_normalize_text()` |
-| 6 | `text_mojibakeFixed` | CharacterSanitizer | `sanitize()` |
-| 7 | `text_unicodeNormalized` | CharacterSanitizer | `sanitize()` |
-| 8 | `text_transliterated` | CharacterSanitizer | `sanitize()` |
-| 9 | `text_redactionsHandled` | CharacterSanitizer | `sanitize()` |
-| 10 | `text_problematicCharsRemoved` | CharacterSanitizer | `sanitize()` |
-| 11 | `text_sanitized` | CharacterSanitizer | `sanitize()` |
+| Stage | Transformation | Module | Method |
+|-------|---|--------|--------|
+| 1 | Extract text from file | RawTextExtractor | `process_document()` |
+| 2 | De-hyphenation | RawTextExtractor | `_normalize_text()` |
+| 3 | Page number removal | RawTextExtractor | `_normalize_text()` |
+| 4 | Line filtering | RawTextExtractor | `_normalize_text()` |
+| 5 | Whitespace normalization | RawTextExtractor | `_normalize_text()` |
+| 6 | Mojibake recovery (ftfy) | CharacterSanitizer | `sanitize()` |
+| 7 | Unicode normalization (NFKC) | CharacterSanitizer | `sanitize()` |
+| 8 | Transliteration (optional) | CharacterSanitizer | `sanitize()` |
+| 9 | Redaction handling | CharacterSanitizer | `sanitize()` |
+| 10 | Problematic character removal | CharacterSanitizer | `sanitize()` |
+| 11 | Final whitespace cleanup | CharacterSanitizer | `sanitize()` |
 
-### 12.2 Memory Management Pattern
+### 12.2 Memory Management Strategy
 
-**For Large Files (100MB-500MB):**
+**Approach:** Trust Python's garbage collection with comprehensive logging.
 
-Explicit `del` statements prevent memory bloat when processing large documents:
+**Rationale:**
+- Python's garbage collection (GC) handles automatic memory cleanup
+- Logging provides observability without verbose memory management
+- For large files, GC is sufficient; explicit `del` is un-Pythonic
+- Variable reassignment is standard Python idiom
 
-```python
-# Transform text and capture new state
-text_transformed = transform_function(text_input)
-
-# Delete old variable to free memory immediately
-try:
-    del text_input
-except NameError:
-    pass  # Variable may not exist in all code paths
-```
-
-**Why this matters:**
-- Without `del`: Peak memory can reach 1GB for 500MB files (multiple stages coexist)
-- With `del`: Peak memory stays ~500MB (old stage freed before next)
-- Python's reference counting frees memory immediately when ref count hits 0
-- Garbage collection is not fast enough for large document processing
-
-**Special Case - Conditional Branches:**
-
-When a transformation is optional, don't delete aliased variables:
-
-```python
-if should_transliterate:
-    text_transliterated = unidecode(text_input)  # New object
-    try:
-        del text_input  # ✅ Safe to delete
-    except NameError:
-        pass
-else:
-    text_transliterated = text_input  # Alias - don't delete!
-```
+**When Memory Matters:**
+- For files >100MB, monitor performance via debug logs
+- If memory is critical, add monitoring/profiling (don't add explicit `del`)
+- GC will free memory after each stage completes
+- Logging shows timing; high durations may indicate GC pressure
 
 ### 12.3 Helper Methods - Keep Generic Signatures
 
-**Rule:** Only orchestration-level code uses descriptive variable names.
+**Rule:** Only orchestration-level code uses the logging pattern above.
 
 Helper methods maintain generic signatures to stay reusable:
 
@@ -1634,33 +1635,41 @@ def _fix_mojibake(self, text: str) -> Tuple[str, int]:
     text = ftfy.fix_text(text)
     return text, fixes
 
-# ❌ WRONG: Overly specific signature breaks reusability
+# ❌ WRONG: Overly specific - hard to test and reuse
 def _fix_mojibake(self, text_rawExtracted: str) -> Tuple[str, int]:
-    # Hard to test, violates encapsulation
+    # Violates separation of concerns
 ```
 
 **Rationale:**
 - Helper methods are implementation details
-- Descriptive naming is for orchestration/flow control level only
-- Generic parameters are more reusable and testable
-- Keeps method signatures stable as naming conventions evolve
+- Logging/tracking is the caller's responsibility
+- Generic parameters are more testable and reusable
+- Keeps method signatures stable as patterns evolve
 
 ### 12.4 Applying This Pattern to New Stages
 
 When adding new transformation stages (e.g., Phase 3C Smart Preprocessing):
 
-1. **Name the new variable** following `text_` + camelCase pattern
-   - `text_titlePageRemoved`
-   - `text_headerFootersRemoved`
-   - `text_qaFormatConverted`
-
-2. **Add memory cleanup**
+1. **Use variable reassignment**
    ```python
-   text_new = transform(text_old)
+   text = your_transformation(text)
+   ```
+
+2. **Add comprehensive logging**
+   ```python
+   debug("Starting Stage N: [Stage Name]")
+   start = time.time()
+   original_len = len(text)
+
    try:
-       del text_old
-   except NameError:
-       pass
+       text = your_transformation(text)
+       duration = time.time() - start
+       debug(f"  ✅ SUCCESS ({duration:.3f}s) - [Action summary]")
+       debug(f"     Input: {original_len} | Output: {len(text)} | Delta: {len(text) - original_len:+d}")
+   except Exception as e:
+       duration = time.time() - start
+       debug(f"  ❌ FAILED ({duration:.3f}s) - {type(e).__name__}: {str(e)}")
+       raise
    ```
 
 3. **Update this table** (Section 12.1) to reflect new stages
