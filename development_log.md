@@ -684,6 +684,32 @@ Session 4 introduced explicit `del` statements to manage memory for large files 
 - Documentation: Section 12 clearly documents the pattern for future developers
 - Testing: 100% backward compatible; no test modifications needed
 
+### Bug Fix: Queue Message Handler Attribute Name (2025-11-25 - Post-Session 5)
+
+**Issue:** Application ran but file processing silently failed with error:
+```
+[QUEUE HANDLER] Error handling file_processed: '_tkinter.tkapp' object has no attribute 'processing_results'
+```
+
+**Root Cause:** Naming inconsistency introduced in Session 4. The main_window.py defines `self.processed_results` (user's preferred name), but queue_message_handler.py line 48 was trying to access `self.main_window.processing_results`.
+
+**Fix:** Changed line 48 in src/ui/queue_message_handler.py:
+```python
+# Before (incorrect)
+self.main_window.processing_results.append(data)
+
+# After (correct)
+self.main_window.processed_results.append(data)
+```
+
+**Impact:**
+- File processing results now append correctly to the results list
+- File table updates display properly during processing
+- No more silent failures when documents are processed
+- All 50 core tests still passing; fix is non-breaking
+
+**Lesson:** When renaming variables across modules, ensure all references are updated. This gap wasn't caught by tests because the test suite focuses on core business logic (text extraction, sanitization, summarization) rather than UI state management.
+
 ---
 
 ## Current Project Status
