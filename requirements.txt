@@ -12,3 +12,6 @@ pytesseract
 requests
 PyYAML
 pandas
+ftfy
+unidecode
+pytest
