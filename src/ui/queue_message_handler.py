@@ -45,7 +45,7 @@ class QueueMessageHandler:
         Args:
             data: Result dictionary with filename, status, confidence, etc.
         """
-        self.main_window.processing_results.append(data)
+        self.main_window.processed_results.append(data)
         self.main_window.file_table.add_result(data)
 
         # If individual document summary is available, display it
