@@ -6,6 +6,7 @@ from collections import defaultdict
 import re
 import os
 import subprocess
+import sys
 from src.debug_logger import debug_log
 
 class VocabularyExtractor:
@@ -45,12 +46,16 @@ class VocabularyExtractor:
         except OSError:
             debug_log(f"[VOCAB] spaCy model '{model_name}' not found. Attempting to download...")
             try:
-                subprocess.run(['python', '-m', 'spacy', 'download', model_name], check=True, capture_output=True)
+                # Use sys.executable to ensure we're using the current Python interpreter (including venv)
+                subprocess.run([sys.executable, '-m', 'pip', 'install', f'{model_name}==3.8.0'],
+                              check=True, capture_output=True, timeout=300)
                 debug_log(f"[VOCAB] Successfully downloaded spaCy model '{model_name}'")
                 return spacy.load(model_name)
+            except subprocess.TimeoutExpired:
+                debug_log(f"[VOCAB] Download timeout: spaCy model download took too long.")
+                raise
             except Exception as e:
                 debug_log(f"[VOCAB] Failed to download spaCy model: {e}. Vocabulary extraction may have reduced functionality.")
-                # Return None to indicate failure - caller will need to handle
                 raise
 
     def _load_word_list(self, file_path):
