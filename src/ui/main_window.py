@@ -1,14 +1,23 @@
 """
-LocalScribe - Main Window (CustomTkinter Refactor)
+LocalScribe - Main Window
+
+Main application window for LocalScribe, built with CustomTkinter.
+
+This module serves as the central coordinator for the application:
+- Manages application state (selected files, processing results)
+- Creates and wires up UI components
+- Handles user interactions (file selection, generation start)
+- Coordinates between workers, message handlers, and orchestrator
+
+Architecture:
+- UI Layout: Delegated to quadrant_builder.py
+- Message Routing: Delegated to QueueMessageHandler
+- Workflow Logic: Delegated to WorkflowOrchestrator
+- Background Work: Delegated to workers.py
 """
 import customtkinter as ctk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 import os
-import sys
-import platform
-import csv
-from datetime import datetime
-from pathlib import Path
 from queue import Queue, Empty
 
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
@@ -17,15 +26,35 @@ from src.ui.system_monitor import SystemMonitor
 from src.ui.menu_handler import create_menus
 from src.ui.quadrant_builder import create_central_widget_layout
 from src.ui.queue_message_handler import QueueMessageHandler
-from src.extraction import RawTextExtractor
+from src.ui.workflow_orchestrator import WorkflowOrchestrator
 from src.ai import ModelManager
-from src.debug_logger import debug_log
+from src.logging_config import debug_log
 from src.user_preferences import get_user_preferences
+from src.utils.text_utils import combine_document_texts
 
 
 class MainWindow(ctk.CTk):
     """
-    Main application window for LocalScribe, refactored with CustomTkinter.
+    Main application window for LocalScribe.
+
+    This class manages:
+    - Application state (selected_files, processed_results, pending_ai_generation)
+    - UI component lifecycle (toolbar, central widget, status bar)
+    - Event loop integration (queue polling, Ollama health checks)
+
+    Separation of Concerns:
+    - QueueMessageHandler: Routes messages and updates UI widgets
+    - WorkflowOrchestrator: Decides workflow steps (vocab extraction, AI generation)
+    - Workers: Execute background tasks (extraction, vocabulary, AI)
+
+    Attributes:
+        selected_files: List of file paths selected by user
+        processed_results: List of extraction results from ProcessingWorker
+        pending_ai_generation: Dict of AI params when generation is pending
+        model_manager: OllamaModelManager for AI model operations
+        ui_queue: Queue for inter-thread communication
+        message_handler: QueueMessageHandler instance
+        workflow_orchestrator: WorkflowOrchestrator instance
     """
 
     def __init__(self):
@@ -33,7 +62,7 @@ class MainWindow(ctk.CTk):
         self.title("LocalScribe v2.1 - 100% Offline Legal Document Processor")
         self.geometry("1200x800")
 
-        # State
+        # Application State
         self.selected_files = []
         self.processed_results = []
         self.worker = None
@@ -42,28 +71,29 @@ class MainWindow(ctk.CTk):
         # AI Model Manager
         self.model_manager = ModelManager()
 
-        # Threading Queue
+        # Threading Queue for worker communication
         self.ui_queue = Queue()
 
         # AI Worker Manager for Ollama summaries
         self.ai_worker_manager = OllamaAIWorkerManager(self.ui_queue)
 
-        # Queue message handler for decoupled event handling
+        # Message Handler and Workflow Orchestrator (separation of concerns)
         self.message_handler = QueueMessageHandler(self)
+        self.workflow_orchestrator = WorkflowOrchestrator(self)
+        self.message_handler.set_orchestrator(self.workflow_orchestrator)
 
-        # Initialize UI
+        # Initialize UI Components
         self._create_main_layout()
         self._create_menus()
         self._create_toolbar()
         self._create_central_widget()
         self._create_status_bar()
 
-        # Start queue polling
+        # Start queue polling for worker messages
         self.after(100, self._process_queue)
-        
-        # Check Ollama service on startup
+
+        # Check Ollama service availability on startup
         self._check_ollama_service()
-        # Refresh model selector after Ollama check
         self.model_selection.refresh_status()
 
     def _create_main_layout(self):
@@ -220,34 +250,23 @@ class MainWindow(ctk.CTk):
         )
         self.worker.start()
 
-    def _combine_documents(self, extracted_documents):
+    def _start_ai_generation(self, extracted_documents, ai_params):
         """
-        Combine extracted document texts into single string for vocabulary extraction.
+        Start AI summary generation after document extraction is complete.
 
         Args:
-            extracted_documents: List of document result dictionaries
-
-        Returns:
-            Combined text from all documents
+            extracted_documents: List of extracted document dictionaries
+            ai_params: Dict with 'selected_model', 'summary_length', 'output_options'
         """
-        combined_texts = []
-        for doc in extracted_documents:
-            if 'extracted_text' in doc and doc['extracted_text']:
-                combined_texts.append(doc['extracted_text'])
-
-        return "\n\n".join(combined_texts)
-
-    def _start_ai_generation(self, extracted_documents, ai_params):
-        """Start AI summary generation after document extraction is complete."""
         try:
             selected_model = ai_params["selected_model"]
             summary_length = ai_params["summary_length"]
-            output_options = ai_params["output_options"]
 
-            # Prepare combined text from extracted documents
-            combined_text = ""
-            for doc in extracted_documents:
-                combined_text += f"\n\n--- {doc['filename']} ---\n{doc['extracted_text']}"
+            # Combine documents with filename headers for AI context
+            combined_text = combine_document_texts(
+                extracted_documents,
+                include_headers=True
+            )
 
             self.status_label.configure(text="Generating AI summary...")
             self.progress_bar.set(0.5)

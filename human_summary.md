@@ -10,9 +10,12 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** ✅ **BUG FIXES COMPLETE | VOCABULARY WORKFLOW INTEGRATED | AWAITING USER TESTING** - Application now has all three bugs fixed and vocabulary extraction wired into the processing pipeline. Virtual environment dependency resolution working correctly. Pending user testing to verify spaCy auto-download and vocabulary extraction progress in next session.
+**Status:** ✅ **MAJOR REFACTORING COMPLETE | SEPARATION OF CONCERNS ACHIEVED | 55 TESTS PASSING** - Comprehensive code review and refactoring completed. Created WorkflowOrchestrator to separate business logic from UI. Unified dual logging systems into single `logging_config.py`. Moved VocabularyExtractor to own package. Created shared text utilities. All file sizes under 300 lines. Architecture now follows single responsibility principle.
 
-**Latest Session (2025-11-26 Session 6 - UI Bug Fixes & Vocabulary Workflow Integration):**
+**Latest Session (2025-11-26 Session 7 - Separation of Concerns Refactoring):**
+Performed full codebase review identifying 5 separation-of-concerns issues and implemented all fixes. **Fix #1:** Created `src/vocabulary/` package — moved VocabularyExtractor with improved type hints and docstrings. **Fix #2:** Created `src/ui/workflow_orchestrator.py` (180 lines) — extracts workflow logic from QueueMessageHandler; orchestrator decides workflow steps, handler only updates UI. **Fix #3:** Replaced hardcoded config paths with constants from config.py. **Fix #4:** Created `src/logging_config.py` (260 lines) — unified `debug_logger.py` and `utils/logger.py` into single module with backward compatibility. **Fix #5:** Removed unused SystemMonitorWidget from widgets.py (30 lines deleted). **Minor:** Created `src/utils/text_utils.py` with shared `combine_document_texts()` function. All 55 tests passing in 9.41s. File sizes all compliant: widgets.py (209), queue_message_handler.py (210), workflow_orchestrator.py (180), main_window.py (295), logging_config.py (260).
+
+**Previous Session (2025-11-26 Session 6 - UI Bug Fixes & Vocabulary Workflow Integration):**
 Fixed three critical UI bugs. **Bug #1:** File size rounding inconsistency — KB showed decimals (1.5 KB) while MB showed integers (2 MB). Fixed by unifying all units to use `round(size)`. **Bug #2:** Model dropdown selection wouldn't persist — selecting second model in dropdown would reset to first. Fixed by implementing preference preservation logic in `refresh_status()`. **Bug #3:** Vocabulary extraction workflow completely missing — after document processing completed, app would silently fail to start vocabulary extraction, hanging at "Processing complete". Root causes: (a) `queue_message_handler.py:87` called non-existent `get_output_options()` method on wrong widget (`summary_results`), (b) `en_core_web_sm` spaCy model not installed, (c) subprocess PATH resolution used `python` command instead of venv Python. Fixed all three issues: (a) Changed to direct widget access reading checkbox states from `self.main_window.output_options`, (b) Added `_load_spacy_model()` with auto-download capability, (c) Used `sys.executable` for subprocess to guarantee venv Python. Implemented VocabularyWorker class (background thread with graceful fallback for missing config files), added `_combine_documents()` helper to main window, made vocabulary extractor config files optional. All 3 git commits successful.
 
 **Previous Session (2025-11-24 Session 2 - Code Refactoring, Documentation Cleanup, Bug Fixes & Testing):**
@@ -152,26 +155,35 @@ All integration tests passing. **Complete workflow now functional:**
 - **ONNX_MIGRATION_LOG.md** - Comprehensive technical log of ONNX Runtime migration (historical reference)
 
 ### Source Code
-- **src/main.py** - Desktop GUI application entry point (uses CustomTkinter).
-- **src/extraction/raw_text_extractor.py** (~700 lines) - Raw text extraction module (Steps 1-2 of pipeline): PDF/TXT/RTF extraction, OCR, basic text normalization, case number extraction, and progress callbacks
+- **src/main.py** - Desktop GUI application entry point (uses CustomTkinter)
 - **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
+- **src/logging_config.py** - **NEW (Session 7)** Unified logging system (260 lines) - single source of truth for debug_log, info, warning, error, Timer
+- **src/debug_logger.py** - Backward compatibility wrapper - re-exports from logging_config.py
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
 - **src/prompt_template_manager.py** - Prompt template discovery, loading, validation, and formatting system
 - **src/user_preferences.py** - User preferences manager (saves default prompts per model to JSON)
+- **src/extraction/raw_text_extractor.py** (~700 lines) - Raw text extraction module (Steps 1-2 of pipeline): PDF/TXT/RTF extraction, OCR, basic text normalization, case number extraction, and progress callbacks
+- **src/sanitization/character_sanitizer.py** - Character sanitization module (Step 2.5 of pipeline): Unicode normalization, mojibake fix, redaction handling
+- **src/vocabulary/** - **NEW (Session 7)** Vocabulary extraction package
+  - **src/vocabulary/__init__.py** - Package init, exports VocabularyExtractor
+  - **src/vocabulary/vocabulary_extractor.py** (360 lines) - Extracts unusual terms using spaCy NER and NLTK WordNet
 - **src/ai/ollama_model_manager.py** - PRIMARY: Ollama REST API model manager (uses HTTP to communicate with local Ollama service)
-- **src/ai/onnx_model_manager.py** - DEPRECATED: ONNX Runtime GenAI model manager (kept for reference, see development_log.md for why replaced)
+- **src/ai/onnx_model_manager.py** - DEPRECATED: ONNX Runtime GenAI model manager (kept for reference)
 - **src/ai/model_manager.py** - DEPRECATED: llama-cpp-python model manager (kept for reference only)
 - **src/ai/__init__.py** - AI package initialization (exports OllamaModelManager as default ModelManager)
-- **src/ui/main_window.py** - Main application window (uses AIWorkerProcess, heartbeat monitoring, prompt dropdown population)
-- **src/ui/widgets.py** - Custom widgets including FileReviewTable, AIControlsWidget (with prompt selector/preview), SummaryResultsWidget
-- **src/ui/workers.py** - Background workers (multiprocessing-based AIWorkerProcess with preset_id support, QThread-based ProcessingWorker)
+- **src/ui/main_window.py** (295 lines) - Main application window, coordinates orchestrator and message handler
+- **src/ui/workflow_orchestrator.py** - **NEW (Session 7)** Workflow logic (180 lines) - decides workflow steps, manages state
+- **src/ui/queue_message_handler.py** (210 lines) - Message routing and UI updates only (separation of concerns)
+- **src/ui/widgets.py** (209 lines) - Custom widgets: FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
+- **src/ui/workers.py** - Background workers (ProcessingWorker, VocabularyWorker, OllamaAIWorkerManager)
 - **src/ui/dialogs.py** - Progress dialogs (ModelLoadProgressDialog with timer, SimpleProgressDialog)
+- **src/ui/system_monitor.py** - Real-time CPU/RAM display widget with hover tooltip
 - **src/ui/__init__.py** - UI package initialization
-- **src/utils/logger.py** - Debug mode logging with performance timing using Timer context manager
-- **src/debug_logger.py** - Debug logging utility for troubleshooting
+- **src/utils/__init__.py** - Utils package initialization, re-exports logging functions
+- **src/utils/logger.py** - Backward compatibility wrapper - re-exports from logging_config.py
+- **src/utils/text_utils.py** - **NEW (Session 7)** Shared text utilities (55 lines) - combine_document_texts()
 - **src/performance_tracker.py** - Performance tracking for time estimates
 - **src/__init__.py** - Package initialization
-- **src/utils/__init__.py** - Utils package initialization
 
 ### Tests
 - **tests/test_raw_text_extractor.py** (24 unit tests - ALL PASSING) - Comprehensive test coverage for RawTextExtractor (Steps 1-2)

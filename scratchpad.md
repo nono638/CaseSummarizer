@@ -1,5 +1,84 @@
 # Scratchpad - Future Ideas & Refinements
 
+## Session 8 Testing Checklist (Vocabulary Workflow Verification)
+**Status:** Awaiting user testing
+**Time estimate:** 15-20 minutes
+**Prerequisites:** Session 6 & 7 code changes (all 55 tests passing)
+
+### Checklist (Copy this for next session testing)
+
+**Test Environment Setup:**
+- [ ] Start application with fresh run (no prior spaCy model installed)
+- [ ] Have 2-3 legal documents ready (PDF/TXT/RTF)
+- [ ] Monitor debug logs throughout (check for expected log messages)
+
+**Test 1: spaCy Auto-Download (First Run)**
+- [ ] Load first document for processing
+- [ ] Check debug log for: `[VOCAB] Loading spaCy model 'en_core_web_sm'...`
+- [ ] Check for: `[VOCAB] spaCy model 'en_core_web_sm' not found. Attempting to download...`
+- [ ] Watch for download progress (should show pip install in debug)
+- [ ] Verify: `[VOCAB] Successfully downloaded spaCy model 'en_core_web_sm'`
+- [ ] Check that model is cached (doesn't re-download on second run)
+
+**Test 2: Vocabulary Extraction Progress Messages**
+- [ ] Trigger vocabulary extraction (enable "Rare Word List" checkbox)
+- [ ] Observe progress bar updates at expected percentages:
+  - [ ] 30% with message "Extracting vocabulary..."
+  - [ ] 50% with message "Categorizing terms..."
+  - [ ] 70% with message "Vocabulary extraction complete"
+- [ ] Check debug log contains all three progress messages
+
+**Test 3: Widget Reference Fix (output_options)**
+- [ ] Select multiple documents
+- [ ] Enable "Individual Summaries" checkbox
+- [ ] Enable "Meta Summary" checkbox
+- [ ] Enable "Rare Word List" checkbox
+- [ ] Start processing
+- [ ] Verify all three options are read correctly (no "object has no attribute" errors)
+- [ ] Check debug log: `[QUEUE HANDLER] Started vocabulary extraction worker thread.`
+
+**Test 4: Graceful Fallback (Missing Config Files)**
+- [ ] Temporarily rename/move `config/legal_exclude.txt` and `config/medical_terms.txt`
+- [ ] Run vocabulary extraction
+- [ ] Check debug log for: `[VOCAB] Word list file not found at ... Using empty list`
+- [ ] Verify extraction still completes (uses empty exclusion lists)
+- [ ] Restore config files
+
+**Test 5: Error Handling**
+- [ ] Trigger an error condition (e.g., kill Ollama service mid-extraction)
+- [ ] Check that error message appears in UI (not silent failure)
+- [ ] Verify debug log shows full exception traceback
+- [ ] Application remains responsive (can try again)
+
+**Test 6: CSV Output Accuracy**
+- [ ] Complete a full vocabulary extraction
+- [ ] Verify CSV output contains:
+  - [ ] Term column (unusual words)
+  - [ ] Category column (legal, medical, etc.)
+  - [ ] Definition column (populated from WordNet)
+  - [ ] Source column (document filename)
+- [ ] Check for expected legal/medical terms in output
+
+### Expected Debug Log Sequence
+```
+[VOCAB] Loading spaCy model 'en_core_web_sm'...
+[VOCAB] spaCy model 'en_core_web_sm' not found. Attempting to download...
+[VOCAB] Successfully downloaded spaCy model 'en_core_web_sm'
+[QUEUE HANDLER] Started vocabulary extraction worker thread.
+[VOCAB WORKER] Vocabulary extraction completed successfully.
+```
+
+### Known Issues (If Any)
+*Will be populated during testing*
+
+### Notes for Debugging
+- Enable DEBUG mode in config.py for verbose logging
+- Check `.venv\Lib\site-packages\spacy\` for installed model
+- Vocabulary CSV files saved to `outputs/` directory
+- If timeout occurs, increase `timeout=300` in vocabulary_extractor.py:51
+
+---
+
 ## Development Roadmap (Spec-Driven Phases)
 
 ### **Phase 2.2: Document Prioritization System** (Est. 3-4 hours)

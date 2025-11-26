@@ -9,7 +9,7 @@ from pathlib import Path
 from src.extraction import RawTextExtractor
 from src.debug_logger import debug_log
 from src.progressive_summarizer import ProgressiveSummarizer
-from src.vocabulary_extractor import VocabularyExtractor
+from src.vocabulary import VocabularyExtractor
 from src.ai.ollama_model_manager import OllamaModelManager # Import for context
 from src.ui.ollama_worker import ollama_generation_worker_process
 

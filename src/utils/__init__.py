@@ -1,5 +1,32 @@
-"""Utility modules for LocalScribe"""
+"""
+Utility Modules for LocalScribe
 
-from .logger import logger, debug, info, warning, error, critical, Timer
+This package provides shared utility functions used across the application:
+- Logging utilities (debug, info, warning, error, critical, Timer)
+- Other utility functions as added
 
-__all__ = ['logger', 'debug', 'info', 'warning', 'error', 'critical', 'Timer']
+Note: Logging functionality is now centralized in src/logging_config.py.
+      These re-exports maintain backward compatibility.
+"""
+
+from .logger import (
+    debug,
+    debug_log,
+    info,
+    warning,
+    error,
+    critical,
+    Timer,
+    DEBUG_MODE,
+)
+
+__all__ = [
+    'debug',
+    'debug_log',
+    'info',
+    'warning',
+    'error',
+    'critical',
+    'Timer',
+    'DEBUG_MODE',
+]

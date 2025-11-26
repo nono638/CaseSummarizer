@@ -1,11 +1,24 @@
+"""
+Tests for the VocabularyExtractor class.
+
+Tests cover:
+- Word list loading (exclude list, medical terms)
+- Unusual term detection logic
+- Category assignment
+- Definition lookup via WordNet
+- Full extraction pipeline with deduplication and relevance scoring
+"""
+
 import pytest
 import os
 from pathlib import Path
 import sys
-from pathlib import Path
+
+# Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
-from src.vocabulary_extractor import VocabularyExtractor
+
+from src.vocabulary import VocabularyExtractor
 
 # Define paths for test resources
 TEST_DIR = Path(__file__).parent

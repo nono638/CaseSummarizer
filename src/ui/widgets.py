@@ -1,13 +1,15 @@
 """
-LocalScribe - Custom UI Widgets (CustomTkinter Refactor)
+LocalScribe - Custom UI Widgets
+
+This module contains reusable CustomTkinter widget components for the main application:
+- FileReviewTable: Displays document processing results in a table format
+- ModelSelectionWidget: AI model selection dropdown with Ollama integration
+- OutputOptionsWidget: Configuration controls for summary length and output types
+
+Note: System monitoring is handled by src/ui/system_monitor.py (not in this module).
 """
 import customtkinter as ctk
-from tkinter import ttk, messagebox
-import os
-import psutil # For CPU/GPU monitoring
-
-# Import prompt configuration
-from ..prompt_config import get_prompt_config
+from tkinter import ttk
 
 class FileReviewTable(ctk.CTkFrame):
     """
@@ -204,35 +206,5 @@ class OutputOptionsWidget(ctk.CTkFrame):
 
         self.vocab_csv_check = ctk.CTkCheckBox(self, text="Rare Word List (CSV)")
         self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
-        self.vocab_csv_check.select() # On by default
-
-
-class SystemMonitorWidget(ctk.CTkFrame):
-    """Widget to display system resource usage (CPU/GPU)."""
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=1)
-
-        self.cpu_label = ctk.CTkLabel(self, text="CPU: 0%", font=ctk.CTkFont(size=12))
-        self.cpu_label.grid(row=0, column=0, padx=5, pady=2, sticky="w")
-
-        self.gpu_label = ctk.CTkLabel(self, text="GPU: N/A", font=ctk.CTkFont(size=12))
-        self.gpu_label.grid(row=0, column=1, padx=5, pady=2, sticky="w")
-
-        self.update_stats()
-
-    def update_stats(self):
-        """Update CPU and GPU usage stats."""
-        # CPU Usage
-        cpu_percent = psutil.cpu_percent(interval=None)
-        self.cpu_label.configure(text=f"CPU: {cpu_percent:.1f}%")
-        
-        # NOTE: Getting GPU usage is platform-specific and complex.
-        # This is a placeholder for now. A library like 'py-nvml' for NVIDIA
-        # or platform-specific commands would be needed for a real implementation.
-        self.gpu_label.configure(text="GPU: N/A")
-
-        self.after(2000, self.update_stats) # Update every 2 seconds
-
+        self.vocab_csv_check.select()  # On by default
 

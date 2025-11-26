@@ -1,5 +1,157 @@
 # Development Log
 
+## Session 7 - Separation of Concerns Refactoring (2025-11-26)
+
+**Objective:** Comprehensive code review and refactoring to improve separation of concerns, eliminate code duplication, and consolidate dual logging systems.
+
+### Summary
+Performed full codebase review identifying 5 significant separation-of-concerns issues and implemented all fixes. Created new `WorkflowOrchestrator` class to separate business logic from UI message handling. Consolidated dual logging systems (`debug_logger.py` and `utils/logger.py`) into unified `logging_config.py`. Moved `VocabularyExtractor` to its own package. Created shared text utilities. All 55 tests passing after refactoring. File sizes all under 300 lines target.
+
+### Problems Addressed
+
+**Issue #1: VocabularyExtractor Location**
+- Was at `src/vocabulary_extractor.py` (root level)
+- Inconsistent with other pipeline components (extraction/, sanitization/)
+- Made imports inconsistent across codebase
+
+**Issue #2: QueueMessageHandler Had Business Logic**
+- `handle_processing_finished()` was deciding workflow steps
+- Mixed message routing with workflow orchestration
+- Violated single responsibility principle
+
+**Issue #3: Hardcoded Config Paths**
+- `queue_message_handler.py` had hardcoded `"config/legal_exclude.txt"`
+- Config constants existed in `config.py` but weren't used
+
+**Issue #4: Dual Logging Systems**
+- `src/debug_logger.py` provided `debug_log()`
+- `src/utils/logger.py` provided `debug()`, `info()`, `warning()`, `error()`
+- Both used inconsistently, causing confusion and duplicate messages
+
+**Issue #5: Unused Code**
+- `SystemMonitorWidget` class in widgets.py was never used
+- Actual implementation was in `system_monitor.py`
+
+### Work Completed
+
+**Fix #1: Created Vocabulary Package** (15 min)
+- Created `src/vocabulary/` package with `__init__.py`
+- Moved and improved `vocabulary_extractor.py` with:
+  - Comprehensive docstrings for all methods
+  - Type hints throughout
+  - Constants for spaCy model configuration
+  - Better code organization
+- Updated imports in `workers.py` and `tests/test_vocabulary_extractor.py`
+
+**Fix #2: Created WorkflowOrchestrator** (45 min)
+- New file: `src/ui/workflow_orchestrator.py` (180 lines)
+- Extracts workflow logic from QueueMessageHandler:
+  - `on_extraction_complete()` — decides what to do after extraction
+  - `_get_combined_text()` — combines documents for vocabulary
+  - `_start_vocab_extraction()` — spawns vocabulary worker
+  - `_start_ai_generation()` — delegates to main window
+- QueueMessageHandler now purely routes messages and updates UI
+- MainWindow creates and wires both components together
+
+**Fix #3: Replaced Hardcoded Paths** (5 min)
+- Updated `queue_message_handler.py` to import from config:
+  ```python
+  from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH
+  ```
+
+**Fix #4: Unified Logging Systems** (30 min)
+- New file: `src/logging_config.py` (260 lines)
+- Features:
+  - Single `_DebugFileLogger` writes to `debug_flow.txt`
+  - Standard Python logging for level-based output
+  - `Timer` context manager for performance timing
+  - All functions: `debug_log()`, `debug()`, `info()`, `warning()`, `error()`, `critical()`
+- Updated `debug_logger.py` to re-export from unified module
+- Updated `utils/logger.py` to re-export from unified module
+- Backward compatible — all existing imports continue to work
+
+**Fix #5: Removed Unused Code** (2 min)
+- Deleted `SystemMonitorWidget` class from `widgets.py` (30 lines)
+- Removed unused `psutil` import
+- Improved module docstring
+
+**Minor Fix: Created text_utils** (10 min)
+- New file: `src/utils/text_utils.py` (55 lines)
+- `combine_document_texts()` function with optional `include_headers` parameter
+- Used by both `main_window.py` (with headers for AI) and `workflow_orchestrator.py` (without headers for vocab)
+- Eliminates code duplication
+
+### New File Structure
+```
+src/
+├── logging_config.py              # NEW: Unified logging (260 lines)
+├── vocabulary/                     # NEW: Package
+│   ├── __init__.py                # NEW: Package init (20 lines)
+│   └── vocabulary_extractor.py    # MOVED + improved (360 lines)
+├── utils/
+│   ├── __init__.py                # UPDATED: New exports
+│   ├── logger.py                  # UPDATED: Re-exports from logging_config
+│   └── text_utils.py              # NEW: Text utilities (55 lines)
+├── ui/
+│   ├── workflow_orchestrator.py   # NEW: Workflow logic (180 lines)
+│   ├── queue_message_handler.py   # UPDATED: UI-only routing (210 lines)
+│   ├── main_window.py             # UPDATED: Uses orchestrator (295 lines)
+│   └── widgets.py                 # UPDATED: Removed unused code (209 lines)
+└── debug_logger.py                # UPDATED: Re-exports from logging_config
+```
+
+### Separation of Concerns Achieved
+| Component | Responsibility |
+|-----------|----------------|
+| **QueueMessageHandler** | Routes messages, updates UI widgets |
+| **WorkflowOrchestrator** | Decides workflow steps, manages state |
+| **MainWindow** | Coordinates components, handles user input |
+| **logging_config** | Single source of truth for all logging |
+| **text_utils** | Shared text processing utilities |
+
+### Test Results
+```
+Platform: Windows, Python 3.11.5, pytest 9.0.1
+✅ 55/55 tests PASSED in 9.41 seconds
+  - Character Sanitization: 22 tests ✅
+  - Raw Text Extraction: 24 tests ✅
+  - Progressive Summarization: 4 tests ✅
+  - Vocabulary Extraction: 5 tests ✅
+```
+
+### File Size Compliance (Target: <300 lines)
+- widgets.py: 209 lines ✅
+- queue_message_handler.py: 210 lines ✅
+- workflow_orchestrator.py: 180 lines ✅
+- main_window.py: 295 lines ✅
+- logging_config.py: 260 lines ✅
+
+### Patterns Established
+
+**Pattern: Workflow Orchestration**
+- Business logic separated from UI updates
+- Orchestrator can be unit tested independently
+- Applies to: Any multi-step workflow with UI feedback
+
+**Pattern: Unified Logging**
+- All modules import from `src.logging_config`
+- Backward compatibility via re-exports
+- Applies to: All new modules
+
+**Pattern: Shared Utilities**
+- Pure functions in `src/utils/` package
+- Type hints and docstrings required
+- Applies to: Any reusable non-UI logic
+
+### Status
+✅ All 5 separation-of-concerns issues resolved
+✅ All 55 tests passing (zero regressions)
+✅ File sizes compliant with 300-line target
+✅ Code duplication eliminated
+✅ Logging consolidated to single system
+
+---
+
 ## 2025-11-25 (Session 4) - Naming Consistency Refactor & Code Patterns Documentation
 **Features:** Descriptive variable names for all 11 pipeline stages, memory management pattern, code patterns documentation
 

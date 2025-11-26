@@ -1,21 +1,40 @@
 """
 Queue Message Handler Module
 
-Centralizes handling of inter-thread messages from worker threads.
-Decouples message type handling from main window event loop.
+Routes inter-thread messages from worker threads to appropriate UI update handlers.
+This module is responsible for UI updates ONLY - workflow orchestration logic
+is delegated to WorkflowOrchestrator.
+
+Design Principle: Single Responsibility
+- QueueMessageHandler: Routes messages and updates UI widgets
+- WorkflowOrchestrator: Decides what workflow steps to execute next
+
+Message Types Handled:
+- progress: Update progress bar and status label
+- file_processed: Add/update file in results table
+- meta_summary_generated: Display generated meta-summary
+- vocab_csv_generated: Store vocabulary CSV data
+- processing_finished: Delegate to orchestrator, then update UI
+- summary_result: Display AI-generated summary
+- error: Show error dialog and reset UI
 """
 
 from tkinter import messagebox
-from src.debug_logger import debug_log
+from src.logging_config import debug_log
 
 
 class QueueMessageHandler:
     """
-    Handles different message types from worker threads.
+    Routes queue messages to appropriate UI update handlers.
 
-    This class encapsulates all queue message handling logic, making it easier
-    to test, extend, and maintain message-handling behavior separately from
-    the main window event loop.
+    This class encapsulates all UI update logic for worker thread messages,
+    making it easier to test and maintain message-handling behavior.
+
+    For workflow orchestration (deciding what to do next), see WorkflowOrchestrator.
+
+    Attributes:
+        main_window: Reference to MainWindow instance
+        orchestrator: Reference to WorkflowOrchestrator instance
     """
 
     def __init__(self, main_window):
@@ -26,13 +45,26 @@ class QueueMessageHandler:
             main_window: Reference to MainWindow instance (for widget updates)
         """
         self.main_window = main_window
+        # Orchestrator is set by main_window after construction
+        self.orchestrator = None
+
+    def set_orchestrator(self, orchestrator):
+        """
+        Set the workflow orchestrator reference.
+
+        Called by MainWindow after both handler and orchestrator are created.
+
+        Args:
+            orchestrator: WorkflowOrchestrator instance
+        """
+        self.orchestrator = orchestrator
 
     def handle_progress(self, data):
         """
-        Handle 'progress' message from worker thread.
+        Handle 'progress' message - update progress bar and status.
 
         Args:
-            data: Tuple of (percentage, message)
+            data: Tuple of (percentage: int, message: str)
         """
         percentage, message = data
         self.main_window.progress_bar.set(percentage / 100.0)
@@ -40,7 +72,7 @@ class QueueMessageHandler:
 
     def handle_file_processed(self, data):
         """
-        Handle 'file_processed' message when a document is done.
+        Handle 'file_processed' message - update file table with result.
 
         Args:
             data: Result dictionary with filename, status, confidence, etc.
@@ -48,7 +80,7 @@ class QueueMessageHandler:
         self.main_window.processed_results.append(data)
         self.main_window.file_table.add_result(data)
 
-        # If individual document summary is available, display it
+        # Display individual document summary if available
         if data.get('summary'):
             self.main_window.summary_results.update_outputs(
                 document_summaries={data['filename']: data['summary']}
@@ -56,88 +88,84 @@ class QueueMessageHandler:
 
     def handle_meta_summary_generated(self, data):
         """
-        Handle 'meta_summary_generated' message.
+        Handle 'meta_summary_generated' message - display meta-summary.
 
         Args:
-            data: The meta-summary text
+            data: The meta-summary text string
         """
         self.main_window.summary_results.update_outputs(meta_summary=data)
 
     def handle_vocab_csv_generated(self, data):
         """
-        Handle 'vocab_csv_generated' message.
+        Handle 'vocab_csv_generated' message - store vocabulary data.
 
         Args:
-            data: List of vocabulary CSV rows
+            data: List of vocabulary term dictionaries
         """
         self.main_window.summary_results.update_outputs(vocab_csv_data=data)
+        if self.orchestrator:
+            self.orchestrator.on_vocab_complete()
 
     def handle_processing_finished(self, data):
         """
-        Handle 'processing_finished' message when document extraction is done.
+        Handle 'processing_finished' message - document extraction complete.
+
+        Delegates workflow decisions to the orchestrator, then updates UI
+        based on what actions were taken.
 
         Args:
-            data: List of extracted documents
+            data: List of extracted document result dictionaries
         """
         extracted_documents = data
 
-        # If AI generation was requested, start it now
-        if self.main_window.pending_ai_generation:
-            # Check if vocabulary extraction is needed
-            output_options = {
-                "individual_summaries": self.main_window.output_options.individual_summaries_check.get(),
-                "meta_summary": self.main_window.output_options.meta_summary_check.get(),
-                "vocab_csv": self.main_window.output_options.vocab_csv_check.get()
-            }
+        if self.orchestrator and self.main_window.pending_ai_generation:
+            # Delegate to orchestrator for workflow decisions
+            actions = self.orchestrator.on_extraction_complete(
+                extracted_documents,
+                self.main_window.pending_ai_generation
+            )
 
-            # Start vocabulary extraction in parallel (if checkbox enabled)
-            if output_options.get('vocab_csv', False):
-                combined_text = self.main_window._combine_documents(extracted_documents)
-                self._start_vocab_extraction(combined_text)
-
-            # Start AI generation (parallel processing)
+            # If workflow completed without AI (shouldn't happen normally)
+            if actions.get('workflow_complete'):
+                self._reset_ui_after_processing()
+                self.main_window.status_label.configure(text="Processing complete.")
+        elif self.main_window.pending_ai_generation:
+            # Fallback if orchestrator not set (backward compatibility)
+            debug_log("[QUEUE HANDLER] WARNING: Orchestrator not set, using fallback.")
             self.main_window._start_ai_generation(
                 extracted_documents,
                 self.main_window.pending_ai_generation
             )
         else:
-            # No AI generation, just finish up
+            # No AI generation requested
             self._reset_ui_after_processing()
             self.main_window.status_label.configure(text="Processing complete.")
 
-    def _start_vocab_extraction(self, combined_text):
-        """Start vocabulary extraction in background thread."""
-        from src.ui.workers import VocabularyWorker
-
-        worker = VocabularyWorker(
-            combined_text=combined_text,
-            ui_queue=self.main_window.ui_queue,
-            exclude_list_path="config/legal_exclude.txt",
-            medical_terms_path="config/medical_terms.txt"
-        )
-        worker.start()
-        debug_log("[QUEUE HANDLER] Started vocabulary extraction worker thread.")
-
     def handle_summary_result(self, data):
         """
-        Handle 'summary_result' message when AI summary is generated.
+        Handle 'summary_result' message - AI summary generated.
 
         Args:
-            data: Dictionary with 'summary' key
+            data: Dictionary with 'summary' key containing the generated text
         """
-        debug_log(f"[QUEUE HANDLER] Summary result received: {data}")
-        self.main_window.summary_results.update_outputs(meta_summary=data.get('summary', ''))
+        debug_log(f"[QUEUE HANDLER] Summary result received.")
+        self.main_window.summary_results.update_outputs(
+            meta_summary=data.get('summary', '')
+        )
         self.main_window.progress_bar.set(1.0)
         self.main_window.status_label.configure(text="Summary generation complete!")
         self._reset_ui_after_processing()
         self.main_window.pending_ai_generation = None
 
+        if self.orchestrator:
+            self.orchestrator.on_summary_complete()
+
     def handle_error(self, error_message):
         """
-        Handle 'error' message when processing fails.
+        Handle 'error' message - show error dialog and reset UI.
 
         Args:
-            error_message: Description of the error
+            error_message: Description of the error to display
         """
         messagebox.showerror("Processing Error", error_message)
         self._reset_ui_after_processing()
@@ -149,16 +177,16 @@ class QueueMessageHandler:
         self.main_window.generate_outputs_btn.configure(state="normal")
         self.main_window.progress_bar.grid_remove()
 
-    def process_message(self, message_type, data):
+    def process_message(self, message_type: str, data) -> bool:
         """
         Route a message to the appropriate handler.
 
         Args:
-            message_type: Type of message (str)
-            data: Message payload
+            message_type: Type of message (e.g., 'progress', 'error')
+            data: Message payload (type varies by message_type)
 
         Returns:
-            True if message was handled, False otherwise
+            True if message was handled successfully, False otherwise
         """
         handlers = {
             'progress': self.handle_progress,
@@ -179,4 +207,5 @@ class QueueMessageHandler:
                 debug_log(f"[QUEUE HANDLER] Error handling {message_type}: {e}")
                 return False
 
+        debug_log(f"[QUEUE HANDLER] Unknown message type: {message_type}")
         return False
