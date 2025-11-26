@@ -5,6 +5,7 @@ import csv
 from collections import defaultdict
 import re
 import os
+import subprocess
 from src.debug_logger import debug_log
 
 class VocabularyExtractor:
@@ -18,7 +19,8 @@ class VocabularyExtractor:
 
         If paths are None or files don't exist, uses empty lists (increases false positives).
         """
-        self.nlp = spacy.load("en_core_web_sm")
+        # Load or download spaCy model
+        self.nlp = self._load_spacy_model()
         self.exclude_list = self._load_word_list(exclude_list_path) if exclude_list_path else set()
         self.medical_terms = self._load_word_list(medical_terms_path) if medical_terms_path else set()
 
@@ -26,11 +28,30 @@ class VocabularyExtractor:
         try:
             nltk.data.find('corpora/wordnet')
         except LookupError:
-            nltk.download('wordnet')
+            debug_log("[VOCAB] Downloading NLTK wordnet data...")
+            nltk.download('wordnet', quiet=True)
         try:
             nltk.data.find('tokenizers/punkt')
         except LookupError:
-            nltk.download('punkt')
+            debug_log("[VOCAB] Downloading NLTK punkt tokenizer...")
+            nltk.download('punkt', quiet=True)
+
+    def _load_spacy_model(self):
+        """Load spaCy model, attempting to download if not present."""
+        model_name = "en_core_web_sm"
+        try:
+            debug_log(f"[VOCAB] Loading spaCy model '{model_name}'...")
+            return spacy.load(model_name)
+        except OSError:
+            debug_log(f"[VOCAB] spaCy model '{model_name}' not found. Attempting to download...")
+            try:
+                subprocess.run(['python', '-m', 'spacy', 'download', model_name], check=True, capture_output=True)
+                debug_log(f"[VOCAB] Successfully downloaded spaCy model '{model_name}'")
+                return spacy.load(model_name)
+            except Exception as e:
+                debug_log(f"[VOCAB] Failed to download spaCy model: {e}. Vocabulary extraction may have reduced functionality.")
+                # Return None to indicate failure - caller will need to handle
+                raise
 
     def _load_word_list(self, file_path):
         """Loads a list of words from a line-separated text file."""
