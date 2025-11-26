@@ -13,14 +13,13 @@ from typing import Optional, Callable
 
 class SystemMonitor(ctk.CTkFrame):
     """
-    Real-time system resource monitor with color-coded indicators.
+    Real-time system resource monitor with independent color-coded indicators for CPU and RAM.
 
-    Color scheme (user thresholds):
+    Color scheme (user thresholds) - applied independently to CPU and RAM:
     - 0-74%: Green (healthy)
     - 75-84%: Yellow (elevated)
-    - 85-90%: Orange (high)
-    - 90%+: Red (critical)
-    - 100%: Red with exclamation mark
+    - 85-89%: Orange (high)
+    - 90%+: Red (critical) with exclamation mark indicator
     """
 
     def __init__(self, parent=None, update_interval_ms=1000):
@@ -40,6 +39,7 @@ class SystemMonitor(ctk.CTkFrame):
         self.current_cpu = 0
         self.current_ram_used = 0
         self.current_ram_total = 0
+        self.current_ram_percent = 0
 
         # Get CPU info
         try:
@@ -50,18 +50,37 @@ class SystemMonitor(ctk.CTkFrame):
         self.physical_cores = psutil.cpu_count(logical=False) or 1
         self.logical_cores = psutil.cpu_count(logical=True) or 1
 
-        # Create label for display
-        self.monitor_label = ctk.CTkLabel(
-            self,
-            text="CPU: 0% | RAM: 0.0/0.0 GB",
-            font=ctk.CTkFont(size=10),
-            text_color="white"
-        )
-        self.monitor_label.pack(padx=10, pady=5)
+        # Create separate frames for CPU and RAM with independent colors
+        self.cpu_frame = ctk.CTkFrame(self, fg_color="#1a3a1a", corner_radius=4)
+        self.cpu_frame.pack(side="left", padx=(5, 2), pady=3)
 
-        # Bind tooltip events
-        self.monitor_label.bind("<Enter>", self._on_enter)
-        self.monitor_label.bind("<Leave>", self._on_leave)
+        self.cpu_label = ctk.CTkLabel(
+            self.cpu_frame,
+            text="CPU: 0%",
+            font=ctk.CTkFont(size=10),
+            text_color="#90EE90"
+        )
+        self.cpu_label.pack(padx=6, pady=2)
+
+        # Separator
+        separator = ctk.CTkLabel(self, text="|", font=ctk.CTkFont(size=10), text_color="#666666")
+        separator.pack(side="left", padx=2)
+
+        self.ram_frame = ctk.CTkFrame(self, fg_color="#1a3a1a", corner_radius=4)
+        self.ram_frame.pack(side="left", padx=(2, 5), pady=3)
+
+        self.ram_label = ctk.CTkLabel(
+            self.ram_frame,
+            text="RAM: 0%",
+            font=ctk.CTkFont(size=10),
+            text_color="#90EE90"
+        )
+        self.ram_label.pack(padx=6, pady=2)
+
+        # Bind tooltip events to both frames
+        for widget in [self.cpu_frame, self.cpu_label, self.ram_frame, self.ram_label]:
+            widget.bind("<Enter>", self._on_enter)
+            widget.bind("<Leave>", self._on_leave)
 
         # Start monitoring thread
         self.start_monitoring()
@@ -97,12 +116,14 @@ class SystemMonitor(ctk.CTkFrame):
             memory = psutil.virtual_memory()
             ram_used_gb = memory.used / (1024 ** 3)
             ram_total_gb = memory.total / (1024 ** 3)
+            ram_percent = memory.percent  # psutil provides this directly
 
             # Store metrics in instance variables (thread-safe reads)
             # Main thread will periodically read these and update display
             self.current_cpu = cpu_percent
             self.current_ram_used = ram_used_gb
             self.current_ram_total = ram_total_gb
+            self.current_ram_percent = ram_percent
             self._metrics_updated = True
 
         except Exception as e:
@@ -122,47 +143,54 @@ class SystemMonitor(ctk.CTkFrame):
         """Update the display with stored metrics (main thread only)."""
         try:
             cpu_percent = self.current_cpu
-            ram_used_gb = self.current_ram_used
-            ram_total_gb = self.current_ram_total
+            ram_percent = self.current_ram_percent
 
-            # Format display text
-            cpu_indicator = "!" if cpu_percent >= 100 else ""
-            display_text = f"CPU: {cpu_percent:.0f}%{cpu_indicator} | RAM: {ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
+            # Format CPU display text with indicator at 90%+
+            cpu_indicator = "!" if cpu_percent >= 90 else ""
+            cpu_text = f"CPU: {round(cpu_percent)}%{cpu_indicator}"
 
-            # Get colors based on thresholds
-            bg_color, fg_color = self._get_colors(cpu_percent)
+            # Format RAM display text with indicator at 90%+
+            ram_indicator = "!" if ram_percent >= 90 else ""
+            ram_text = f"RAM: {round(ram_percent)}%{ram_indicator}"
 
-            # Update label (called from main thread via .after())
-            self.monitor_label.configure(text=display_text, text_color=fg_color)
-            self.configure(fg_color=bg_color)
+            # Get colors independently for CPU and RAM
+            cpu_bg, cpu_fg = self._get_colors(cpu_percent)
+            ram_bg, ram_fg = self._get_colors(ram_percent)
+
+            # Update CPU label and frame
+            self.cpu_label.configure(text=cpu_text, text_color=cpu_fg)
+            self.cpu_frame.configure(fg_color=cpu_bg)
+
+            # Update RAM label and frame
+            self.ram_label.configure(text=ram_text, text_color=ram_fg)
+            self.ram_frame.configure(fg_color=ram_bg)
 
         except Exception as e:
             print(f"Error updating display: {e}")
 
-    def _get_colors(self, cpu_percent: float) -> tuple:
+    def _get_colors(self, percent: float) -> tuple:
         """
-        Get background and foreground colors based on CPU usage.
+        Get background and foreground colors based on usage percentage.
 
-        User's thresholds:
-        - 0-74%: Green
-        - 75-84%: Yellow
-        - 85-90%: Orange
-        - 90%+: Red
-        - 100%: Red with emphasis
+        Used for both CPU and RAM with identical thresholds:
+        - 0-74%: Green (healthy)
+        - 75-84%: Yellow (elevated)
+        - 85-89%: Orange (high)
+        - 90%+: Red (critical)
 
         Args:
-            cpu_percent: Current CPU usage percentage
+            percent: Current usage percentage (CPU or RAM)
 
         Returns:
             tuple: (bg_color, fg_color)
         """
-        if cpu_percent < 75:
+        if percent < 75:
             # Green: healthy
             return ("#1a3a1a", "#90EE90")  # Dark green bg, light green text
-        elif cpu_percent < 85:
+        elif percent < 85:
             # Yellow: elevated
             return ("#3a3a1a", "#FFEB3B")  # Dark yellow bg, bright yellow text
-        elif cpu_percent < 90:
+        elif percent < 90:
             # Orange: high
             return ("#3a2a1a", "#FFA500")  # Dark orange bg, bright orange text
         else:
@@ -171,6 +199,8 @@ class SystemMonitor(ctk.CTkFrame):
 
     def _on_enter(self, event):
         """Handle mouse enter - schedule tooltip display."""
+        if self.show_timer:
+            self.after_cancel(self.show_timer)
         self.show_timer = self.after(500, self._show_tooltip)
 
     def _on_leave(self, event):
@@ -181,10 +211,19 @@ class SystemMonitor(ctk.CTkFrame):
         self._hide_tooltip()
 
     def _show_tooltip(self):
-        """Show detailed system information tooltip."""
+        """Show detailed system information tooltip near the mouse cursor."""
         try:
             if self.tooltip_window:
                 return
+
+            # Get current mouse position (dynamic positioning)
+            try:
+                mouse_x = self.winfo_pointerx()
+                mouse_y = self.winfo_pointery()
+            except Exception:
+                # Fallback to widget position
+                mouse_x = self.winfo_rootx() + self.winfo_width()
+                mouse_y = self.winfo_rooty()
 
             # Get CPU frequency
             try:
@@ -195,21 +234,25 @@ class SystemMonitor(ctk.CTkFrame):
             except Exception:
                 freq_text = "Frequency: Unknown"
 
-            # Build tooltip text
+            # Build tooltip text with RAM percentage and GB breakdown
+            ram_percent = round(self.current_ram_percent)
             tooltip_text = (
                 f"{self.cpu_model}\n"
                 f"{self.physical_cores} physical cores, {self.logical_cores} logical threads\n"
                 f"{freq_text}\n"
                 f"\n"
-                f"Current CPU: {self.current_cpu:.1f}%\n"
-                f"Current RAM: {self.current_ram_used:.1f} / {self.current_ram_total:.1f} GB"
+                f"Current CPU: {round(self.current_cpu)}%\n"
+                f"Current RAM: {ram_percent}% ({self.current_ram_used:.1f} / {self.current_ram_total:.1f} GB)"
             )
 
             # Create tooltip window
             self.tooltip_window = ctk.CTkToplevel(self.winfo_toplevel())
             self.tooltip_window.wm_overrideredirect(True)
             self.tooltip_window.wm_attributes("-topmost", True)
-            self.tooltip_window.wm_attributes("-toolwindow", True)
+            try:
+                self.tooltip_window.wm_attributes("-toolwindow", True)
+            except Exception:
+                pass  # Not available on all platforms
 
             label = ctk.CTkLabel(
                 self.tooltip_window,
@@ -217,32 +260,52 @@ class SystemMonitor(ctk.CTkFrame):
                 bg_color=("#333333", "#333333"),
                 text_color=("white", "white"),
                 corner_radius=5,
-                wraplength=250,
-                font=ctk.CTkFont(size=9)
+                wraplength=280,
+                font=ctk.CTkFont(size=10),
+                justify="left"
             )
             label.pack(padx=8, pady=8)
 
-            # Position tooltip
+            # Calculate tooltip size
             self.tooltip_window.update_idletasks()
             tooltip_width = self.tooltip_window.winfo_width()
             tooltip_height = self.tooltip_window.winfo_height()
 
-            # Get monitor position
-            monitor_x = self.monitor_label.winfo_rootx()
-            monitor_y = self.monitor_label.winfo_rooty()
-            monitor_width = self.monitor_label.winfo_width()
-            monitor_height = self.monitor_label.winfo_height()
+            # Get screen dimensions (accounting for multi-monitor via vroot)
+            try:
+                screen_width = self.winfo_screenwidth()
+                screen_height = self.winfo_screenheight()
+                vroot_x = self.winfo_vrootx()
+                vroot_y = self.winfo_vrooty()
+            except Exception:
+                screen_width, screen_height = 1920, 1080
+                vroot_x, vroot_y = 0, 0
 
-            # Position to the right, vertically centered
-            x = monitor_x + monitor_width + 10
-            y = monitor_y + (monitor_height // 2) - (tooltip_height // 2)
+            # Position tooltip: prefer above and to the left of cursor (since monitor is usually bottom-right)
+            offset_x = 15
+            offset_y = 10
+            x = mouse_x - tooltip_width - offset_x  # Left of cursor
+            y = mouse_y - tooltip_height - offset_y  # Above cursor
 
-            # Ensure tooltip stays on screen
-            screen_width = self.winfo_screenwidth()
-            if x + tooltip_width > screen_width:
-                x = monitor_x - tooltip_width - 10
+            # Boundary checks with repositioning
+            if x < vroot_x:
+                # Position to the right of cursor instead
+                x = mouse_x + offset_x
 
-            self.tooltip_window.wm_geometry(f"+{x}+{y}")
+            if y < vroot_y:
+                # Position below cursor instead
+                y = mouse_y + offset_y
+
+            # Final constraint to screen bounds
+            if x + tooltip_width > screen_width + vroot_x:
+                x = screen_width + vroot_x - tooltip_width - 5
+            if y + tooltip_height > screen_height + vroot_y:
+                y = screen_height + vroot_y - tooltip_height - 5
+
+            x = max(vroot_x, x)
+            y = max(vroot_y, y)
+
+            self.tooltip_window.wm_geometry(f"+{int(x)}+{int(y)}")
             self.tooltip_window.lift()
 
         except Exception as e:

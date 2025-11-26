@@ -1,5 +1,418 @@
 # Development Log
 
+## Session 8 Part 4 - Recursive Length Enforcement (2025-11-26)
+
+**Objective:** Implement recursive summarization to ensure AI-generated summaries meet user's requested word count target.
+
+### Problem Addressed
+When users request a 200-word summary, LLMs often produce 300-500 words instead. Simply truncating would lose important information at the end. The solution: recursively condense over-length summaries until they meet the target.
+
+### Implementation
+
+**1. Configuration:**
+- **20% tolerance**: A 200-word target accepts up to 240 words before triggering condensation
+- **3 max attempts**: After 3 condensation tries, return best effort (prevents infinite loops)
+- **Applies to all summaries**: Both individual document summaries and meta-summaries
+
+**2. New Methods in OllamaModelManager:**
+- `_enforce_length(summary, target_words, max_attempts)` - Main enforcement loop
+- `_condense_summary(summary, target_words)` - Generates condensed version via AI
+
+**3. Condensation Prompt Template:**
+- Created `config/prompts/phi-3-mini/_condense-summary.txt`
+- Underscore prefix means it's for internal use (not shown in dropdown)
+- Instructs AI to preserve key facts while reducing verbosity
+
+### Algorithm Flow
+```
+1. Generate initial summary
+2. Check word count
+3. If actual_words > target * 1.2:
+   - Call _condense_summary()
+   - Check again
+   - Repeat up to 3 times
+4. Return final summary (within tolerance or best effort)
+```
+
+### Files Modified
+- `src/ai/ollama_model_manager.py` - Added `_enforce_length()` and `_condense_summary()` methods
+
+### Files Created
+- `config/prompts/phi-3-mini/_condense-summary.txt` - Condensation prompt template
+
+### Debug Logging
+The implementation logs each step for debugging:
+```
+[LENGTH ENFORCE] Target: 200 words, Max acceptable: 240 words, Actual: 350 words
+[LENGTH ENFORCE] Attempt 1/3: Summary is 350 words (>240). Condensing...
+[LENGTH ENFORCE] After condensation: 215 words
+[LENGTH ENFORCE] Success: 215 words (within 20% tolerance of 200)
+```
+
+### Testing
+- ✅ All 55 tests pass
+- ✅ Module imports successfully
+- ⏳ Live testing with Ollama pending (requires document processing)
+
+### Refactoring: Separation of Concerns (Post-Implementation)
+
+After the initial implementation, a review identified that length enforcement logic was tightly coupled to `OllamaModelManager`. This violated separation of concerns: the model manager shouldn't be responsible for post-processing logic.
+
+**Solution: Extract to SummaryPostProcessor Class**
+
+**1. Added Config Constants (src/config.py):**
+```python
+# Summary Length Enforcement Settings
+SUMMARY_LENGTH_TOLERANCE = 0.20  # 20% overage allowed
+SUMMARY_MAX_CONDENSE_ATTEMPTS = 3  # Max attempts before returning best effort
+```
+
+**2. Created SummaryPostProcessor (src/ai/summary_post_processor.py, 199 lines):**
+- Backend-agnostic class using dependency injection
+- Constructor accepts `generate_text_fn: Callable[[str, int], str]`
+- Can work with Ollama, OpenAI, or any future text generation backend
+- Methods:
+  - `enforce_length(summary, target_words)` - Main enforcement loop
+  - `_condense_summary(summary, target_words)` - Generates condensed version
+  - `is_within_tolerance(summary, target_words)` - Helper for checking
+  - `get_word_count(text)` - Simple utility
+
+**3. Refactored OllamaModelManager:**
+- Added `SummaryPostProcessor` as a dependency (created in `__init__`)
+- Created `_generate_text_for_post_processor()` wrapper method
+- `generate_summary()` now delegates to `self.post_processor.enforce_length()`
+- Removed inline `_enforce_length()` and `_condense_summary()` methods
+
+**Architecture After Refactoring:**
+```
+OllamaModelManager
+    ↓ creates
+SummaryPostProcessor(generate_text_fn=self._generate_text_for_post_processor)
+    ↓ uses
+PromptTemplateManager (for loading _condense-summary.txt)
+    ↓ calls back to
+OllamaModelManager.generate_text() (via wrapper)
+```
+
+**Benefits:**
+- Length enforcement is now reusable with any AI backend
+- OllamaModelManager stays focused on Ollama API communication
+- Configuration values are centralized and easily adjustable
+- Post-processor is independently testable
+
+### Files Created (Refactoring)
+- `src/ai/summary_post_processor.py` - Backend-agnostic post-processor (199 lines)
+
+### Files Modified (Refactoring)
+- `src/config.py` - Added `SUMMARY_LENGTH_TOLERANCE` and `SUMMARY_MAX_CONDENSE_ATTEMPTS`
+- `src/ai/ollama_model_manager.py` - Uses SummaryPostProcessor via dependency injection
+
+### Pattern Established
+**Pattern: Dependency Injection for Backend-Agnostic Services**
+- Services that need text generation accept a callable, not a specific backend class
+- Enables swapping backends (Ollama → OpenAI → local) without changing service logic
+- Applies to: Any service that processes AI-generated output
+
+### Testing (Post-Refactoring)
+- ✅ All 55 tests pass (zero regressions)
+- ✅ All module imports successful
+- ✅ Dependency injection verified working
+
+---
+
+## Session 8 Part 3 - Prompt Selection UI Refinement (2025-11-26)
+
+**Objective:** Refine prompt selection dropdown to show ALL prompt files equally, with underscore-prefixed helper files excluded from the dropdown.
+
+### Summary
+Refined the prompt selection system based on user feedback. Changed from showing "(Custom)" suffix on user prompts to treating all prompts equally in the dropdown. Implemented underscore prefix convention (`_template.txt`, `_README.txt`) to exclude helper files from the dropdown while still creating them for user guidance. Renamed the UI quadrant to "Model & Prompt Selection" and updated tooltips to guide users to create custom prompts.
+
+### Changes Made
+
+**1. Underscore Prefix Convention for Helper Files**
+- `_template.txt` - Skeleton template for users to copy and customize
+- `_README.txt` - Comprehensive guide with prompt creation instructions
+- Both files auto-created in user's prompts folder but excluded from dropdown
+- Pattern: Files starting with `_` are hidden from the prompt selector
+
+**2. PromptTemplateManager Updates**
+- `get_available_presets()` now skips files starting with underscore
+- `ensure_user_skeleton()` creates both `_template.txt` and `_README.txt`
+- Added `USER_README_CONTENT` constant with comprehensive prompt creation guide
+- Added `SKELETON_FILENAME` and `README_FILENAME` constants
+
+**3. ModelSelectionWidget Updates**
+- Removed "(Custom)" suffix from user prompts - all prompts appear equally
+- Updated info label: "See _README.txt in prompts folder for custom prompt guide."
+- Tooltips now inform users about custom prompt creation
+
+**4. Quadrant Renamed**
+- Changed from "🤖 AI Model Selection" to "🤖 Model & Prompt Selection"
+- Updated tooltip to mention prompt customization
+
+**5. Cleanup**
+- Deleted old `custom-template.txt` from user's AppData (was showing in dropdown)
+- New `_template.txt` and `_README.txt` created automatically on app launch
+
+### README Content Highlights
+The `_README.txt` file includes:
+- Quick start instructions (copy template, rename, edit, restart)
+- Required Phi-3 chat token format
+- Required variable placeholders
+- Tips for effective prompts (be specific, set tone, specify what to avoid, structure output)
+- Troubleshooting section
+
+### Files Modified
+- `src/prompt_template_manager.py` - Added constants, README content, underscore exclusion
+- `src/ui/widgets.py` - Removed "(Custom)" suffix, updated info label
+- `src/ui/quadrant_builder.py` - Renamed quadrant, updated tooltip
+
+### Testing
+- ✅ Application launches successfully
+- ✅ `_template.txt` and `_README.txt` created in user's prompts folder
+- ✅ Neither helper file appears in dropdown
+- ✅ Built-in prompts (Factual Summary, Strategic Analysis) appear in dropdown
+- ✅ Quadrant renamed to "Model & Prompt Selection"
+
+### User Experience Improvement
+**Before:** Dropdown showed "Custom Template (Custom)" which was confusing
+**After:** Dropdown shows only actual prompt options; helper files hidden but accessible
+
+---
+
+## Session 8 Part 2 - Prompt Selection UI with Persistent User Prompts (2025-11-26)
+
+**Objective:** Add prompt selection dropdown to the UI, allowing users to choose between different summarization styles (built-in and custom prompts that survive updates).
+
+### Summary
+Implemented a dual-directory prompt system where built-in prompts ship with the app while user-created prompts persist in AppData through updates. Added "Prompt Style" dropdown to the Model Selection quadrant. A skeleton template is auto-created to guide users in making custom prompts.
+
+### Changes Made
+
+**1. Dual-Directory Prompt System**
+- Built-in prompts: `config/prompts/phi-3-mini/` (shipped with app, may update)
+- User prompts: `%APPDATA%\LocalScribe\prompts\phi-3-mini/` (persist through updates)
+- User prompts with same name override built-in ones
+
+**2. PromptTemplateManager Enhanced**
+- Added `user_prompts_dir` parameter for secondary directory
+- `get_available_presets()` now merges both directories
+- `load_template()` checks user directory first, then built-in
+- New `ensure_user_skeleton()` creates starter template on first run
+- New `get_user_prompts_path()` for tooltip display
+
+**3. Prompt Selection Dropdown**
+- Added "Prompt Style" dropdown below model selector in ModelSelectionWidget
+- Shows "Factual Summary", "Strategic Analysis" (built-in), plus "(Custom)" suffix for user prompts
+- `get_selected_preset_id()` method converts display name back to preset ID
+
+**4. UI Wiring**
+- `_start_generation()` now captures selected preset_id
+- `_start_ai_generation()` passes correct preset_id to AI worker
+- Fixed bug where model name was being used as preset_id instead of actual prompt ID
+
+**5. Auto-Created Skeleton Template**
+- Created at: `%APPDATA%\LocalScribe\prompts\phi-3-mini\custom-template.txt`
+- Includes all required Phi-3 tokens and variable placeholders
+- Guide comments explain how to customize
+
+### Files Modified
+- `src/config.py` - Added `USER_PROMPTS_DIR` constant
+- `src/prompt_template_manager.py` - Dual-directory support, merge logic, skeleton creation
+- `src/ui/widgets.py` - Added prompt dropdown to ModelSelectionWidget
+- `src/ui/quadrant_builder.py` - Pass prompt_template_manager to widget
+- `src/ui/main_window.py` - Create manager, wire selection, fix preset_id usage
+- `src/ai/ollama_model_manager.py` - Pass USER_PROMPTS_DIR to manager
+
+### Testing
+- 55 tests passing
+- Application launches successfully
+- Skeleton template auto-created in user's AppData directory
+- Dropdown shows both built-in prompts
+
+---
+
+## Session 8 - System Monitor, Tooltips, and Vocabulary Table Overhaul (2025-11-26)
+
+**Objective:** Improve system monitor widget with RAM percentage display, fix tooltip positioning, and create Excel-like vocabulary display with user exclusion feature.
+
+### Summary
+Three major improvements: (1) Refactored SystemMonitor to dual independent color indicators with RAM as percentage. (2) Rewrote tooltip system for mouse-relative positioning. (3) Created Excel-like Treeview table for vocabulary display with right-click "Exclude this term" functionality for user-controlled filtering.
+
+### Changes Made
+
+**1. RAM Display Format Change**
+- **Before:** `CPU: 45% | RAM: 8.2/16.0 GB`
+- **After:** `CPU: 45% | RAM: 51%`
+- Percentage rounded to nearest integer using `round()`
+- psutil's `memory.percent` used for accurate calculation
+
+**2. Dual Independent Color Indicators**
+- Split single `monitor_label` into two separate frames: `cpu_frame` and `ram_frame`
+- Each frame has its own background color based on its metric's threshold
+- Separator `|` between the two indicators for visual distinction
+- Example: CPU could be green (low usage) while RAM is orange (high usage)
+
+**3. Critical Indicator for Both Metrics**
+- Both CPU and RAM show `!` indicator at 90%+ usage
+- **Before:** Only CPU showed `!` at 100%
+- **After:** Both show `!` at 90%+ threshold
+
+**4. Tooltip Enhancement**
+- RAM line now shows: `Current RAM: 51% (8.2 / 16.0 GB)`
+- Provides percentage for quick reference + GB breakdown for context
+- CPU also uses `round()` for consistency
+
+**5. Bug Fix: Tooltip Positioning**
+- Fixed reference to removed `self.monitor_label` variable
+- Now uses `self.winfo_*()` methods on parent frame for positioning
+
+### Color Threshold Reference (Unchanged)
+| Usage | Color | Meaning |
+|-------|-------|---------|
+| 0-74% | Green | Healthy |
+| 75-84% | Yellow | Elevated |
+| 85-89% | Orange | High |
+| 90%+ | Red + ! | Critical |
+
+### Files Modified
+- `src/ui/system_monitor.py` - Complete refactor (259 → 288 lines)
+
+### Architecture Change
+```
+Before:
+┌─────────────────────────────┐
+│ CPU: 45% | RAM: 8.2/16.0 GB │  ← Single label, one color
+└─────────────────────────────┘
+
+After:
+┌──────────┐   ┌──────────┐
+│ CPU: 45% │ | │ RAM: 51% │  ← Two frames, independent colors
+└──────────┘   └──────────┘
+   (green)        (yellow)
+```
+
+### Part 2: Tooltip System Rewrite
+
+**Problem:** Tooltips were appearing in unexpected locations, not near the mouse cursor. The old implementation positioned tooltips relative to the widget's fixed screen position, which caused issues when:
+- Window was moved or resized
+- Window was maximized
+- Different screen resolutions
+- Multi-monitor setups
+
+**Solution:** Complete rewrite of `tooltip_helper.py` with best practices from [Stack Overflow](https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter) and [CTkToolTip](https://pypi.org/project/CTkToolTip/):
+
+**Key Improvements:**
+1. **Mouse-relative positioning:** Uses `winfo_pointerx()`/`winfo_pointery()` to get current cursor position at show time
+2. **Dynamic calculation:** Position computed when tooltip displays (not when widget is created)
+3. **Multi-monitor support:** Uses `winfo_vrootx()`/`winfo_vrooty()` for coordinate correction
+4. **Smart boundary detection:** Tooltips flip to opposite side if they would go off-screen
+5. **Offset prevents flickering:** 15px horizontal, 10px vertical offset ensures tooltip doesn't appear directly under cursor (which would cause enter/leave loops)
+6. **500ms delay:** Prevents flickering during rapid mouse movement
+7. **`add="+"` binding:** Allows multiple event handlers on same widget without conflicts
+
+**Files Modified:**
+- `src/ui/tooltip_helper.py` - Complete rewrite (125 → 305 lines)
+- `src/ui/system_monitor.py` - Updated tooltip to use mouse-relative positioning
+- `src/ui/utils.py` - Now re-exports from tooltip_helper (removed duplicate code)
+
+**New Tooltip Behavior:**
+```
+Before: Tooltip appears at fixed position relative to widget
+        (often far from cursor, sometimes off-screen)
+
+After:  Tooltip appears 15px right and 10px below cursor
+        (flips to left/above if near screen edge)
+```
+
+**API Enhancement:**
+```python
+# Basic usage (unchanged)
+create_tooltip(widget, "Help text")
+
+# New: configurable delay and offset
+create_tooltip(widget, "Help text", delay_ms=300, offset_x=20, offset_y=15)
+
+# New: tooltip for frame with multiple child widgets
+create_tooltip_for_frame(frame, "Help text", child_widgets=[label, button])
+```
+
+### Part 3: Excel-Like Vocabulary Table with User Exclusions
+
+**Problem:** The vocabulary CSV was displaying with "term" repeating on every row, and users had no way to exclude commonly-seen terms (like "New York") from future extractions.
+
+**Solution:** Complete rewrite of vocabulary display in `dynamic_output.py` using ttk.Treeview styled to match CustomTkinter's dark theme, plus a user exclusion system.
+
+**Key Features:**
+
+1. **Excel-like Treeview Table**
+   - Columns: Term, Category, Relevance, Definition
+   - Frozen headers (stay visible while scrolling - native Treeview behavior)
+   - Dark theme styling matching CustomTkinter aesthetic
+   - Vertical and horizontal scrollbars
+   - Row height optimized for readability (28px)
+
+2. **Right-Click Context Menu**
+   - "Exclude this term from future lists" - adds to user exclusion file
+   - "Copy term" - copies selected term to clipboard
+   - Double-click copies the definition
+
+3. **User Exclusion System**
+   - **File location:** `%APPDATA%\LocalScribe\config\user_vocab_exclude.txt`
+   - **Case-insensitive:** Excluding "New York" also blocks "NEW YORK" and "new york"
+   - **Confirmation dialog:** Shows what will be excluded and how to undo
+   - **Immediate UI update:** Term removed from current display after exclusion
+   - **Persistent:** Exclusions survive application restarts
+
+4. **CSV Export Updated**
+   - Now includes "Term" as first column in header row
+   - Export format: `Term,Category,Relevance to Case,Definition`
+
+**Files Modified:**
+- `src/config.py` - Added `USER_VOCAB_EXCLUDE_PATH` constant
+- `src/vocabulary/vocabulary_extractor.py` - Added user exclusion loading + `add_user_exclusion()` method
+- `src/ui/workers.py` - Pass `user_exclude_path` to VocabularyWorker
+- `src/ui/workflow_orchestrator.py` - Import and pass `USER_VOCAB_EXCLUDE_PATH`
+- `src/ui/dynamic_output.py` - Complete rewrite with Treeview + right-click menu (226 → 467 lines)
+
+**Architecture:**
+```
+User right-clicks term "New York"
+        ↓
+Context menu appears → "Exclude this term from future lists"
+        ↓
+Confirmation dialog: "Also excludes NEW YORK, new york"
+        ↓
+Term written to: %APPDATA%\LocalScribe\config\user_vocab_exclude.txt
+        ↓
+VocabularyExtractor loads this file on next run
+        ↓
+"New York" (any case) filtered out during extraction
+```
+
+**Example Use Case:**
+> As a New York attorney, I see "New York" flagged as rare vocabulary in every document.
+> I right-click → "Exclude this term" → Now "New York", "NEW YORK", etc. won't appear in future extractions.
+> But "NY" would still appear (different string, needs separate exclusion).
+
+### Testing
+- ✅ All module imports successful
+- ✅ All 55 tests pass (no regressions)
+- ✅ Visual testing: RAM/CPU display, tooltips, vocabulary table
+- ⏳ Vocabulary exclusion tested manually (requires document processing)
+
+### Status
+✅ All changes complete and verified
+
+**Sources:**
+- [Stack Overflow - Tkinter Tooltips](https://stackoverflow.com/questions/3221956/how-do-i-display-tooltips-in-tkinter)
+- [CTkToolTip PyPI](https://pypi.org/project/CTkToolTip/)
+- [tkinter-tooltip GitHub](https://github.com/gnikit/tkinter-tooltip)
+- [CustomTkinter Treeview Discussion](https://github.com/TomSchimansky/CustomTkinter/discussions/524)
+- [Python Treeview Tutorial](https://www.pythontutorial.net/tkinter/tkinter-treeview/)
+
+---
+
 ## Session 7 - Separation of Concerns Refactoring (2025-11-26)
 
 **Objective:** Comprehensive code review and refactoring to improve separation of concerns, eliminate code duplication, and consolidate dual logging systems.

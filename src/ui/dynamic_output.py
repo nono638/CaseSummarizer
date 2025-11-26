@@ -3,12 +3,18 @@ Dynamic Output Display Widget for LocalScribe
 
 Displays AI-generated summaries, meta-summaries, and vocabulary CSVs.
 Provides copy/save functionality for export.
+The vocabulary display uses an Excel-like Treeview with frozen headers
+and right-click context menu for excluding terms from future extractions.
 """
 
 import customtkinter as ctk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, Menu
 import io
 import csv
+import os
+
+from src.config import USER_VOCAB_EXCLUDE_PATH
+from src.logging_config import debug_log
 
 
 class DynamicOutputWidget(ctk.CTkFrame):
@@ -18,7 +24,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
         super().__init__(master, **kwargs)
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1) # Row for the dynamic content frame
+        self.grid_rowconfigure(1, weight=1)  # Row for the dynamic content frame
 
         # Output Selection Dropdown
         self.output_selector_label = ctk.CTkLabel(self, text="View Output:", font=ctk.CTkFont(weight="bold"))
@@ -26,7 +32,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         self.output_selector = ctk.CTkComboBox(self, values=["No outputs yet"], command=self._on_output_selection)
         self.output_selector.grid(row=0, column=0, sticky="e", padx=5, pady=(5, 0))
-        self.output_selector.set("No outputs yet") # Initial placeholder
+        self.output_selector.set("No outputs yet")
 
         # Dynamic Content Frame (to hold either Textbox or Treeview)
         self.dynamic_content_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -39,8 +45,13 @@ class DynamicOutputWidget(ctk.CTkFrame):
         self.summary_text_display.grid(row=0, column=0, sticky="nsew")
         self.summary_text_display.insert("0.0", "Generated summaries and rare word lists will appear here. Select an option from the dropdown above.")
 
-        # Treeview for CSV (initially hidden)
-        self.csv_treeview = None # Will be initialized when CSV data is loaded
+        # Treeview for CSV (initially None, created when needed)
+        self.csv_treeview = None
+        self.treeview_frame = None  # Frame to hold treeview and scrollbars
+
+        # Right-click context menu for vocabulary exclusion
+        self.context_menu = None
+        self._selected_term = None
 
         # Button bar
         self.button_frame = ctk.CTkFrame(self)
@@ -57,7 +68,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
             "Meta-Summary": "",
             "Rare Word List (CSV)": []
         }
-        self._document_summaries = {} # {filename: summary_text}
+        self._document_summaries = {}  # {filename: summary_text}
 
     def _on_output_selection(self, choice):
         """Handle selection change in the output_selector dropdown."""
@@ -82,7 +93,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
     def _clear_dynamic_content(self):
         """Clears the currently displayed widget in the dynamic content frame."""
         for widget in self.dynamic_content_frame.winfo_children():
-            widget.grid_remove() # Use grid_remove for widgets managed by grid
+            widget.grid_remove()
 
     def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None):
         """
@@ -90,7 +101,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         Args:
             meta_summary: The generated meta-summary text.
-            vocab_csv_data: A list of lists representing the CSV data.
+            vocab_csv_data: A list of dicts representing vocabulary data.
             document_summaries: A dictionary of {filename: summary_text}.
         """
         if meta_summary:
@@ -117,14 +128,63 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         self.output_selector.configure(values=options)
         if len(options) > 1:
-            self.output_selector.set(options[1]) # Select first available real output
+            self.output_selector.set(options[1])
             self._on_output_selection(options[1])
         else:
             self.output_selector.set("No outputs yet")
             self._on_output_selection("No outputs yet")
 
+    def _create_treeview_style(self):
+        """Create and configure the Treeview style to match CustomTkinter dark theme."""
+        style = ttk.Style()
+        style.theme_use("default")
+
+        # Main treeview styling - dark theme
+        style.configure(
+            "Vocab.Treeview",
+            background="#2b2b2b",
+            foreground="white",
+            fieldbackground="#2b2b2b",
+            borderwidth=0,
+            rowheight=28,
+            font=('Segoe UI', 10)
+        )
+        style.map('Vocab.Treeview', background=[('selected', '#3470b6')])
+
+        # Header styling - slightly lighter, bold
+        style.configure(
+            "Vocab.Treeview.Heading",
+            background="#404040",
+            foreground="white",
+            relief="flat",
+            font=('Segoe UI', 10, 'bold'),
+            padding=(8, 4)
+        )
+        style.map("Vocab.Treeview.Heading", background=[('active', '#505050')])
+
+        # Scrollbar styling
+        style.configure(
+            "Vocab.Vertical.TScrollbar",
+            background="#404040",
+            troughcolor="#2b2b2b",
+            borderwidth=0,
+            arrowcolor="white"
+        )
+        style.configure(
+            "Vocab.Horizontal.TScrollbar",
+            background="#404040",
+            troughcolor="#2b2b2b",
+            borderwidth=0,
+            arrowcolor="white"
+        )
+
     def _display_csv(self, data: list):
-        """Displays CSV data in a Treeview."""
+        """
+        Displays vocabulary data in an Excel-like Treeview with frozen headers.
+
+        Args:
+            data: List of dicts with keys: Term, Category, Relevance to Case, Definition
+        """
         self._clear_dynamic_content()
 
         if not data:
@@ -133,35 +193,204 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self.summary_text_display.insert("0.0", "Rare Word List (CSV) not yet generated or is empty.")
             return
 
+        # Create style if not already done
+        self._create_treeview_style()
+
+        # Create frame to hold treeview and scrollbars
+        if self.treeview_frame is None:
+            self.treeview_frame = ctk.CTkFrame(self.dynamic_content_frame, fg_color="#2b2b2b", corner_radius=6)
+
+        self.treeview_frame.grid(row=0, column=0, sticky="nsew")
+        self.treeview_frame.grid_columnconfigure(0, weight=1)
+        self.treeview_frame.grid_rowconfigure(0, weight=1)
+
+        # Define columns - Term is the first column now
+        columns = ("Term", "Category", "Relevance", "Definition")
+
+        # Create or reconfigure treeview
         if self.csv_treeview is None:
-            style = ttk.Style()
-            style.theme_use("default")
-            style.configure("Treeview", background="#2b2b2b", foreground="white", fieldbackground="#2b2b2b", borderwidth=0)
-            style.map('Treeview', background=[('selected', '#3470b6')])
-            style.configure("Treeview.Heading", background="#565b5e", foreground="white", relief="flat")
-            style.map("Treeview.Heading", background=[('active', '#6c757d')])
+            self.csv_treeview = ttk.Treeview(
+                self.treeview_frame,
+                columns=columns,
+                show="headings",
+                style="Vocab.Treeview",
+                selectmode="browse"
+            )
 
-            headers = data[0] if data else []
-            self.csv_treeview = ttk.Treeview(self.dynamic_content_frame, columns=headers, show="headings")
-            for col in headers:
+            # Configure column headings and widths
+            column_widths = {
+                "Term": 150,
+                "Category": 180,
+                "Relevance": 100,
+                "Definition": 350
+            }
+
+            for col in columns:
                 self.csv_treeview.heading(col, text=col, anchor='w')
-                self.csv_treeview.column(col, width=100, anchor='w') # Default width
+                self.csv_treeview.column(
+                    col,
+                    width=column_widths.get(col, 100),
+                    minwidth=80,
+                    anchor='w',
+                    stretch=True if col == "Definition" else False
+                )
 
-            # Add scrollbar
-            vsb = ttk.Scrollbar(self.dynamic_content_frame, orient="vertical", command=self.csv_treeview.yview)
-            hsb = ttk.Scrollbar(self.dynamic_content_frame, orient="horizontal", command=self.csv_treeview.xview)
-            self.csv_treeview.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+            # Add vertical scrollbar
+            vsb = ttk.Scrollbar(
+                self.treeview_frame,
+                orient="vertical",
+                command=self.csv_treeview.yview,
+                style="Vocab.Vertical.TScrollbar"
+            )
+            self.csv_treeview.configure(yscrollcommand=vsb.set)
+
+            # Add horizontal scrollbar
+            hsb = ttk.Scrollbar(
+                self.treeview_frame,
+                orient="horizontal",
+                command=self.csv_treeview.xview,
+                style="Vocab.Horizontal.TScrollbar"
+            )
+            self.csv_treeview.configure(xscrollcommand=hsb.set)
+
+            # Grid layout
+            self.csv_treeview.grid(row=0, column=0, sticky="nsew")
             vsb.grid(row=0, column=1, sticky="ns")
             hsb.grid(row=1, column=0, sticky="ew")
+
+            # Bind right-click for context menu
+            self.csv_treeview.bind("<Button-3>", self._on_right_click)
+            self.csv_treeview.bind("<Double-1>", self._on_double_click)
+
+            # Create context menu
+            self._create_context_menu()
 
         # Clear existing data
         self.csv_treeview.delete(*self.csv_treeview.get_children())
 
         # Populate with new data
-        for row in data[1:]: # Skip headers
-            self.csv_treeview.insert("", "end", values=row)
+        for item in data:
+            if isinstance(item, dict):
+                values = (
+                    item.get("Term", ""),
+                    item.get("Category", ""),
+                    item.get("Relevance to Case", ""),
+                    item.get("Definition", "")
+                )
+            else:
+                # Handle list format (legacy)
+                values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
+
+            self.csv_treeview.insert("", "end", values=values)
 
         self.csv_treeview.grid(row=0, column=0, sticky="nsew")
+
+    def _create_context_menu(self):
+        """Create right-click context menu for vocabulary table."""
+        self.context_menu = Menu(self, tearoff=0, bg="#404040", fg="white",
+                                  activebackground="#505050", activeforeground="white",
+                                  font=('Segoe UI', 10))
+        self.context_menu.add_command(
+            label="Exclude this term from future lists",
+            command=self._exclude_selected_term
+        )
+        self.context_menu.add_separator()
+        self.context_menu.add_command(
+            label="Copy term",
+            command=self._copy_selected_term
+        )
+
+    def _on_right_click(self, event):
+        """Handle right-click on treeview to show context menu."""
+        # Identify the row under cursor
+        item_id = self.csv_treeview.identify_row(event.y)
+        if item_id:
+            # Select the row
+            self.csv_treeview.selection_set(item_id)
+            # Get the term value (first column)
+            values = self.csv_treeview.item(item_id, 'values')
+            if values:
+                self._selected_term = values[0]  # Term is first column
+                # Show context menu at cursor position
+                try:
+                    self.context_menu.tk_popup(event.x_root, event.y_root)
+                finally:
+                    self.context_menu.grab_release()
+
+    def _on_double_click(self, event):
+        """Handle double-click to copy the full definition."""
+        item_id = self.csv_treeview.identify_row(event.y)
+        if item_id:
+            values = self.csv_treeview.item(item_id, 'values')
+            if values and len(values) >= 4:
+                definition = values[3]  # Definition is fourth column
+                if definition and definition != "N/A":
+                    self.clipboard_clear()
+                    self.clipboard_append(definition)
+                    # Brief visual feedback could be added here
+
+    def _exclude_selected_term(self):
+        """Exclude the selected term from future vocabulary extractions."""
+        if not self._selected_term:
+            return
+
+        term = self._selected_term
+        lower_term = term.lower().strip()
+
+        # Confirm with user
+        result = messagebox.askyesno(
+            "Exclude Term",
+            f"Exclude '{term}' from future rare word lists?\n\n"
+            f"This will also exclude case variations like '{term.upper()}' and '{term.title()}'.\n\n"
+            "You can undo this by editing:\n"
+            f"{USER_VOCAB_EXCLUDE_PATH}",
+            icon="question"
+        )
+
+        if not result:
+            return
+
+        # Add to exclusion file
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(USER_VOCAB_EXCLUDE_PATH), exist_ok=True)
+
+            # Append to file
+            with open(USER_VOCAB_EXCLUDE_PATH, 'a', encoding='utf-8') as f:
+                f.write(f"{lower_term}\n")
+
+            debug_log(f"[VOCAB UI] Added '{term}' to user exclusion list at {USER_VOCAB_EXCLUDE_PATH}")
+
+            # Remove from current display
+            selected = self.csv_treeview.selection()
+            if selected:
+                self.csv_treeview.delete(selected[0])
+
+                # Also remove from internal data
+                self._outputs["Rare Word List (CSV)"] = [
+                    item for item in self._outputs.get("Rare Word List (CSV)", [])
+                    if isinstance(item, dict) and item.get("Term", "").lower() != lower_term
+                ]
+
+            messagebox.showinfo(
+                "Term Excluded",
+                f"'{term}' will not appear in future rare word lists.\n\n"
+                "Note: This takes effect on the next vocabulary extraction."
+            )
+
+        except Exception as e:
+            debug_log(f"[VOCAB UI] Failed to save exclusion: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to save exclusion: {e}\n\n"
+                "Please check file permissions."
+            )
+
+    def _copy_selected_term(self):
+        """Copy the selected term to clipboard."""
+        if self._selected_term:
+            self.clipboard_clear()
+            self.clipboard_append(self._selected_term)
 
     def get_current_content_for_export(self):
         """Returns the currently displayed content for copy/save operations."""
@@ -169,12 +398,25 @@ class DynamicOutputWidget(ctk.CTkFrame):
         if current_choice == "Meta-Summary":
             return self._outputs.get("Meta-Summary", "")
         elif current_choice == "Rare Word List (CSV)":
-            # Convert list of lists to CSV string
+            # Convert list of dicts to CSV string with Term column
             data = self._outputs.get("Rare Word List (CSV)", [])
-            if not data: return ""
+            if not data:
+                return ""
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerows(data)
+            # Write header
+            writer.writerow(["Term", "Category", "Relevance to Case", "Definition"])
+            # Write data
+            for item in data:
+                if isinstance(item, dict):
+                    writer.writerow([
+                        item.get("Term", ""),
+                        item.get("Category", ""),
+                        item.get("Relevance to Case", ""),
+                        item.get("Definition", "")
+                    ])
+                else:
+                    writer.writerow(item)
             return output.getvalue()
         elif current_choice.startswith("Summary for "):
             doc_name = current_choice.replace("Summary for ", "")

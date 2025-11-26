@@ -29,8 +29,7 @@ def build_document_selection_quadrant(parent_frame):
     create_tooltip(
         files_label,
         "Digital PDF: Text extracted directly. Scanned PDF: Uses Tesseract OCR (confidence evaluation may result in higher errors). TXT/RTF: Direct text extraction.\n\n"
-        "Batch: Up to 100 docs. ProcessingTime ≈ (avg_pages × model_size). Supports .pdf, .txt, .rtf.",
-        position="right"
+        "Batch: Up to 100 docs. ProcessingTime ≈ (avg_pages × model_size). Supports .pdf, .txt, .rtf."
     )
 
     # File table
@@ -45,13 +44,14 @@ def build_document_selection_quadrant(parent_frame):
     }
 
 
-def build_model_selection_quadrant(parent_frame, model_manager):
+def build_model_selection_quadrant(parent_frame, model_manager, prompt_template_manager=None):
     """
-    Build the top-right quadrant: AI Model Selection.
+    Build the top-right quadrant: Model & Prompt Selection.
 
     Args:
         parent_frame: The parent CTkFrame
         model_manager: The ModelManager instance
+        prompt_template_manager: The PromptTemplateManager instance (optional)
 
     Returns:
         dict with 'widget' (ModelSelectionWidget) and metadata
@@ -59,21 +59,24 @@ def build_model_selection_quadrant(parent_frame, model_manager):
     # Header
     model_label = ctk.CTkLabel(
         parent_frame,
-        text="🤖 AI Model Selection",
+        text="🤖 Model & Prompt Selection",
         font=ctk.CTkFont(size=17, weight="bold")
     )
     model_label.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 8))
 
     create_tooltip(
         model_label,
-        "Any Ollama model supported. LocalScribe auto-detects & applies model-specific instruction formats ([INST] for Llama/Mistral, raw for Gemma, etc.).\n\n"
-        "Size guidance: 1B=fast/basic, 7B=quality, 13B=best (slower). Larger = better reasoning. See Phase 2.7 for format compatibility.",
-        position="right"
+        "MODEL: Any Ollama model supported. 1B=fast/basic, 7B=quality, 13B=best.\n\n"
+        "PROMPT: Choose a summarization style or create your own. "
+        "Add custom .txt files to your prompts folder - see _README.txt for instructions."
     )
 
-    # Model selection widget
-    model_selection = ModelSelectionWidget(parent_frame, model_manager)
+    # Model selection widget (now includes prompt style dropdown)
+    model_selection = ModelSelectionWidget(parent_frame, model_manager, prompt_template_manager)
     model_selection.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
+
+    # Set up tooltip for prompt selector after widget is created
+    model_selection.setup_tooltip(create_tooltip)
 
     return {
         'frame': parent_frame,
@@ -101,8 +104,7 @@ def build_output_display_quadrant(parent_frame):
     create_tooltip(
         output_display_label,
         "Individual summaries: Per-document outputs (from parallel processing). Meta-summary: Hierarchical summary of all docs (blocking final step). "
-        "Vocabulary: CSV of technical terms (category, definition, relevance). Dropdown switches between output types. Copy/Save buttons available.",
-        position="right"
+        "Vocabulary: CSV of technical terms (category, definition, relevance). Dropdown switches between output types. Copy/Save buttons available."
     )
 
     # Output display widget
@@ -135,8 +137,7 @@ def build_output_options_quadrant(parent_frame):
     create_tooltip(
         output_options_label,
         "Word count: 50-500 words per summary (adjusts token budget). Outputs: Toggle which results to generate (save time by disabling unneeded outputs). "
-        "Parallel processing uses CPU fraction from Settings. Monitor system impact via status bar CPU/RAM display.",
-        position="right"
+        "Parallel processing uses CPU fraction from Settings. Monitor system impact via status bar CPU/RAM display."
     )
 
     # Output options widget
@@ -161,7 +162,7 @@ def build_output_options_quadrant(parent_frame):
     }
 
 
-def create_central_widget_layout(main_window, model_manager):
+def create_central_widget_layout(main_window, model_manager, prompt_template_manager=None):
     """
     Create and layout the four-quadrant central widget.
 
@@ -171,6 +172,7 @@ def create_central_widget_layout(main_window, model_manager):
     Args:
         main_window: The parent MainWindow (CTk) instance
         model_manager: The ModelManager instance for model selection
+        prompt_template_manager: The PromptTemplateManager instance (optional)
 
     Returns:
         tuple: (main_content_frame, file_table, model_selection, summary_results, output_options, generate_btn)
@@ -207,7 +209,7 @@ def create_central_widget_layout(main_window, model_manager):
 
     # Build quadrants
     doc_quad = build_document_selection_quadrant(top_left_frame)
-    model_quad = build_model_selection_quadrant(top_right_frame, model_manager)
+    model_quad = build_model_selection_quadrant(top_right_frame, model_manager, prompt_template_manager)
     output_quad = build_output_display_quadrant(bottom_left_frame)
     options_quad = build_output_options_quadrant(bottom_right_frame)
 

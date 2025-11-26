@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
 from src.logging_config import debug_log
-from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH
+from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH, USER_VOCAB_EXCLUDE_PATH
 from src.utils.text_utils import combine_document_texts
 
 
@@ -178,7 +178,8 @@ class WorkflowOrchestrator:
             combined_text=combined_text,
             ui_queue=self.main_window.ui_queue,
             exclude_list_path=str(LEGAL_EXCLUDE_LIST_PATH),
-            medical_terms_path=str(MEDICAL_TERMS_LIST_PATH)
+            medical_terms_path=str(MEDICAL_TERMS_LIST_PATH),
+            user_exclude_path=str(USER_VOCAB_EXCLUDE_PATH)
         )
         worker.start()
         debug_log("[ORCHESTRATOR] VocabularyWorker thread started.")

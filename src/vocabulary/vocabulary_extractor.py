@@ -44,6 +44,7 @@ class VocabularyExtractor:
     Attributes:
         nlp: Loaded spaCy language model
         exclude_list: Set of words to exclude from extraction (common legal terms)
+        user_exclude_list: Set of user-specified terms to exclude (case-insensitive)
         medical_terms: Set of known medical terms for categorization
 
     Example:
@@ -61,7 +62,8 @@ class VocabularyExtractor:
     def __init__(
         self,
         exclude_list_path: Optional[str] = None,
-        medical_terms_path: Optional[str] = None
+        medical_terms_path: Optional[str] = None,
+        user_exclude_path: Optional[str] = None
     ):
         """
         Initialize the vocabulary extractor.
@@ -71,6 +73,8 @@ class VocabularyExtractor:
                               These are typically common legal terms that aren't unusual.
             medical_terms_path: Path to file containing known medical terms (one per line).
                                These get categorized as "Medical Term" with higher relevance.
+            user_exclude_path: Path to user's personal exclusion list (one per line).
+                              These are terms the user has chosen to exclude via right-click.
 
         Note:
             If paths are None or files don't exist, empty sets are used.
@@ -79,13 +83,19 @@ class VocabularyExtractor:
         # Load or download spaCy model
         self.nlp = self._load_spacy_model()
 
-        # Load word lists
+        # Load word lists (all stored lowercase for case-insensitive matching)
         self.exclude_list: Set[str] = (
             self._load_word_list(exclude_list_path) if exclude_list_path else set()
+        )
+        self.user_exclude_list: Set[str] = (
+            self._load_word_list(user_exclude_path) if user_exclude_path else set()
         )
         self.medical_terms: Set[str] = (
             self._load_word_list(medical_terms_path) if medical_terms_path else set()
         )
+
+        # Store user exclude path for adding new exclusions
+        self.user_exclude_path = user_exclude_path
 
         # Ensure NLTK data is available
         self._ensure_nltk_data()
@@ -158,6 +168,50 @@ class VocabularyExtractor:
                 debug_log(f"[VOCAB] Downloading NLTK {package_name} data...")
                 nltk.download(package_name, quiet=True)
 
+    def add_user_exclusion(self, term: str) -> bool:
+        """
+        Add a term to the user's exclusion list (case-insensitive).
+
+        The term is stored in lowercase for case-insensitive matching.
+        Future vocabulary extractions will skip this term.
+
+        Args:
+            term: The term to exclude from future extractions
+
+        Returns:
+            True if successfully added, False otherwise
+        """
+        if not self.user_exclude_path:
+            debug_log("[VOCAB] Cannot add exclusion: no user exclude path configured")
+            return False
+
+        lower_term = term.lower().strip()
+        if not lower_term:
+            return False
+
+        # Add to in-memory set
+        self.user_exclude_list.add(lower_term)
+
+        # Persist to file
+        try:
+            # Ensure parent directory exists
+            os.makedirs(os.path.dirname(self.user_exclude_path), exist_ok=True)
+
+            # Append to file (create if doesn't exist)
+            with open(self.user_exclude_path, 'a', encoding='utf-8') as f:
+                f.write(f"{lower_term}\n")
+
+            debug_log(f"[VOCAB] Added '{term}' to user exclusion list")
+            return True
+        except Exception as e:
+            debug_log(f"[VOCAB] Failed to save user exclusion: {e}")
+            return False
+
+    def reload_user_exclusions(self):
+        """Reload user exclusions from file (useful after external changes)."""
+        if self.user_exclude_path:
+            self.user_exclude_list = self._load_word_list(self.user_exclude_path)
+
     def _load_word_list(self, file_path: str) -> Set[str]:
         """
         Load a list of words from a line-separated text file.
@@ -203,6 +257,10 @@ class VocabularyExtractor:
 
         # Skip excluded words (common legal terms)
         if lower_text in self.exclude_list:
+            return False
+
+        # Skip user-excluded words (case-insensitive)
+        if lower_text in self.user_exclude_list:
             return False
 
         # Named entities (Person, Org, Location) are always unusual
@@ -353,7 +411,9 @@ class VocabularyExtractor:
         for ent in doc.ents:
             if ent.label_ in ["PERSON", "ORG", "GPE", "LOC"]:
                 term_text = ent.text
-                if term_text.lower() not in self.exclude_list:
+                lower_term = term_text.lower()
+                # Check both system and user exclusions (case-insensitive)
+                if lower_term not in self.exclude_list and lower_term not in self.user_exclude_list:
                     term_frequencies[term_text.lower()] += 1
                     extracted_terms.append({
                         "Term": term_text,

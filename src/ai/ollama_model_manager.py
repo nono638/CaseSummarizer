@@ -19,13 +19,15 @@ from ..config import (
     OLLAMA_API_BASE,
     OLLAMA_MODEL_NAME,
     OLLAMA_TIMEOUT_SECONDS,
-    PROMPTS_DIR
+    PROMPTS_DIR,
+    USER_PROMPTS_DIR
 )
 from ..prompt_config import get_prompt_config
 from ..prompt_template_manager import PromptTemplateManager
 from ..utils.logger import debug
 from ..debug_logger import debug_log
 from .prompt_formatter import wrap_prompt_for_model
+from .summary_post_processor import SummaryPostProcessor
 
 
 class OllamaModelManager:
@@ -44,10 +46,31 @@ class OllamaModelManager:
         self.timeout = OLLAMA_TIMEOUT_SECONDS
         self.is_connected = False
         self.prompt_config = get_prompt_config()
-        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR)
+        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR, USER_PROMPTS_DIR)
+
+        # Post-processor for summary length enforcement (dependency injection)
+        self.post_processor = SummaryPostProcessor(
+            generate_text_fn=self._generate_text_for_post_processor,
+            prompt_template_manager=self.prompt_template_manager
+        )
 
         # Test connection on initialization
         self._check_connection()
+
+    def _generate_text_for_post_processor(self, prompt: str, max_tokens: int) -> str:
+        """
+        Wrapper for generate_text used by SummaryPostProcessor.
+
+        This provides a clean interface matching the expected signature.
+
+        Args:
+            prompt: The prompt to generate from
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            str: Generated text
+        """
+        return self.generate_text(prompt=prompt, max_tokens=max_tokens)
 
     def _check_connection(self) -> bool:
         """
@@ -291,13 +314,17 @@ class OllamaModelManager:
         """
         Generate a case summary from document text via Ollama.
 
+        Includes recursive length enforcement: if the generated summary exceeds
+        the target length by more than the configured tolerance, it will be
+        condensed by the SummaryPostProcessor.
+
         Args:
             case_text: The cleaned case document text
             max_words: Target summary length in words (100-500)
             preset_id: Template preset to use
 
         Returns:
-            str: Complete summary text
+            str: Complete summary text (within target length or best effort)
         """
         # Get word count range from config
         min_words, max_words_range = self.prompt_config.get_word_count_range(max_words)
@@ -331,10 +358,15 @@ class OllamaModelManager:
         buffer_multiplier = self.prompt_config.token_buffer_multiplier
         max_tokens = int(max_words_range * tokens_per_word * buffer_multiplier)
 
-        return self.generate_text(
+        summary = self.generate_text(
             prompt=prompt,
             max_tokens=max_tokens
         )
+
+        # Delegate length enforcement to post-processor
+        summary = self.post_processor.enforce_length(summary, max_words)
+
+        return summary
 
     def unload_model(self):
         """Unload the current model (Ollama keeps models in memory)."""

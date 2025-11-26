@@ -109,6 +109,11 @@ DEFAULT_SUMMARY_WORDS = 200
 MIN_SUMMARY_WORDS = 100
 MAX_SUMMARY_WORDS = 500
 
+# Summary Length Enforcement Settings
+# When a generated summary exceeds target by more than TOLERANCE, it will be condensed
+SUMMARY_LENGTH_TOLERANCE = 0.20  # 20% overage allowed (200 words → accepts up to 240)
+SUMMARY_MAX_CONDENSE_ATTEMPTS = 3  # Maximum condensation attempts before returning best effort
+
 # Data Files
 GOOGLE_FREQ_LIST = Path(__file__).parent.parent / "data" / "frequency" / "google_word_freq.txt"
 LEGAL_KEYWORDS_NY = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_ny.txt"
@@ -117,9 +122,15 @@ LEGAL_KEYWORDS_CA = Path(__file__).parent.parent / "data" / "keywords" / "legal_
 # New: Vocabulary Extractor Data Files
 LEGAL_EXCLUDE_LIST_PATH = Path(__file__).parent.parent / "config" / "legal_exclude.txt"
 MEDICAL_TERMS_LIST_PATH = Path(__file__).parent.parent / "config" / "medical_terms.txt"
+# User-specific vocabulary exclusions (stored in AppData, user can add via right-click)
+USER_VOCAB_EXCLUDE_PATH = CONFIG_DIR / "user_vocab_exclude.txt"
 
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
+USER_PROMPTS_DIR = APPDATA_DIR / "prompts"  # User-created prompts survive app updates
+
+# Ensure user prompts directory exists
+USER_PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
 LEGAL_KEYWORDS_FEDERAL = Path(__file__).parent.parent / "data" / "keywords" / "legal_keywords_federal.txt"
 
 # License Configuration

@@ -31,6 +31,8 @@ from src.ai import ModelManager
 from src.logging_config import debug_log
 from src.user_preferences import get_user_preferences
 from src.utils.text_utils import combine_document_texts
+from src.prompt_template_manager import PromptTemplateManager
+from src.config import PROMPTS_DIR, USER_PROMPTS_DIR
 
 
 class MainWindow(ctk.CTk):
@@ -70,6 +72,9 @@ class MainWindow(ctk.CTk):
 
         # AI Model Manager
         self.model_manager = ModelManager()
+
+        # Prompt Template Manager (for prompt style selection)
+        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR, USER_PROMPTS_DIR)
 
         # Threading Queue for worker communication
         self.ui_queue = Queue()
@@ -144,10 +149,13 @@ class MainWindow(ctk.CTk):
             self.summary_results,
             self.output_options,
             self.generate_outputs_btn
-        ) = create_central_widget_layout(self, self.model_manager)
+        ) = create_central_widget_layout(self, self.model_manager, self.prompt_template_manager)
 
         # Bind the generate button command
         self.generate_outputs_btn.configure(command=self._start_generation)
+
+        # Initialize prompt selector with available templates
+        self.model_selection.refresh_prompts()
 
     def _create_status_bar(self):
         """Create status bar for messages and system monitoring."""
@@ -237,11 +245,15 @@ class MainWindow(ctk.CTk):
         self.processed_results = []
         self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
 
+        # Get selected prompt preset
+        selected_preset_id = self.model_selection.get_selected_preset_id()
+
         # Store AI generation parameters for after document extraction completes
         self.pending_ai_generation = {
             "selected_model": selected_model,
             "summary_length": summary_length,
-            "output_options": output_options
+            "output_options": output_options,
+            "preset_id": selected_preset_id
         }
 
         self.worker = ProcessingWorker(
@@ -256,11 +268,12 @@ class MainWindow(ctk.CTk):
 
         Args:
             extracted_documents: List of extracted document dictionaries
-            ai_params: Dict with 'selected_model', 'summary_length', 'output_options'
+            ai_params: Dict with 'selected_model', 'summary_length', 'output_options', 'preset_id'
         """
         try:
             selected_model = ai_params["selected_model"]
             summary_length = ai_params["summary_length"]
+            preset_id = ai_params.get("preset_id", "factual-summary")  # Default to factual-summary
 
             # Combine documents with filename headers for AI context
             combined_text = combine_document_texts(
@@ -275,11 +288,11 @@ class MainWindow(ctk.CTk):
             task_payload = {
                 "case_text": combined_text,
                 "max_words": summary_length,
-                "preset_id": selected_model  # Use the selected model as preset
+                "preset_id": preset_id  # Use the selected prompt template
             }
 
             self.ai_worker_manager.send_task("GENERATE_SUMMARY", task_payload)
-            debug_log(f"[MAIN WINDOW] Started AI generation with model: {selected_model}, length: {summary_length} words")
+            debug_log(f"[MAIN WINDOW] Started AI generation with model: {selected_model}, preset: {preset_id}, length: {summary_length} words")
 
         except Exception as e:
             debug_log(f"[MAIN WINDOW] Error starting AI generation: {e}")

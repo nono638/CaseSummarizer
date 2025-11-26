@@ -80,12 +80,13 @@ class VocabularyWorker(threading.Thread):
     Background worker for vocabulary extraction (Step 2.5).
     Extracts unusual terms from combined document text asynchronously.
     """
-    def __init__(self, combined_text, ui_queue, exclude_list_path=None, medical_terms_path=None):
+    def __init__(self, combined_text, ui_queue, exclude_list_path=None, medical_terms_path=None, user_exclude_path=None):
         super().__init__(daemon=True)
         self.combined_text = combined_text
         self.ui_queue = ui_queue
         self.exclude_list_path = exclude_list_path or "config/legal_exclude.txt"
         self.medical_terms_path = medical_terms_path or "config/medical_terms.txt"
+        self.user_exclude_path = user_exclude_path  # User's personal exclusion list
 
     def run(self):
         """Execute vocabulary extraction in background thread."""
@@ -94,13 +95,18 @@ class VocabularyWorker(threading.Thread):
 
             # Create extractor with graceful fallback for missing files
             try:
-                extractor = VocabularyExtractor(self.exclude_list_path, self.medical_terms_path)
+                extractor = VocabularyExtractor(
+                    self.exclude_list_path,
+                    self.medical_terms_path,
+                    self.user_exclude_path
+                )
             except FileNotFoundError as e:
                 # Graceful fallback: create extractor with empty exclude lists
                 debug_log(f"[VOCAB WORKER] Config file missing: {e}. Using empty exclude lists.")
                 extractor = VocabularyExtractor(
                     exclude_list_path=None,  # Will use empty list
-                    medical_terms_path=None   # Will use empty list
+                    medical_terms_path=None,  # Will use empty list
+                    user_exclude_path=self.user_exclude_path  # Still try user list
                 )
 
             self.ui_queue.put(('progress', (50, "Categorizing terms...")))

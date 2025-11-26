@@ -136,23 +136,51 @@ class FileReviewTable(ctk.CTkFrame):
             self.tree.delete(item)
 
 class ModelSelectionWidget(ctk.CTkFrame):
-    """Widget for selecting the AI model."""
-    def __init__(self, master, model_manager, **kwargs):
+    """Widget for selecting the AI model and prompt style."""
+    def __init__(self, master, model_manager, prompt_template_manager=None, **kwargs):
         super().__init__(master, **kwargs)
         self.model_manager = model_manager
+        self.prompt_template_manager = prompt_template_manager
+        self._presets_cache = {}  # Maps display_name -> preset_id
 
         self.grid_columnconfigure(0, weight=1)
 
+        # Model Selection
         model_label = ctk.CTkLabel(self, text="Model Selection (Ollama)", font=ctk.CTkFont(weight="bold"))
         model_label.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
 
-        self.model_selector = ctk.CTkComboBox(self, values=["Loading..."], command=self.refresh_status)
+        self.model_selector = ctk.CTkComboBox(self, values=["Loading..."], command=self._on_model_changed)
         self.model_selector.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
-        
+
         self.local_model_info_label = ctk.CTkLabel(self, text="Models run locally and offline.", text_color="gray", font=ctk.CTkFont(size=11))
-        self.local_model_info_label.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="w")
+        self.local_model_info_label.grid(row=2, column=0, padx=10, pady=(0, 5), sticky="w")
+
+        # Prompt Style Selection
+        prompt_label = ctk.CTkLabel(self, text="Prompt Style", font=ctk.CTkFont(weight="bold"))
+        prompt_label.grid(row=3, column=0, padx=10, pady=(5, 0), sticky="w")
+
+        self.prompt_selector = ctk.CTkComboBox(self, values=["Loading..."])
+        self.prompt_selector.grid(row=4, column=0, padx=10, pady=5, sticky="ew")
+
+        # Tooltip for prompt selector - will be set with actual path after refresh_prompts()
+        self._prompt_tooltip_text = "Choose summarization style."
+        self._user_prompts_path = None  # Will be set by refresh_prompts()
+
+        self.prompt_info_label = ctk.CTkLabel(
+            self,
+            text="See _README.txt in prompts folder for custom prompt guide.",
+            text_color="gray",
+            font=ctk.CTkFont(size=11)
+        )
+        self.prompt_info_label.grid(row=5, column=0, padx=10, pady=(0, 10), sticky="w")
+
+    def _on_model_changed(self, model_name=None):
+        """Called when model selection changes - refresh both model status and prompts."""
+        self.refresh_status(model_name)
+        self.refresh_prompts()
 
     def refresh_status(self, model_name=None):
+        """Refresh the available models list."""
         try:
             available_models_dict = self.model_manager.get_available_models()
             available_model_names = list(available_models_dict.keys())
@@ -173,6 +201,76 @@ class ModelSelectionWidget(ctk.CTkFrame):
         except Exception as e:
             self.model_selector.configure(values=["Ollama not found"])
             self.model_selector.set("Ollama not found")
+
+    def refresh_prompts(self, model_name: str = "phi-3-mini"):
+        """
+        Refresh the available prompt presets for the current model.
+
+        Args:
+            model_name: Model name to get prompts for (default: phi-3-mini for templates)
+        """
+        if not self.prompt_template_manager:
+            self.prompt_selector.configure(values=["Factual Summary"])
+            self.prompt_selector.set("Factual Summary")
+            return
+
+        # Ensure skeleton template exists for user
+        self.prompt_template_manager.ensure_user_skeleton(model_name)
+
+        # Get available presets
+        presets = self.prompt_template_manager.get_available_presets(model_name)
+
+        if not presets:
+            self.prompt_selector.configure(values=["Factual Summary"])
+            self.prompt_selector.set("Factual Summary")
+            return
+
+        # Build display names and cache mapping
+        self._presets_cache.clear()
+        display_names = []
+        default_selection = None
+
+        for preset in presets:
+            display_name = preset['name']
+            # All prompts appear equally in dropdown (no special suffix)
+            display_names.append(display_name)
+            self._presets_cache[display_name] = preset['id']
+
+            # Default to "Factual Summary" if available
+            if preset['id'] == 'factual-summary':
+                default_selection = display_name
+
+        self.prompt_selector.configure(values=display_names)
+
+        # Set default selection
+        if default_selection:
+            self.prompt_selector.set(default_selection)
+        elif display_names:
+            self.prompt_selector.set(display_names[0])
+
+        # Update tooltip with user prompts path
+        user_path = self.prompt_template_manager.get_user_prompts_path(model_name)
+        if user_path:
+            self._prompt_tooltip_text = f"Choose summarization style.\nAdd custom prompts to:\n{user_path}"
+
+    def get_selected_preset_id(self) -> str:
+        """
+        Get the preset ID for the currently selected prompt style.
+
+        Returns:
+            Preset ID string (e.g., 'factual-summary')
+        """
+        display_name = self.prompt_selector.get()
+        return self._presets_cache.get(display_name, 'factual-summary')
+
+    def setup_tooltip(self, create_tooltip_func):
+        """
+        Set up tooltip for the prompt selector.
+
+        Args:
+            create_tooltip_func: The create_tooltip function from tooltip_helper
+        """
+        create_tooltip_func(self.prompt_selector, self._prompt_tooltip_text)
 
 class OutputOptionsWidget(ctk.CTkFrame):
     """Widget for configuring desired outputs."""
