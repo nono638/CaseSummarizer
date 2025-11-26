@@ -84,7 +84,11 @@ class QueueMessageHandler:
         # If AI generation was requested, start it now
         if self.main_window.pending_ai_generation:
             # Check if vocabulary extraction is needed
-            output_options = self.main_window.summary_results.get_output_options()
+            output_options = {
+                "individual_summaries": self.main_window.output_options.individual_summaries_check.get(),
+                "meta_summary": self.main_window.output_options.meta_summary_check.get(),
+                "vocab_csv": self.main_window.output_options.vocab_csv_check.get()
+            }
 
             # Start vocabulary extraction in parallel (if checkbox enabled)
             if output_options.get('vocab_csv', False):
