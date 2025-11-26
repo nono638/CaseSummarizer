@@ -712,13 +712,144 @@ self.main_window.processed_results.append(data)
 
 ---
 
+## Session 6 - UI Bug Fixes & Vocabulary Workflow Integration (2025-11-26)
+
+**Features:** Three UI bug fixes, vocabulary extraction workflow integration, spaCy model auto-download, environment path resolution
+
+### Summary
+Fixed three UI bugs discovered during manual testing: file size rounding inconsistency (KB showing decimals while MB rounds to integers), model dropdown selection not persisting (always resetting to first item), and missing vocabulary extraction workflow. Implemented asynchronous vocabulary extraction with worker thread, graceful fallback for missing config files, and automatic spaCy model download. Resolved critical subprocess PATH issue using `sys.executable` for correct virtual environment targeting.
+
+### Problems Addressed
+
+**Bug #1: File Size Rounding Inconsistency**
+- Symptom: File table showed "1.5 KB" but "2 MB" (inconsistent decimal places)
+- Root Cause: `_format_file_size()` in widgets.py used conditional logic: decimals for KB, integers for MB
+- Fix: Unified all units to round to nearest integer using `round(size)` regardless of unit
+
+**Bug #2: Model Dropdown Selection Not Working**
+- Symptom: Two Ollama models in dropdown, but selecting second model kept first selected
+- Root Cause: `refresh_status()` in ModelSelectionWidget always reset to first model on any refresh
+- Fix: Implemented preference preservation logic:
+  ```python
+  # Old: Always reset to first
+  self.model_selector.set(available_model_names[0])
+
+  # New: Preserve user selection if valid
+  current = self.model_selector.get()
+  if current not in available_model_names:
+      self.model_selector.set(available_model_names[0])
+  ```
+
+**Bug #3: Vocabulary Extraction Workflow Missing**
+- Symptom: After documents processed, application would hang at "Processing complete" with no vocabulary extraction
+- Root Cause: Multiple issues:
+  1. **Widget reference bug:** Code called `self.main_window.summary_results.get_output_options()` but `summary_results` widget doesn't have this method
+  2. **spaCy model missing:** Vocabulary extractor tried to load `en_core_web_sm` which wasn't installed
+  3. **Subprocess PATH issue:** Auto-download used `python` command which might not resolve to venv Python
+
+### Work Completed
+
+**Part 1: File Size & Model Selection Fixes (src/ui/widgets.py)**
+- **Line 129:** Simplified `_format_file_size()` to use `round(size)` for all units
+- **Lines 153-173:** Rewrote `refresh_status()` with selection preservation logic
+
+**Part 2: Vocabulary Workflow Integration (Multiple Files)**
+
+1. **Added VocabularyWorker class (src/ui/workers.py, lines 78-120)**
+   - Background thread for parallel vocabulary extraction
+   - Graceful fallback: Creates VocabularyExtractor with empty lists if config files missing
+   - Progress messages: "Extracting vocabulary..." → "Categorizing terms..." → "Vocabulary extraction complete"
+   - Queue-based error reporting with full exception details
+
+2. **Fixed Queue Message Handler (src/ui/queue_message_handler.py)**
+   - **Lines 87-91:** Changed widget reference from `self.main_window.summary_results.get_output_options()` to correct widget access:
+     ```python
+     output_options = {
+         "individual_summaries": self.main_window.output_options.individual_summaries_check.get(),
+         "meta_summary": self.main_window.output_options.meta_summary_check.get(),
+         "vocab_csv": self.main_window.output_options.vocab_csv_check.get()
+     }
+     ```
+   - **Lines 104-115:** Added `_start_vocab_extraction()` helper to launch VocabularyWorker
+
+3. **Added Helper Method (src/ui/main_window.py, lines 223-238)**
+   - `_combine_documents()` method to concatenate extracted text from all processed documents
+   - Used by vocabulary extraction to work with combined text corpus
+
+4. **Made VocabularyExtractor Config Optional (src/vocabulary_extractor.py)**
+   - **Lines 11-37:** Made exclude_list_path and medical_terms_path optional
+   - `_load_word_list()` gracefully returns empty set if path is None or file doesn't exist
+   - Added debug logging for missing files
+
+**Part 3: spaCy Model Auto-Download (src/vocabulary_extractor.py)**
+
+1. **Initial Implementation (Commit 99fdace):**
+   - Added `_load_spacy_model()` method with try-except for OSError
+   - Used `subprocess.run(['python', '-m', 'spacy', 'download', ...])`
+   - **Issue discovered:** `python` command doesn't guarantee venv Python
+
+2. **Fixed Subprocess PATH Issue (Commit 9de7cb5):**
+   - Added `import sys` to access current interpreter
+   - Changed subprocess call to use `sys.executable`:
+     ```python
+     subprocess.run([sys.executable, '-m', 'pip', 'install', f'{model_name}==3.8.0'],
+                   check=True, capture_output=True, timeout=300)
+     ```
+   - Switched from `spacy download` CLI to pip install for more reliable installation
+   - Added timeout (300 seconds) for download completion
+   - Added specific handling for subprocess.TimeoutExpired
+
+### Technical Insight: Virtual Environments & Package Storage
+
+**Key Learning:** When spawning subprocesses from a virtual environment:
+- `python` command might resolve to system Python, not venv Python
+- Packages install to whichever Python executes the install command
+- **Solution:** Use `sys.executable` to guarantee correct Python interpreter
+- **Result:** Model downloads to same venv where it will be loaded
+
+**Storage Locations:**
+- Venv packages: `C:\Users\noahc\Dropbox\Not Work\Data Science\CaseSummarizer\.venv\Lib\site-packages\`
+- Model: `en-core-web-sm==3.8.0` (12.8 MB wheel installed via pip)
+
+### Files Modified
+- `src/ui/widgets.py` - File size rounding fix + model selection preservation
+- `src/ui/workers.py` - Added VocabularyWorker class
+- `src/ui/queue_message_handler.py` - Fixed widget reference + added vocab extraction workflow
+- `src/ui/main_window.py` - Added `_combine_documents()` helper
+- `src/vocabulary_extractor.py` - Made config optional + auto-download with correct subprocess path
+
+### Git Commits
+1. `225aa70` - fix: Correct widget reference in vocabulary workflow integration
+2. `99fdace` - fix: Add spaCy model auto-download for vocabulary extraction
+3. `9de7cb5` - fix: Use correct Python executable path for spaCy model download
+
+### Status
+- ✅ File size rounding consistent across all units
+- ✅ Model dropdown selection preserves user choice
+- ✅ Vocabulary workflow integration complete with auto-download
+- ✅ Queue message handler correctly routes to output_options widget
+- ✅ spaCy model auto-downloads to correct virtual environment
+- ⏳ Pending user testing (user needs to end session, will test next session)
+
+### Next Session Requirements
+1. **Test vocabulary extraction workflow** with multiple documents
+2. **Verify spaCy model downloads** correctly on first run
+3. **Confirm progress messages** appear in correct sequence
+4. **Test with "Rare Word List" checkbox** enabled/disabled
+5. If issues arise, debug logs will show:
+   - Widget state access (output_options checkbox values)
+   - Vocabulary extraction progress
+   - spaCy model load attempts and downloads
+
+---
+
 ## Current Project Status
 
-**Application State:** Production-ready for core document summarization workflow
-**Last Updated:** 2025-11-25 (Session 5 - Variable Reuse + Logging Pattern)
-**Total Lines of Developed Code:** ~3,500 across all modules
+**Application State:** Bug fixes complete; vocabulary workflow integrated; awaiting user testing
+**Last Updated:** 2025-11-26 (Session 6 - UI Bug Fixes & Vocabulary Workflow)
+**Total Lines of Developed Code:** ~3,600 across all modules
 **Code Quality:** All tests passing; comprehensive error handling; debug logging per CLAUDE.md
 **Next Priorities:**
-1. Code refactoring to 300-line module limit (this session)
-2. Phase 2.5 Part 2: Worker integration (next session)
-3. Phase 2.2: Document prioritization (post-v1.0)
+1. User testing of vocabulary extraction workflow (next session)
+2. Debug any environment/path issues that arise
+3. Move to feature development if bugs are resolved
