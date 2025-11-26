@@ -5,12 +5,22 @@ import csv
 from collections import defaultdict
 import re
 import os
+from src.debug_logger import debug_log
 
 class VocabularyExtractor:
-    def __init__(self, exclude_list_path, medical_terms_path):
+    def __init__(self, exclude_list_path=None, medical_terms_path=None):
+        """
+        Initialize the vocabulary extractor.
+
+        Args:
+            exclude_list_path: Path to legal exclude words list (optional)
+            medical_terms_path: Path to medical terms list (optional)
+
+        If paths are None or files don't exist, uses empty lists (increases false positives).
+        """
         self.nlp = spacy.load("en_core_web_sm")
-        self.exclude_list = self._load_word_list(exclude_list_path)
-        self.medical_terms = self._load_word_list(medical_terms_path)
+        self.exclude_list = self._load_word_list(exclude_list_path) if exclude_list_path else set()
+        self.medical_terms = self._load_word_list(medical_terms_path) if medical_terms_path else set()
 
         # Download NLTK data if not already present
         try:
@@ -24,11 +34,16 @@ class VocabularyExtractor:
 
     def _load_word_list(self, file_path):
         """Loads a list of words from a line-separated text file."""
+        if file_path is None:
+            debug_log(f"[VOCAB] Word list not specified. Using empty list (increases false positives).")
+            return set()
         if not os.path.exists(file_path):
-            print(f"Warning: Word list file not found at {file_path}. Continuing without it.")
+            debug_log(f"[VOCAB] Word list file not found at {file_path}. Using empty list (increases false positives).")
             return set()
         with open(file_path, 'r', encoding='utf-8') as f:
-            return {line.strip().lower() for line in f if line.strip()}
+            word_list = {line.strip().lower() for line in f if line.strip()}
+            debug_log(f"[VOCAB] Loaded {len(word_list)} words from {file_path}")
+            return word_list
 
     def _is_unusual(self, token, ent_type=None):
         if not token.is_alpha or token.is_space or token.is_punct or token.is_digit:

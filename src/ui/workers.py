@@ -74,6 +74,52 @@ class ProcessingWorker(threading.Thread):
             debug_log(f"ProcessingWorker encountered a critical error: {e}\n{traceback.format_exc()}")
             self.ui_queue.put(('error', f"Critical document processing error: {str(e)}"))
 
+
+class VocabularyWorker(threading.Thread):
+    """
+    Background worker for vocabulary extraction (Step 2.5).
+    Extracts unusual terms from combined document text asynchronously.
+    """
+    def __init__(self, combined_text, ui_queue, exclude_list_path=None, medical_terms_path=None):
+        super().__init__(daemon=True)
+        self.combined_text = combined_text
+        self.ui_queue = ui_queue
+        self.exclude_list_path = exclude_list_path or "config/legal_exclude.txt"
+        self.medical_terms_path = medical_terms_path or "config/medical_terms.txt"
+
+    def run(self):
+        """Execute vocabulary extraction in background thread."""
+        try:
+            self.ui_queue.put(('progress', (30, "Extracting vocabulary...")))
+
+            # Create extractor with graceful fallback for missing files
+            try:
+                extractor = VocabularyExtractor(self.exclude_list_path, self.medical_terms_path)
+            except FileNotFoundError as e:
+                # Graceful fallback: create extractor with empty exclude lists
+                debug_log(f"[VOCAB WORKER] Config file missing: {e}. Using empty exclude lists.")
+                extractor = VocabularyExtractor(
+                    exclude_list_path=None,  # Will use empty list
+                    medical_terms_path=None   # Will use empty list
+                )
+
+            self.ui_queue.put(('progress', (50, "Categorizing terms...")))
+
+            # Extract vocabulary
+            vocab_data = extractor.extract(self.combined_text)
+
+            self.ui_queue.put(('progress', (70, "Vocabulary extraction complete")))
+
+            # Send results to GUI
+            self.ui_queue.put(('vocab_csv_generated', vocab_data))
+            debug_log("[VOCAB WORKER] Vocabulary extraction completed successfully.")
+
+        except Exception as e:
+            error_msg = f"Vocabulary extraction failed: {str(e)}"
+            debug_log(f"[VOCAB WORKER] {error_msg}\n{traceback.format_exc()}")
+            self.ui_queue.put(('error', error_msg))
+
+
 class OllamaAIWorkerManager:
     """
     Manages the multiprocessing worker for Ollama AI generation.

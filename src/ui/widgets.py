@@ -125,11 +125,8 @@ class FileReviewTable(ctk.CTkFrame):
             size /= 1024
             unit_index += 1
         
-        # Round to nearest integer for MB and GB, one decimal for B and KB
-        if unit_index >= 2: # MB or GB
-            return f"{round(size)} {units[unit_index]}"
-        else: # B or KB
-            return f"{size:.1f} {units[unit_index]}"
+        # Round to nearest integer for all units
+        return f"{round(size)} {units[unit_index]}"
 
     def clear(self):
         self.file_item_map.clear()
@@ -157,10 +154,18 @@ class ModelSelectionWidget(ctk.CTkFrame):
         try:
             available_models_dict = self.model_manager.get_available_models()
             available_model_names = list(available_models_dict.keys())
-            
+
             self.model_selector.configure(values=available_model_names)
-            if available_model_names:
-                self.model_selector.set(available_model_names[0])
+
+            # If user selected a model (model_name provided), use it
+            # Otherwise, keep current selection or use first model
+            if model_name and model_name in available_model_names:
+                self.model_selector.set(model_name)
+            elif available_model_names:
+                # Only set to first model if current selection is invalid
+                current = self.model_selector.get()
+                if current not in available_model_names:
+                    self.model_selector.set(available_model_names[0])
             else:
                 self.model_selector.set("No models found")
         except Exception as e:

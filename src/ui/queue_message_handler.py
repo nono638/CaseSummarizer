@@ -83,6 +83,15 @@ class QueueMessageHandler:
 
         # If AI generation was requested, start it now
         if self.main_window.pending_ai_generation:
+            # Check if vocabulary extraction is needed
+            output_options = self.main_window.summary_results.get_output_options()
+
+            # Start vocabulary extraction in parallel (if checkbox enabled)
+            if output_options.get('vocab_csv', False):
+                combined_text = self.main_window._combine_documents(extracted_documents)
+                self._start_vocab_extraction(combined_text)
+
+            # Start AI generation (parallel processing)
             self.main_window._start_ai_generation(
                 extracted_documents,
                 self.main_window.pending_ai_generation
@@ -91,6 +100,19 @@ class QueueMessageHandler:
             # No AI generation, just finish up
             self._reset_ui_after_processing()
             self.main_window.status_label.configure(text="Processing complete.")
+
+    def _start_vocab_extraction(self, combined_text):
+        """Start vocabulary extraction in background thread."""
+        from src.ui.workers import VocabularyWorker
+
+        worker = VocabularyWorker(
+            combined_text=combined_text,
+            ui_queue=self.main_window.ui_queue,
+            exclude_list_path="config/legal_exclude.txt",
+            medical_terms_path="config/medical_terms.txt"
+        )
+        worker.start()
+        debug_log("[QUEUE HANDLER] Started vocabulary extraction worker thread.")
 
     def handle_summary_result(self, data):
         """

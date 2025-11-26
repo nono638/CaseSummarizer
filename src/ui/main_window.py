@@ -220,6 +220,23 @@ class MainWindow(ctk.CTk):
         )
         self.worker.start()
 
+    def _combine_documents(self, extracted_documents):
+        """
+        Combine extracted document texts into single string for vocabulary extraction.
+
+        Args:
+            extracted_documents: List of document result dictionaries
+
+        Returns:
+            Combined text from all documents
+        """
+        combined_texts = []
+        for doc in extracted_documents:
+            if 'extracted_text' in doc and doc['extracted_text']:
+                combined_texts.append(doc['extracted_text'])
+
+        return "\n\n".join(combined_texts)
+
     def _start_ai_generation(self, extracted_documents, ai_params):
         """Start AI summary generation after document extraction is complete."""
         try:
