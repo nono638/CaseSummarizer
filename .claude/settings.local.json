@@ -30,7 +30,11 @@
       "Bash(.venvScriptspython.exe -m pytest tests/ -v --tb=line)",
       "WebSearch",
       "Bash(.venvScriptspython.exe -m pytest tests/ -v --tb=short)",
-      "Bash(.venvScriptspython.exe -c \"\nfrom src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget\nfrom src.prompt_template_manager import PromptTemplateManager, SKELETON_FILENAME, README_FILENAME\nprint(''[OK] All imports successful'')\nprint(f''SKELETON_FILENAME: {SKELETON_FILENAME}'')\nprint(f''README_FILENAME: {README_FILENAME}'')\n\")"
+      "Bash(.venvScriptspython.exe -c \"\nfrom src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget\nfrom src.prompt_template_manager import PromptTemplateManager, SKELETON_FILENAME, README_FILENAME\nprint(''[OK] All imports successful'')\nprint(f''SKELETON_FILENAME: {SKELETON_FILENAME}'')\nprint(f''README_FILENAME: {README_FILENAME}'')\n\")",
+      "Bash(\".venv\\Scripts\\python.exe\" -m pytest tests/ -v --tb=line -q)",
+      "Bash(\".venv\\Scripts\\python.exe\" -m pytest tests/test_vocabulary_extractor.py -v --tb=short)",
+      "Bash(.venvScriptspython.exe -m pytest tests/test_vocabulary_extractor.py -v --tb=short)",
+      "Bash(\".venv\\Scripts\\python.exe\" -c \"import spacy; nlp = spacy.load(''en_core_web_sm''); doc = nlp(''The patient had a CT scan.''); print([(token.text, token.ent_type_) for token in doc])\")"
     ],
     "deny": [],
     "ask": []

@@ -31,6 +31,7 @@ from src.config import (
     VOCABULARY_RARITY_THRESHOLD,
     VOCABULARY_SORT_BY_RARITY
 )
+from src.vocabulary.role_profiles import RoleDetectionProfile, StenographerProfile
 
 
 # Constants for spaCy model
@@ -41,9 +42,11 @@ SPACY_DOWNLOAD_TIMEOUT = 300  # 5 minutes
 # Regex patterns for filtering out word variations
 # These match common patterns that shouldn't be included as "rare" vocabulary
 VARIATION_FILTERS = [
-    r'^[a-z]+\(s\)$',  # Matches "plaintiff(s)", "defendant(s)", etc.
-    r'^[a-z]+\'s$',    # Matches possessives like "plaintiff's"
-    r'^[a-z]+-[a-z]+$', # Matches hyphenated words (often just variations)
+    r'^[a-z]+\(s\)$',          # Matches "plaintiff(s)", "defendant(s)", etc.
+    r'^[a-z]+s\(s\)$',         # Matches double plurals like "defendants(s)"
+    r'^[a-z]+\([a-z]+\)$',     # Matches any parenthetical variation like "word(variant)"
+    r'^[a-z]+\'s$',            # Matches possessives like "plaintiff's"
+    r'^[a-z]+-[a-z]+$',        # Matches hyphenated words (often just variations)
 ]
 
 
@@ -76,7 +79,8 @@ class VocabularyExtractor:
         self,
         exclude_list_path: Optional[str] = None,
         medical_terms_path: Optional[str] = None,
-        user_exclude_path: Optional[str] = None
+        user_exclude_path: Optional[str] = None,
+        role_profile: Optional[RoleDetectionProfile] = None
     ):
         """
         Initialize the vocabulary extractor.
@@ -88,6 +92,8 @@ class VocabularyExtractor:
                                These get categorized as "Medical Term" with higher relevance.
             user_exclude_path: Path to user's personal exclusion list (one per line).
                               These are terms the user has chosen to exclude via right-click.
+            role_profile: Role detection profile for profession-specific relevance detection.
+                         Defaults to StenographerProfile if not specified.
 
         Note:
             If paths are None or files don't exist, empty sets are used.
@@ -109,22 +115,32 @@ class VocabularyExtractor:
 
         # Load Google word frequency dataset for rarity filtering
         self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
+        self.frequency_rank_map: Dict[str, int] = {}  # Cached word→rank mapping
         self.rarity_threshold = VOCABULARY_RARITY_THRESHOLD
         self.sort_by_rarity = VOCABULARY_SORT_BY_RARITY
 
         # Store user exclude path for adding new exclusions
         self.user_exclude_path = user_exclude_path
 
+        # Set role detection profile (defaults to Stenographer)
+        self.role_profile = role_profile if role_profile is not None else StenographerProfile()
+
         # Ensure NLTK data is available
         self._ensure_nltk_data()
 
     def _load_frequency_dataset(self) -> Dict[str, int]:
         """
-        Load Google word frequency dataset (word\tfrequency_count format).
+        Load Google word frequency dataset and build cached rank mapping.
+
+        Loads word→count mapping from file, then sorts by frequency to create
+        a word→rank mapping for fast rarity lookups.
 
         Returns:
             Dictionary mapping word (lowercase) to frequency count
             Empty dict if file not found or cannot be loaded
+
+        Side Effects:
+            Populates self.frequency_rank_map with word→rank mapping
         """
         frequency_dict = {}
 
@@ -151,6 +167,14 @@ class VocabularyExtractor:
                 f"[VOCAB] Loaded {len(frequency_dict)} words from frequency dataset. "
                 f"Rarity threshold: {self.rarity_threshold}"
             )
+
+            # Build cached rank mapping (sort by frequency descending)
+            # Rank 0 = most common word, rank 333K = least common
+            debug_log("[VOCAB] Building frequency rank map for fast lookups...")
+            sorted_words = sorted(frequency_dict.items(), key=lambda x: x[1], reverse=True)
+            self.frequency_rank_map = {word: rank for rank, (word, _) in enumerate(sorted_words)}
+            debug_log(f"[VOCAB] Built rank map for {len(self.frequency_rank_map)} words")
+
         except Exception as e:
             debug_log(f"[VOCAB] Error loading frequency dataset: {e}")
 
@@ -176,38 +200,44 @@ class VocabularyExtractor:
 
     def _is_word_rare_enough(self, word: str) -> bool:
         """
-        Check if a word meets the rarity threshold using frequency dataset.
+        Check if a word meets the rarity threshold using frequency rank.
 
-        Words are rare if:
-        1. They're NOT in the frequency dataset (rarest of the rare)
-        2. They're in the dataset but have a frequency count > threshold (less common)
+        Uses cached rank mapping for O(1) lookup speed.
+
+        Words are considered rare if:
+        1. NOT in frequency dataset (extremely rare)
+        2. Rank >= threshold (e.g., if threshold=75000, word must be rarer than top 75K)
 
         Args:
             word: The word to check (case-insensitive)
 
         Returns:
             True if word is rare enough to include, False if it's too common
+
+        Example:
+            threshold = 75000
+            "the" (rank 1) → False (too common)
+            "plaintiff" (rank ~50000) → False (still common)
+            "spondylosis" (rank ~150000) → True (rare enough)
         """
         lower_word = word.lower()
 
-        # If rarity threshold is disabled, use WordNet filtering only
+        # If rarity threshold is disabled, accept all words
         if self.rarity_threshold < 0:
             return True
 
-        # If word not in frequency dataset, it's extremely rare
-        if lower_word not in self.frequency_dataset:
+        # If no frequency data loaded, fall back to accepting all
+        if not self.frequency_rank_map:
             return True
 
-        # Check if word's frequency count exceeds threshold
-        # Higher count = more common; if count is low, word is rare
-        count = self.frequency_dataset[lower_word]
-        # Only accept if count is LOWER than many other words
-        # Frequency dataset is sorted by count, so we check against threshold percentile
-        # Words outside top 75K are rarer
-        max_count_for_threshold = max(self.frequency_dataset.values()) if self.frequency_dataset else 0
-        percentile_count = (self.rarity_threshold / len(self.frequency_dataset)) * max_count_for_threshold if self.frequency_dataset else 0
+        # If word not in dataset, it's extremely rare (accept it)
+        if lower_word not in self.frequency_rank_map:
+            return True
 
-        return count < percentile_count if percentile_count > 0 else True
+        # Check if word's rank exceeds threshold
+        # Higher rank = less common = rarer
+        word_rank = self.frequency_rank_map[lower_word]
+        return word_rank >= self.rarity_threshold
 
     def _load_spacy_model(self):
         """
@@ -411,7 +441,13 @@ class VocabularyExtractor:
 
     def _get_category(self, token, ent_type: str) -> Optional[str]:
         """
-        Determine the category for an unusual term.
+        Determine the simplified category for an unusual term.
+
+        Categories:
+        - Person: Named individuals
+        - Place: Organizations, locations, facilities
+        - Medical: Medical/anatomical terms
+        - Technical: Other rare/unusual terms
 
         Args:
             token: spaCy Token object
@@ -420,85 +456,69 @@ class VocabularyExtractor:
         Returns:
             Category string or None if term should be skipped
         """
-        # Check for acronyms first (all caps, 2+ characters)
-        if re.fullmatch(r'[A-Z]{2,}', token.text):
-            return "Acronym"
-
         lower_text = token.text.lower()
 
-        # Check medical terms
+        # Check medical terms first (highest priority)
         if lower_text in self.medical_terms:
-            return "Medical Term"
+            return "Medical"
 
         # Categorize by entity type
         if ent_type:
-            entity_categories = {
-                "PERSON": "Proper Noun (Person)",
-                "ORG": "Proper Noun (Organization)",
-                "GPE": "Proper Noun (Location)",
-                "LOC": "Proper Noun (Location)",
-            }
-            if ent_type in entity_categories:
-                return entity_categories[ent_type]
+            # People
+            if ent_type == "PERSON":
+                return "Person"
 
-            # Skip common entity types that aren't useful for vocabulary
-            if ent_type in ["DATE", "TIME", "MONEY", "PERCENT"]:
+            # Places/Organizations
+            if ent_type in ["ORG", "GPE", "LOC"]:
+                return "Place"
+
+            # Skip entity types that aren't useful (dates, money, etc.)
+            if ent_type in ["DATE", "TIME", "MONEY", "PERCENT", "CARDINAL", "ORDINAL"]:
                 return None
 
-        # Default category for other unusual words
-        return "Technical Term"
+        # Check for acronyms - categorize as Technical
+        if re.fullmatch(r'[A-Z]{2,}', token.text):
+            return "Technical"
 
-    def _get_definition(self, term: str) -> str:
+        # Default category for other unusual words
+        return "Technical"
+
+    def _get_definition(self, term: str, category: str) -> str:
         """
-        Get the definition of a term using WordNet.
+        Get definition for medical/technical terms only.
+
+        Stenographers don't need definitions for people/places (they just need
+        to know WHO they are and WHY they're relevant). Definitions are only
+        useful for unfamiliar medical/technical terminology.
 
         Args:
             term: The term to look up
+            category: Term category (Person/Place/Medical/Technical)
 
         Returns:
-            Definition string, or "N/A" if not found
+            Definition string for Medical/Technical terms
+            "—" for Person/Place (no definition needed)
+            "—" if WordNet lookup fails
         """
+        # Skip definitions for people and places
+        if category in ["Person", "Place"]:
+            return "—"
+
+        # Look up definition for Medical/Technical terms
         synsets = wordnet.synsets(term)
         if synsets:
             return synsets[0].definition()
-        return "N/A"
 
-    def _calculate_relevance(self, category: str, frequency: int) -> str:
-        """
-        Calculate relevance score based on category and frequency.
+        return "—"
 
-        Args:
-            category: Term category (e.g., "Proper Noun (Person)")
-            frequency: Number of times the term appears in the document
-
-        Returns:
-            Relevance string: "Low", "Medium", "High", or "Very High"
-        """
-        # Proper nouns are inherently important
-        if category in [
-            "Proper Noun (Person)",
-            "Proper Noun (Organization)",
-            "Proper Noun (Location)"
-        ]:
-            return "Very High" if frequency > 1 else "High"
-
-        # Medical terms and acronyms are moderately important
-        if category in ["Medical Term", "Acronym"]:
-            return "High" if frequency >= 2 else "Medium"
-
-        # Technical terms need multiple occurrences to be relevant
-        if category == "Technical Term":
-            return "Medium" if frequency >= 3 else "Low"
-
-        return "Low"
 
     def extract(self, text: str) -> List[Dict[str, str]]:
         """
-        Extract unusual vocabulary from text with categorization and definitions.
+        Extract unusual vocabulary from text with categorization, role detection, and definitions.
 
         Performs a three-step extraction:
         1. First pass: Extract named entities and unusual tokens, count frequencies
-        2. Second pass: Deduplicate, categorize, and assign relevance scores
+        2. Second pass: Deduplicate, categorize, detect roles/relevance, add definitions
         3. Third pass: Sort by rarity if enabled
 
         Args:
@@ -507,18 +527,18 @@ class VocabularyExtractor:
         Returns:
             List of dictionaries, each containing:
             - Term: The extracted term
-            - Category: One of "Proper Noun (Person/Organization/Location)",
-                       "Medical Term", "Acronym", or "Technical Term"
-            - Relevance to Case: "Low", "Medium", "High", or "Very High"
-            - Definition: WordNet definition or "N/A"
+            - Type: One of "Person", "Place", "Medical", or "Technical"
+            - Role/Relevance: Context-specific role (e.g., "Plaintiff", "Treating physician",
+                             "Accident location", "Medical term", "Technical term")
+            - Definition: WordNet definition for Medical/Technical terms, "—" for Person/Place
         """
         doc = self.nlp(text)
 
         # First pass: Extract terms and count frequencies
         extracted_terms, term_frequencies = self._first_pass_extraction(doc)
 
-        # Second pass: Deduplicate and build final vocabulary
-        vocabulary = self._second_pass_processing(extracted_terms, term_frequencies)
+        # Second pass: Deduplicate, categorize, detect roles, and build final vocabulary
+        vocabulary = self._second_pass_processing(extracted_terms, term_frequencies, text)
 
         # Third pass: Sort by rarity if enabled
         if self.sort_by_rarity and self.frequency_dataset:
@@ -607,17 +627,20 @@ class VocabularyExtractor:
     def _second_pass_processing(
         self,
         extracted_terms: List[Dict],
-        term_frequencies: Dict[str, int]
+        term_frequencies: Dict[str, int],
+        full_text: str
     ) -> List[Dict[str, str]]:
         """
-        Second pass: Deduplicate, categorize, and build final vocabulary list.
+        Second pass: Deduplicate, categorize, detect roles, and build final vocabulary list.
 
         Args:
             extracted_terms: List of term dictionaries from first pass
             term_frequencies: Dictionary mapping lowercase terms to frequency counts
+            full_text: Complete document text for role/relevance detection
 
         Returns:
-            Final vocabulary list with categories, relevance, and definitions
+            Final vocabulary list with Type, Role/Relevance, and Definition
+            Format: [{"Term": str, "Type": str, "Role/Relevance": str, "Definition": str}, ...]
         """
         vocabulary = []
         seen_terms = set()
@@ -631,22 +654,28 @@ class VocabularyExtractor:
             if lower_term in seen_terms:
                 continue
 
-            # Determine category
+            # Determine category (simplified: Person/Place/Medical/Technical)
             category = self._get_category(self.nlp(term)[0], ent_type=ent_type)
 
             # Skip if category is None (e.g., DATE, TIME entities)
             if category is None:
                 continue
 
-            # Calculate relevance based on category and frequency
-            frequency = term_frequencies[lower_term]
-            relevance = self._calculate_relevance(category, frequency)
+            # Detect role/relevance using profession-specific profile
+            if category == "Person":
+                role_relevance = self.role_profile.detect_person_role(term, full_text)
+            elif category == "Place":
+                role_relevance = self.role_profile.detect_place_relevance(term, full_text)
+            elif category == "Medical":
+                role_relevance = "Medical term"
+            else:  # Technical
+                role_relevance = "Technical term"
 
             vocabulary.append({
                 "Term": term,
-                "Category": category,
-                "Relevance to Case": relevance,
-                "Definition": self._get_definition(term)
+                "Type": category,  # Simplified: Person/Place/Medical/Technical
+                "Role/Relevance": role_relevance,  # Context-specific relevance
+                "Definition": self._get_definition(term, category)  # Only for Medical/Technical
             })
             seen_terms.add(lower_term)
 

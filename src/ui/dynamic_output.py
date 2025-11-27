@@ -183,7 +183,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
         Displays vocabulary data in an Excel-like Treeview with frozen headers.
 
         Args:
-            data: List of dicts with keys: Term, Category, Relevance to Case, Definition
+            data: List of dicts with keys: Term, Type, Role/Relevance, Definition
         """
         self._clear_dynamic_content()
 
@@ -205,7 +205,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
         self.treeview_frame.grid_rowconfigure(0, weight=1)
 
         # Define columns - Term is the first column now
-        columns = ("Term", "Category", "Relevance", "Definition")
+        columns = ("Term", "Type", "Role/Relevance", "Definition")
 
         # Create or reconfigure treeview
         if self.csv_treeview is None:
@@ -220,8 +220,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
             # Configure column headings and widths
             column_widths = {
                 "Term": 150,
-                "Category": 180,
-                "Relevance": 100,
+                "Type": 120,
+                "Role/Relevance": 200,
                 "Definition": 350
             }
 
@@ -273,8 +273,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
             if isinstance(item, dict):
                 values = (
                     item.get("Term", ""),
-                    item.get("Category", ""),
-                    item.get("Relevance to Case", ""),
+                    item.get("Type", ""),
+                    item.get("Role/Relevance", ""),
                     item.get("Definition", "")
                 )
             else:
@@ -405,14 +405,14 @@ class DynamicOutputWidget(ctk.CTkFrame):
             output = io.StringIO()
             writer = csv.writer(output)
             # Write header
-            writer.writerow(["Term", "Category", "Relevance to Case", "Definition"])
+            writer.writerow(["Term", "Type", "Role/Relevance", "Definition"])
             # Write data
             for item in data:
                 if isinstance(item, dict):
                     writer.writerow([
                         item.get("Term", ""),
-                        item.get("Category", ""),
-                        item.get("Relevance to Case", ""),
+                        item.get("Type", ""),
+                        item.get("Role/Relevance", ""),
                         item.get("Definition", "")
                     ])
                 else:
