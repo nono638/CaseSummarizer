@@ -1,5 +1,140 @@
 # Development Log
 
+## Session 9 - Vocabulary Extraction Redesign for Stenographer Workflow (2025-11-27)
+
+**Objective:** Redesign vocabulary CSV output to provide actionable, context-aware information for court reporters preparing for depositions. Replace academic categorization with practical role detection tailored to stenographer needs while maintaining modular architecture for future profession expansion.
+
+### Problem Addressed
+The existing vocabulary extraction produced technically correct but practically useless output for stenographers:
+- **Academic categories** like "Proper Noun (Person)" don't help stenographers prepare
+- **Generic relevance scores** ("High", "Medium", "Low") lack context
+- **Dictionary definitions for names/places** waste space (stenographers need WHO/WHY, not what the word means)
+- **No context about roles** — is "Dr. Martinez" the plaintiff's doctor or defendant's doctor?
+
+### Solution Implemented
+
+**1. Modular Role Detection Architecture (`src/vocabulary/role_profiles.py` - NEW FILE)**
+- Created `RoleDetectionProfile` base class for profession-specific relevance detection
+- Implemented `StenographerProfile` with pattern-based role/relevance detection
+- Enables future expansion: `LawyerProfile`, `ParalegalProfile`, `JournalistProfile` (just 50 lines each)
+- Uses dependency injection: `VocabularyExtractor(role_profile=StenographerProfile())`
+
+**2. Simplified Category System**
+**Before:** "Proper Noun (Person)", "Proper Noun (Organization)", "Acronym", "Technical Term"
+**After:** Person, Place, Medical, Technical
+
+**3. Context-Aware Role/Relevance Detection**
+
+**People Detection Patterns:**
+```python
+STENOGRAPHER_PERSON_PATTERNS = [
+    (r'plaintiff[\'s]?\s+(?:attorney|counsel)?\s*([A-Z]...)', 'Plaintiff attorney'),
+    (r'plaintiff\s+([A-Z]...)', 'Plaintiff'),
+    (r'treating\s+(?:physician|doctor)\s+([A-Z]...)', 'Treating physician'),
+    (r'(?:Dr\.|Doctor)\s+([A-Z]...)', 'Medical professional'),
+    (r'witness\s+([A-Z]...)', 'Witness'),
+]
+```
+
+**Place Detection Patterns:**
+```python
+STENOGRAPHER_PLACE_PATTERNS = [
+    (r'accident\s+(?:at|on|near)\s+([A-Z]...)', 'Accident location'),
+    (r'([A-Z]...)\s+Hospital', 'Medical facility'),
+    (r'surgery\s+(?:at|performed at)\s+([A-Z]...)', 'Surgery location'),
+]
+```
+
+**4. Smart Definition Display**
+- **Person/Place:** No definition needed (stenographers need WHO/WHY, not dictionary meanings)
+- **Medical/Technical:** Provide WordNet definitions for unfamiliar terminology
+- Saves CSV space and improves readability
+
+**5. Enhanced Regex Filtering**
+Expanded `VARIATION_FILTERS` to catch more word variations:
+```python
+VARIATION_FILTERS = [
+    r'^[a-z]+\(s\)$',          # plaintiff(s), defendant(s)
+    r'^[a-z]+s\(s\)$',         # defendants(s) (double plurals)
+    r'^[a-z]+\([a-z]+\)$',     # word(variant) (any parenthetical)
+    r'^[a-z]+\'s$',            # plaintiff's (possessives)
+    r'^[a-z]+-[a-z]+$',        # hyphenated variations
+]
+```
+
+**6. Optimized Rarity Calculation**
+**Before:** O(n) percentile calculation on every word check
+**After:** O(1) cached rank lookup
+- Sorts 333K word frequency dataset once during `__init__()`
+- Builds `frequency_rank_map: Dict[str, int]` for instant lookups
+- Massive performance improvement for large documents
+
+### CSV Output Transformation
+
+**Before (Academic):**
+```csv
+Term,Category,Relevance to Case,Definition
+Dr. Sarah Martinez,Proper Noun (Person),High,N/A
+Lenox Hill Hospital,Proper Noun (Organization),High,N/A
+lumbar discectomy,Technical Term,Medium,removal of disk
+```
+
+**After (Stenographer-Focused):**
+```csv
+Term,Type,Role/Relevance,Definition
+Dr. Sarah Martinez,Person,Treating physician,—
+Lenox Hill Hospital,Place,Medical facility,—
+lumbar discectomy,Medical,Medical term,Surgical removal of herniated disc material from lower spine
+```
+
+### Technical Changes
+
+**Files Modified:**
+1. **`src/vocabulary/role_profiles.py`** (NEW - 280 lines):
+   - `RoleDetectionProfile` base class
+   - `StenographerProfile` implementation
+   - Documented placeholders for future profiles
+
+2. **`src/vocabulary/vocabulary_extractor.py`** (Major refactor):
+   - Added `role_profile` parameter to `__init__()` (defaults to `StenographerProfile()`)
+   - Built cached frequency rank map in `_load_frequency_dataset()`
+   - Simplified `_is_word_rare_enough()` to use O(1) rank lookup
+   - Simplified `_get_category()`: Person/Place/Medical/Technical (4 categories, not 7+)
+   - Updated `_get_definition()`: Takes `category` parameter, returns "—" for Person/Place
+   - Removed `_calculate_relevance()` → replaced with profile-based role detection
+   - Updated `_second_pass_processing()`: Now calls `role_profile.detect_person_role()` and `role_profile.detect_place_relevance()`
+   - Changed output dict keys: "Category" → "Type", "Relevance to Case" → "Role/Relevance"
+
+3. **`src/ui/dynamic_output.py`** (Column header updates):
+   - Updated Treeview columns: `("Term", "Type", "Role/Relevance", "Definition")`
+   - Updated CSV export headers to match
+   - Updated data access: `item.get("Type")`, `item.get("Role/Relevance")`
+   - Adjusted column widths: Type=120px, Role/Relevance=200px
+
+4. **`tests/test_vocabulary_extractor.py`** (Updated for new API):
+   - Updated `test_get_category()`: Expects "Person", "Place", "Technical", "Medical"
+   - Updated `test_get_definition()`: Now requires `category` parameter
+   - Updated `test_extract()`: Expects "Type" and "Role/Relevance" keys in output
+   - All 5 tests passing ✅
+
+### Code Quality Improvements
+- **Net reduction:** 473 insertions, 615 deletions (-142 lines total)
+- **Better separation of concerns:** Profession-specific logic isolated in profiles
+- **Performance optimization:** Cached rank map eliminates repeated sorting
+- **Future-proof design:** Adding new profession = 50 lines of patterns, zero core changes
+
+### Pattern Established
+**Role Detection System:** When adding profession-specific behavior, create a new `RoleDetectionProfile` subclass instead of modifying core extraction logic. This pattern applies to future features requiring customizable behavior (e.g., output formatters, filtering strategies).
+
+### Next Steps (User Testing Required)
+Before considering this feature complete, user should manually test with real legal documents:
+1. Verify regex filters work (no "plaintiff(s)" in output)
+2. Verify role detection works ("plaintiff John Smith" shows role "Plaintiff")
+3. Verify rarity filtering works (common words excluded)
+4. Verify UI displays correctly (new column headers in Treeview)
+
+---
+
 ## Session 8 Part 5 - Google Word Frequency Dataset Integration (2025-11-26)
 
 **Objective:** Integrate Google's 333K word frequency dataset to filter out common words from vocabulary extraction, allowing only truly rare terms to be included in the results.

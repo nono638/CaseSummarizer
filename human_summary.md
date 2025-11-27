@@ -10,9 +10,12 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** ✅ **GOOGLE WORD FREQUENCY INTEGRATION COMPLETE | RARE VOCABULARY FILTERING | 55 TESTS PASSING** - Session 8 Part 5 integrated Google's 333K word frequency dataset to dramatically improve vocabulary extraction quality by filtering out common words and their variations.
+**Status:** ✅ **VOCABULARY EXTRACTION REDESIGNED FOR STENOGRAPHERS | MODULAR ROLE DETECTION | 5 TESTS PASSING** - Session 9 (2025-11-27) completely redesigned vocabulary extraction to provide actionable, context-aware information for court reporters. Replaced academic categories with stenographer-focused role detection: "Dr. Martinez" → "Treating physician", "Lenox Hill Hospital" → "Medical facility". Created modular `RoleDetectionProfile` architecture enabling future expansion to lawyers, paralegals, other professions with just 50 lines of pattern code each. Enhanced regex filtering for word variations, optimized rarity calculation with O(1) cached lookups, simplified output to 4 categories (Person/Place/Medical/Technical). Net code reduction: -142 lines while adding major new functionality.
 
-**Latest Session (2025-11-26 Session 8 Part 5 - Google Word Frequency Dataset Integration):**
+**Latest Session (2025-11-27 Session 9 - Vocabulary Extraction Redesign for Stenographers):**
+Completely redesigned vocabulary extraction to serve stenographer workflow needs. **Major architectural change:** Created modular `RoleDetectionProfile` system (`src/vocabulary/role_profiles.py`) enabling profession-specific behavior without core logic changes. Implemented `StenographerProfile` with context-aware pattern matching: detects "plaintiff John Smith" → "Plaintiff", "Dr. Martinez" → "Treating physician", "Lenox Hill Hospital" → "Medical facility". Simplified categories from 7+ to 4 (Person/Place/Medical/Technical). Smart definitions: skip for people/places (stenographers need WHO/WHY, not dictionary meanings), provide for medical/technical terms. Enhanced regex filters for variations (`plaintiff(s)`, `defendants(s)`, possessives). Optimized rarity calculation: O(n) percentile → O(1) cached rank lookup (sorts 333K dataset once). Updated UI column headers: "Category" → "Type", "Relevance to Case" → "Role/Relevance". CSV transformation example: "Dr. Sarah Martinez, Proper Noun (Person), High, N/A" → "Dr. Sarah Martinez, Person, Treating physician, —". Net code: 473 insertions, 615 deletions (-142 lines). All 5 vocabulary tests passing. Future-ready: adding `LawyerProfile` or `ParalegalProfile` requires only 50 lines of pattern definitions.
+
+**Previous Session (2025-11-26 Session 8 Part 5 - Google Word Frequency Dataset Integration):**
 Integrated Google's 333K word frequency dataset into vocabulary extraction to eliminate false positives like "plaintiff(s)", "defendant(s)", and other common-word variations. New methods: `_load_frequency_dataset()` (parses tab-separated word\tcount format), `_matches_variation_filter()` (regex-based filtering), `_is_word_rare_enough()` (frequency-based rarity checking), `_sort_by_rarity()` (sorts results: unknown words first, then lowest frequency counts). User-customizable configuration: `VOCABULARY_RARITY_THRESHOLD` (default 75K out of 333K) and `VOCABULARY_SORT_BY_RARITY` (toggle sorting). Extensible variation filters via regex patterns (e.g., `r'^[a-z]+\(s\)$'` for "(s)" variations). Gracefully falls back to WordNet if frequency file missing. All 55 tests passing, zero regressions.
 
 **Previous Session (2025-11-26 Session 8 Part 3 - Prompt Selection UI Refinement):**
@@ -168,7 +171,7 @@ All integration tests passing. **Complete workflow now functional:**
 
 ### Source Code
 - **src/main.py** - Desktop GUI application entry point (uses CustomTkinter)
-- **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names, **UPDATED Session 8 Part 5** vocabulary rarity threshold and sorting)
+- **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names, vocabulary rarity threshold and sorting)
 - **src/logging_config.py** - **NEW (Session 7)** Unified logging system (260 lines) - single source of truth for debug_log, info, warning, error, Timer
 - **src/debug_logger.py** - Backward compatibility wrapper - re-exports from logging_config.py
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
@@ -176,9 +179,10 @@ All integration tests passing. **Complete workflow now functional:**
 - **src/user_preferences.py** - User preferences manager (saves default prompts per model to JSON)
 - **src/extraction/raw_text_extractor.py** (~700 lines) - Raw text extraction module (Steps 1-2 of pipeline): PDF/TXT/RTF extraction, OCR, basic text normalization, case number extraction, and progress callbacks
 - **src/sanitization/character_sanitizer.py** - Character sanitization module (Step 2.5 of pipeline): Unicode normalization, mojibake fix, redaction handling
-- **src/vocabulary/** - **NEW (Session 7)** Vocabulary extraction package
+- **src/vocabulary/** - **NEW (Session 7), MAJOR REFACTOR (Session 9)** Vocabulary extraction package
   - **src/vocabulary/__init__.py** - Package init, exports VocabularyExtractor
-  - **src/vocabulary/vocabulary_extractor.py** (600+ lines) - Extracts unusual terms using spaCy NER, NLTK WordNet, and **NEW (Session 8 Part 5)** Google word frequency dataset with regex variation filtering and rarity-based sorting
+  - **src/vocabulary/vocabulary_extractor.py** (600+ lines) - Extracts unusual terms using spaCy NER, NLTK WordNet, Google word frequency dataset with O(1) cached rarity lookups, and **NEW (Session 9)** modular role detection via profiles
+  - **src/vocabulary/role_profiles.py** (280 lines) - **NEW (Session 9)** Modular profession-specific role detection system: RoleDetectionProfile base class, StenographerProfile implementation with pattern-based context matching, placeholders for future LawyerProfile/ParalegalProfile
 - **src/ai/ollama_model_manager.py** - PRIMARY: Ollama REST API model manager (uses HTTP to communicate with local Ollama service)
 - **src/ai/summary_post_processor.py** - **NEW (Session 8 Part 4)** Backend-agnostic summary length enforcement (199 lines) - uses dependency injection to work with any text generation function
 - **src/ai/onnx_model_manager.py** - DEPRECATED: ONNX Runtime GenAI model manager (kept for reference)
