@@ -26,12 +26,25 @@ import nltk
 from nltk.corpus import wordnet
 
 from src.debug_logger import debug_log
+from src.config import (
+    GOOGLE_WORD_FREQUENCY_FILE,
+    VOCABULARY_RARITY_THRESHOLD,
+    VOCABULARY_SORT_BY_RARITY
+)
 
 
 # Constants for spaCy model
 SPACY_MODEL_NAME = "en_core_web_sm"
 SPACY_MODEL_VERSION = "3.8.0"
 SPACY_DOWNLOAD_TIMEOUT = 300  # 5 minutes
+
+# Regex patterns for filtering out word variations
+# These match common patterns that shouldn't be included as "rare" vocabulary
+VARIATION_FILTERS = [
+    r'^[a-z]+\(s\)$',  # Matches "plaintiff(s)", "defendant(s)", etc.
+    r'^[a-z]+\'s$',    # Matches possessives like "plaintiff's"
+    r'^[a-z]+-[a-z]+$', # Matches hyphenated words (often just variations)
+]
 
 
 class VocabularyExtractor:
@@ -94,11 +107,107 @@ class VocabularyExtractor:
             self._load_word_list(medical_terms_path) if medical_terms_path else set()
         )
 
+        # Load Google word frequency dataset for rarity filtering
+        self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
+        self.rarity_threshold = VOCABULARY_RARITY_THRESHOLD
+        self.sort_by_rarity = VOCABULARY_SORT_BY_RARITY
+
         # Store user exclude path for adding new exclusions
         self.user_exclude_path = user_exclude_path
 
         # Ensure NLTK data is available
         self._ensure_nltk_data()
+
+    def _load_frequency_dataset(self) -> Dict[str, int]:
+        """
+        Load Google word frequency dataset (word\tfrequency_count format).
+
+        Returns:
+            Dictionary mapping word (lowercase) to frequency count
+            Empty dict if file not found or cannot be loaded
+        """
+        frequency_dict = {}
+
+        if not GOOGLE_WORD_FREQUENCY_FILE.exists():
+            debug_log(
+                f"[VOCAB] Frequency dataset not found at {GOOGLE_WORD_FREQUENCY_FILE}. "
+                "Will use WordNet-only filtering."
+            )
+            return frequency_dict
+
+        try:
+            with open(GOOGLE_WORD_FREQUENCY_FILE, 'r', encoding='utf-8') as f:
+                for line in f:
+                    parts = line.strip().split('\t')
+                    if len(parts) == 2:
+                        word, count_str = parts
+                        try:
+                            count = int(count_str)
+                            frequency_dict[word.lower()] = count
+                        except ValueError:
+                            continue  # Skip lines with invalid counts
+
+            debug_log(
+                f"[VOCAB] Loaded {len(frequency_dict)} words from frequency dataset. "
+                f"Rarity threshold: {self.rarity_threshold}"
+            )
+        except Exception as e:
+            debug_log(f"[VOCAB] Error loading frequency dataset: {e}")
+
+        return frequency_dict
+
+    def _matches_variation_filter(self, word: str) -> bool:
+        """
+        Check if a word matches common variation patterns that should be filtered out.
+
+        Args:
+            word: The word to check (case-insensitive)
+
+        Returns:
+            True if the word matches a variation pattern, False otherwise
+        """
+        lower_word = word.lower()
+
+        for pattern in VARIATION_FILTERS:
+            if re.match(pattern, lower_word):
+                return True
+
+        return False
+
+    def _is_word_rare_enough(self, word: str) -> bool:
+        """
+        Check if a word meets the rarity threshold using frequency dataset.
+
+        Words are rare if:
+        1. They're NOT in the frequency dataset (rarest of the rare)
+        2. They're in the dataset but have a frequency count > threshold (less common)
+
+        Args:
+            word: The word to check (case-insensitive)
+
+        Returns:
+            True if word is rare enough to include, False if it's too common
+        """
+        lower_word = word.lower()
+
+        # If rarity threshold is disabled, use WordNet filtering only
+        if self.rarity_threshold < 0:
+            return True
+
+        # If word not in frequency dataset, it's extremely rare
+        if lower_word not in self.frequency_dataset:
+            return True
+
+        # Check if word's frequency count exceeds threshold
+        # Higher count = more common; if count is low, word is rare
+        count = self.frequency_dataset[lower_word]
+        # Only accept if count is LOWER than many other words
+        # Frequency dataset is sorted by count, so we check against threshold percentile
+        # Words outside top 75K are rarer
+        max_count_for_threshold = max(self.frequency_dataset.values()) if self.frequency_dataset else 0
+        percentile_count = (self.rarity_threshold / len(self.frequency_dataset)) * max_count_for_threshold if self.frequency_dataset else 0
+
+        return count < percentile_count if percentile_count > 0 else True
 
     def _load_spacy_model(self):
         """
@@ -242,6 +351,16 @@ class VocabularyExtractor:
         """
         Determine if a token represents an unusual/noteworthy term.
 
+        Filters words through multiple stages:
+        1. Basic checks (alpha, whitespace, punctuation)
+        2. Exclusion lists (common legal terms, user exclusions)
+        3. Variation patterns (plaintiff(s), defendant's, etc.)
+        4. Named entities (PERSON, ORG, GPE, LOC - always accepted)
+        5. Medical terms (always accepted)
+        6. Acronyms (2+ uppercase letters - accepted)
+        7. Frequency-based rarity (Google word frequency dataset)
+        8. WordNet fallback (not in dictionary = rare)
+
         Args:
             token: spaCy Token object
             ent_type: Entity type string (e.g., "PERSON", "ORG") or None
@@ -263,6 +382,10 @@ class VocabularyExtractor:
         if lower_text in self.user_exclude_list:
             return False
 
+        # Skip words matching variation patterns (plaintiff(s), defendant's, etc.)
+        if self._matches_variation_filter(token.text):
+            return False
+
         # Named entities (Person, Org, Location) are always unusual
         if ent_type in ["PERSON", "ORG", "GPE", "LOC"]:
             return True
@@ -274,6 +397,10 @@ class VocabularyExtractor:
         # Acronyms (all caps, 2+ chars) are unusual
         if re.fullmatch(r'[A-Z]{2,}', token.text):
             return True
+
+        # Check frequency-based rarity using Google word frequency dataset
+        if self.frequency_dataset and not self._is_word_rare_enough(token.text):
+            return False
 
         # If found in WordNet, it's a common English word
         if wordnet.synsets(lower_text):
@@ -369,9 +496,10 @@ class VocabularyExtractor:
         """
         Extract unusual vocabulary from text with categorization and definitions.
 
-        Performs a two-pass extraction:
+        Performs a three-step extraction:
         1. First pass: Extract named entities and unusual tokens, count frequencies
         2. Second pass: Deduplicate, categorize, and assign relevance scores
+        3. Third pass: Sort by rarity if enabled
 
         Args:
             text: The document text to analyze
@@ -391,6 +519,10 @@ class VocabularyExtractor:
 
         # Second pass: Deduplicate and build final vocabulary
         vocabulary = self._second_pass_processing(extracted_terms, term_frequencies)
+
+        # Third pass: Sort by rarity if enabled
+        if self.sort_by_rarity and self.frequency_dataset:
+            vocabulary = self._sort_by_rarity(vocabulary)
 
         return vocabulary
 
@@ -441,6 +573,36 @@ class VocabularyExtractor:
                     })
 
         return extracted_terms, term_frequencies
+
+    def _sort_by_rarity(self, vocabulary: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        Sort vocabulary list by rarity (rarest words first).
+
+        Sorting strategy:
+        1. Words NOT in frequency dataset appear first (extremely rare)
+        2. Words IN dataset sorted by frequency count (lowest count = rarest)
+
+        Args:
+            vocabulary: List of vocabulary dictionaries
+
+        Returns:
+            Sorted vocabulary list
+        """
+        not_in_dataset = []
+        in_dataset = []
+
+        for item in vocabulary:
+            term = item["Term"].lower()
+            if term not in self.frequency_dataset:
+                not_in_dataset.append(item)
+            else:
+                in_dataset.append(item)
+
+        # Sort in-dataset words by frequency count (ascending = rarest first)
+        in_dataset.sort(key=lambda x: self.frequency_dataset.get(x["Term"].lower(), float('inf')))
+
+        # Combine: not-in-dataset (rarest) + in-dataset sorted by count
+        return not_in_dataset + in_dataset
 
     def _second_pass_processing(
         self,

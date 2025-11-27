@@ -1,5 +1,82 @@
 # Development Log
 
+## Session 8 Part 5 - Google Word Frequency Dataset Integration (2025-11-26)
+
+**Objective:** Integrate Google's 333K word frequency dataset to filter out common words from vocabulary extraction, allowing only truly rare terms to be included in the results.
+
+### Problem Addressed
+Vocabulary extraction was producing too many false positives: common words like "plaintiff(s)", "defendant(s)", and other variations of legal terminology were being flagged as "rare vocabulary." The existing WordNet filter wasn't granular enough to distinguish between statistically common words and truly unusual domain-specific terms.
+
+### Solution Implemented
+
+**1. Google Word Frequency Dataset Integration:**
+- File: `Word_rarity-count_1w.txt` (333,333 words, tab-separated format: `word\tfrequency_count`)
+- Loaded into memory as `Dict[str, int]` mapping word → frequency count
+- Lower count = rarer word (fewer occurrences in Google's corpus)
+
+**2. New Methods in VocabularyExtractor:**
+- `_load_frequency_dataset()` — Parses tab-separated frequency file (handles missing file gracefully)
+- `_matches_variation_filter()` — Regex-based filtering for word variations (plaintiff(s), defendant's, hyphenated)
+- `_is_word_rare_enough()` — Determines if word meets rarity threshold using frequency dataset
+- `_sort_by_rarity()` — Sorts vocabulary results by rarity (unknown words first, then lowest frequency counts)
+
+**3. Regex Variation Filters:**
+```python
+VARIATION_FILTERS = [
+    r'^[a-z]+\(s\)$',      # Matches "plaintiff(s)", "defendant(s)", etc.
+    r'^[a-z]+\'s$',        # Matches possessives like "plaintiff's"
+    r'^[a-z]+-[a-z]+$',    # Matches hyphenated variations
+]
+```
+- Extensible: Users can add more patterns later
+- Located at top of `vocabulary_extractor.py` for easy maintenance
+
+**4. User-Customizable Configuration:**
+- `VOCABULARY_RARITY_THRESHOLD = 75000` — Only accept words outside top 75K most common (out of 333K)
+- `VOCABULARY_SORT_BY_RARITY = True` — Enable/disable rarity-based sorting
+- Both configurable in `src/config.py` (no code changes needed)
+
+### Updated Filtering Chain (in `_is_unusual()`)
+```
+1. Basic checks (alpha, whitespace, punctuation)
+2. Legal term exclusions
+3. User exclusions
+4. ✨ NEW: Variation filter (plaintiff(s), defendant's, etc.)
+5. Named entities (PERSON, ORG, GPE, LOC) → always accept
+6. Medical terms → always accept
+7. Acronyms (2+ uppercase) → always accept
+8. ✨ NEW: Frequency-based rarity (Google dataset)
+9. WordNet fallback (not in dictionary = rare)
+```
+
+### Sorting Strategy (if enabled)
+1. **Words NOT in 333K dataset** (appear first) — Rarest of the rare
+2. **Words in dataset sorted by frequency count** (ascending) — Lowest count = rarest
+
+### Files Modified
+- `src/config.py` — Added `GOOGLE_WORD_FREQUENCY_FILE`, `VOCABULARY_RARITY_THRESHOLD`, `VOCABULARY_SORT_BY_RARITY`
+- `src/vocabulary/vocabulary_extractor.py` — Added 4 new methods, updated `_is_unusual()`, updated `extract()` for sorting
+
+### Testing
+- ✅ All 55 tests passing (no regressions)
+- ✅ Frequency dataset loads successfully (333,333 words)
+- ✅ Module imports without errors
+- ✅ Backward compatible — existing API unchanged
+
+### Design Benefits
+1. **Probabilistic + Categorical Filtering:** Frequency dataset (statistical) + WordNet (categorical) = comprehensive word rarity assessment
+2. **User-Driven Customization:** Threshold and sorting can be adjusted without code changes
+3. **Extensible:** Variation filters can be added anytime by editing regex patterns
+4. **Graceful Degradation:** Falls back to WordNet if frequency file missing
+5. **Performance:** Sorted-by-rarity CSV helps users quickly find the most unusual vocabulary
+
+### Next Steps
+- User testing with real legal documents to verify "plaintiff(s)" and "defendant(s)" are now filtered
+- Threshold adjustment if results still include too many common words
+- Additional variation patterns added as they're discovered
+
+---
+
 ## Session 8 Part 4 - Recursive Length Enforcement (2025-11-26)
 
 **Objective:** Implement recursive summarization to ensure AI-generated summaries meet user's requested word count target.

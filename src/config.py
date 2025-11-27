@@ -125,6 +125,16 @@ MEDICAL_TERMS_LIST_PATH = Path(__file__).parent.parent / "config" / "medical_ter
 # User-specific vocabulary exclusions (stored in AppData, user can add via right-click)
 USER_VOCAB_EXCLUDE_PATH = CONFIG_DIR / "user_vocab_exclude.txt"
 
+# Vocabulary Extraction Rarity Settings
+# Path to Google word frequency dataset (word\tfrequency_count format)
+GOOGLE_WORD_FREQUENCY_FILE = Path(__file__).parent.parent / "Word_rarity-count_1w.txt"
+# Words within the top N most common are considered common, not rare
+# Set to 75000 to exclude top 75K most common words (out of 333K)
+# Set to -1 to disable frequency-based filtering (use WordNet only)
+VOCABULARY_RARITY_THRESHOLD = 75000
+# When enabled, sort CSV results by rarity (words not in dataset first, then lowest frequency count)
+VOCABULARY_SORT_BY_RARITY = True
+
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
 USER_PROMPTS_DIR = APPDATA_DIR / "prompts"  # User-created prompts survive app updates

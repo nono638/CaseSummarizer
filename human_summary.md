@@ -10,10 +10,10 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** ✅ **RECURSIVE LENGTH ENFORCEMENT COMPLETE | SEPARATION OF CONCERNS | 55 TESTS PASSING** - Session 8 Part 4 implemented recursive summarization to meet user's requested word count, then refactored to extract `SummaryPostProcessor` class for better separation of concerns.
+**Status:** ✅ **GOOGLE WORD FREQUENCY INTEGRATION COMPLETE | RARE VOCABULARY FILTERING | 55 TESTS PASSING** - Session 8 Part 5 integrated Google's 333K word frequency dataset to dramatically improve vocabulary extraction quality by filtering out common words and their variations.
 
-**Latest Session (2025-11-26 Session 8 Part 4 - Recursive Length Enforcement):**
-Implemented recursive summarization to ensure AI-generated summaries meet target word counts. When LLMs produce 500 words for a 200-word request, the system now recursively condenses until within tolerance (20% overage allowed, max 3 attempts). Created `_condense-summary.txt` prompt template. **Refactored for separation of concerns:** Extracted length enforcement logic from `OllamaModelManager` to new `SummaryPostProcessor` class using dependency injection pattern. The post-processor is backend-agnostic (works with any text generation function), enabling future integration with OpenAI or other backends. Added `SUMMARY_LENGTH_TOLERANCE` and `SUMMARY_MAX_CONDENSE_ATTEMPTS` to config.py.
+**Latest Session (2025-11-26 Session 8 Part 5 - Google Word Frequency Dataset Integration):**
+Integrated Google's 333K word frequency dataset into vocabulary extraction to eliminate false positives like "plaintiff(s)", "defendant(s)", and other common-word variations. New methods: `_load_frequency_dataset()` (parses tab-separated word\tcount format), `_matches_variation_filter()` (regex-based filtering), `_is_word_rare_enough()` (frequency-based rarity checking), `_sort_by_rarity()` (sorts results: unknown words first, then lowest frequency counts). User-customizable configuration: `VOCABULARY_RARITY_THRESHOLD` (default 75K out of 333K) and `VOCABULARY_SORT_BY_RARITY` (toggle sorting). Extensible variation filters via regex patterns (e.g., `r'^[a-z]+\(s\)$'` for "(s)" variations). Gracefully falls back to WordNet if frequency file missing. All 55 tests passing, zero regressions.
 
 **Previous Session (2025-11-26 Session 8 Part 3 - Prompt Selection UI Refinement):**
 Refined prompt selection based on user feedback. The dropdown now shows ALL .txt prompt files equally without any "(Custom)" suffix distinction. Implemented underscore prefix convention: `_template.txt` (skeleton for users to copy) and `_README.txt` (comprehensive guide) are auto-created in user's prompts folder but excluded from dropdown. Renamed quadrant to "Model & Prompt Selection" and updated tooltips to guide users to create custom prompts. README includes quick start, required format, variable placeholders, and tips for effective prompts.
@@ -157,15 +157,18 @@ All integration tests passing. **Complete workflow now functional:**
 
 ### Documentation Files
 - **PROJECT_OVERVIEW.md** - Complete technical specification for LocalScribe (PRIMARY SOURCE OF TRUTH, 1148 lines)
-- **development_log.md** - Timestamped log of all code changes and features (UPDATED with multiprocessing fix)
+- **development_log.md** - Timestamped log of all code changes and features (UPDATED with Session 8 Part 5 Google frequency dataset integration)
 - **human_summary.md** - This file; high-level status report for human consumption
 - **scratchpad.md** - Brainstorming document for future ideas and potential enhancements
 - **README.md** - Project overview with installation and usage instructions
 - **ONNX_MIGRATION_LOG.md** - Comprehensive technical log of ONNX Runtime migration (historical reference)
 
+### Data Files
+- **Word_rarity-count_1w.txt** - Google word frequency dataset (333,333 words, tab-separated format: word\tfrequency_count) - NEW in Session 8 Part 5
+
 ### Source Code
 - **src/main.py** - Desktop GUI application entry point (uses CustomTkinter)
-- **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names)
+- **src/config.py** - Centralized configuration constants (file paths, limits, settings, model names, **UPDATED Session 8 Part 5** vocabulary rarity threshold and sorting)
 - **src/logging_config.py** - **NEW (Session 7)** Unified logging system (260 lines) - single source of truth for debug_log, info, warning, error, Timer
 - **src/debug_logger.py** - Backward compatibility wrapper - re-exports from logging_config.py
 - **src/prompt_config.py** - User-configurable AI prompt parameters loader (singleton pattern)
@@ -175,7 +178,7 @@ All integration tests passing. **Complete workflow now functional:**
 - **src/sanitization/character_sanitizer.py** - Character sanitization module (Step 2.5 of pipeline): Unicode normalization, mojibake fix, redaction handling
 - **src/vocabulary/** - **NEW (Session 7)** Vocabulary extraction package
   - **src/vocabulary/__init__.py** - Package init, exports VocabularyExtractor
-  - **src/vocabulary/vocabulary_extractor.py** (360 lines) - Extracts unusual terms using spaCy NER and NLTK WordNet
+  - **src/vocabulary/vocabulary_extractor.py** (600+ lines) - Extracts unusual terms using spaCy NER, NLTK WordNet, and **NEW (Session 8 Part 5)** Google word frequency dataset with regex variation filtering and rarity-based sorting
 - **src/ai/ollama_model_manager.py** - PRIMARY: Ollama REST API model manager (uses HTTP to communicate with local Ollama service)
 - **src/ai/summary_post_processor.py** - **NEW (Session 8 Part 4)** Backend-agnostic summary length enforcement (199 lines) - uses dependency injection to work with any text generation function
 - **src/ai/onnx_model_manager.py** - DEPRECATED: ONNX Runtime GenAI model manager (kept for reference)
