@@ -84,40 +84,47 @@ class RoleDetectionProfile:
 
 # Person role patterns for stenographers (ordered by specificity)
 # Format: (regex_pattern, role_description)
+# UPDATED: Changed [a-z]+ to [a-zA-Z]+ to match ALL CAPS names like "ANDY CHOY"
 STENOGRAPHER_PERSON_PATTERNS: List[Tuple[str, str]] = [
     # Party roles (most specific first)
-    (r'plaintiff[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Plaintiff attorney'),
-    (r'defendant[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Defendant attorney'),
-    (r'plaintiff\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Plaintiff'),
-    (r'defendant\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Defendant'),
+    (r'plaintiff[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Plaintiff attorney'),
+    (r'defendant[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Defendant attorney'),
+    (r'plaintiff\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Plaintiff'),
+    (r'defendant\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Defendant'),
 
     # Medical professionals (specific roles first)
-    (r'treating\s+(?:physician|doctor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Treating physician'),
-    (r'(?:Dr\.|Doctor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Medical professional'),
-    (r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*),?\s+(?:a|an)\s+(?:nurse|physician|surgeon|doctor|therapist)', 'Medical professional'),
+    (r'treating\s+(?:physician|doctor)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Treating physician'),
+    (r'(?:Dr\.|Doctor)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Medical professional'),
+    (r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),?\s+(?:a|an)\s+(?:nurse|physician|surgeon|doctor|therapist)', 'Medical professional'),
 
     # Witnesses
-    (r'witness\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', 'Witness'),
-    (r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+testified', 'Witness'),
-    (r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:was called as a|called to testify)', 'Witness'),
+    (r'witness\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Witness'),
+    (r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+testified', 'Witness'),
+    (r'([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)\s+(?:was called as a|called to testify)', 'Witness'),
 ]
 
 # Place/organization relevance patterns for stenographers
 # Format: (regex_pattern, relevance_description)
+# UPDATED: Stricter patterns to prevent false positives (e.g., "CHOY" matching "CHOY Medical Center")
 STENOGRAPHER_PLACE_PATTERNS: List[Tuple[str, str]] = [
-    # Accident/incident locations
+    # Accident/incident locations (unchanged - already have context)
     (r'accident\s+(?:at|on|near)\s+([A-Z][a-zA-Z\s]+)', 'Accident location'),
     (r'incident\s+(?:occurred|happened)\s+(?:at|on|near)\s+([A-Z][a-zA-Z\s]+)', 'Incident location'),
     (r'collision\s+(?:at|on|near)\s+([A-Z][a-zA-Z\s]+)', 'Collision location'),
 
-    # Medical facilities (specific first)
-    (r'([A-Z][a-zA-Z\s]+)\s+Hospital', 'Medical facility'),
-    (r'([A-Z][a-zA-Z\s]+)\s+Medical Center', 'Medical facility'),
-    (r'([A-Z][a-zA-Z\s]+)\s+Clinic', 'Medical facility'),
+    # Medical facilities - REQUIRE preposition OR 2+ word facility name to avoid false positives
+    # This prevents "CHOY" from matching "CHOY Medical Center" (person name vs. place)
+    (r'(?:at|to|from|near)\s+([A-Z][a-zA-Z\s]+(?:Hospital|Medical Center|Clinic))', 'Medical facility'),
+    (r'([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+)\s+(?:Hospital|Medical Center|Clinic)', 'Medical facility'),  # 2+ words
     (r'surgery\s+(?:at|performed at)\s+([A-Z][a-zA-Z\s]+)', 'Surgery location'),
     (r'treatment\s+(?:at|received at)\s+([A-Z][a-zA-Z\s]+)', 'Treatment location'),
 
-    # Employment
+    # Law firms - detect before general ORG categorization
+    (r'([A-Z][a-zA-Z]+(?:\s+[&,]\s+[A-Z][a-zA-Z]+)+)\s+(?:LAW FIRM|LLP|PC|PLLC)', 'Law firm'),
+    (r'([A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+)\s+&\s+([A-Z][a-zA-Z]+)', 'Law firm'),  # "Smith & Jones"
+    (r'THE\s+([A-Z][a-zA-Z\s]+)\s+LAW FIRM', 'Law firm'),  # "THE JACOB D. FUCHSBERG LAW FIRM"
+
+    # Employment (unchanged - already have context)
     (r'employed\s+(?:at|by)\s+([A-Z][a-zA-Z\s]+)', 'Workplace'),
     (r'works\s+(?:at|for)\s+([A-Z][a-zA-Z\s]+)', 'Workplace'),
 ]
@@ -225,21 +232,36 @@ class StenographerProfile(RoleDetectionProfile):
 
     def _places_match(self, place1: str, place2: str) -> bool:
         """
-        Check if two place names match (case-insensitive, partial matching).
+        Check if two place names match (require 50% token overlap).
+
+        Prevents false positives like:
+        - "CHOY" matching "CHOY Medical Center" (person name vs. place)
+        - "Smith" matching "Smith Hospital" (surname vs. facility)
 
         Args:
             place1: First place name
             place2: Second place name
 
         Returns:
-            True if place names substantially overlap
+            True if at least 50% of tokens overlap
         """
         # Normalize: lowercase
         norm1 = place1.lower().strip()
         norm2 = place2.lower().strip()
 
-        # Check for substantial overlap
-        return norm1 in norm2 or norm2 in norm1
+        # Tokenize and compare
+        tokens1 = set(norm1.split())
+        tokens2 = set(norm2.split())
+
+        if not tokens1 or not tokens2:
+            return False
+
+        # Calculate overlap ratio
+        overlap = len(tokens1 & tokens2)
+        min_tokens = min(len(tokens1), len(tokens2))
+
+        # Require 50% overlap (prevents substring false positives)
+        return overlap / min_tokens >= 0.5
 
 
 # ============================================================================

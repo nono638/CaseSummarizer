@@ -128,10 +128,11 @@ USER_VOCAB_EXCLUDE_PATH = CONFIG_DIR / "user_vocab_exclude.txt"
 # Vocabulary Extraction Rarity Settings
 # Path to Google word frequency dataset (word\tfrequency_count format)
 GOOGLE_WORD_FREQUENCY_FILE = Path(__file__).parent.parent / "Word_rarity-count_1w.txt"
-# Words within the top N most common are considered common, not rare
-# Set to 75000 to exclude top 75K most common words (out of 333K)
+# Words with rank >= 150,000 are considered rare (bottom 55% of 333K word vocabulary)
+# This threshold filters common medical/legal words while preserving technical terms
+# Examples: "medical" (rank 501) FILTERED, "adenocarcinoma" (rank >150K) EXTRACTED
 # Set to -1 to disable frequency-based filtering (use WordNet only)
-VOCABULARY_RARITY_THRESHOLD = 75000
+VOCABULARY_RARITY_THRESHOLD = 150000
 # When enabled, sort CSV results by rarity (words not in dataset first, then lowest frequency count)
 VOCABULARY_SORT_BY_RARITY = True
 

@@ -49,6 +49,40 @@ VARIATION_FILTERS = [
     r'^[a-z]+-[a-z]+$',        # Matches hyphenated words (often just variations)
 ]
 
+# Common title abbreviations to exclude (not rare technical acronyms)
+# These are well-known to stenographers and add no value to vocabulary list
+TITLE_ABBREVIATIONS = {
+    'dr', 'mr', 'mrs', 'ms', 'md', 'phd', 'esq', 'jr', 'sr', 'ii', 'iii', 'iv',
+    'dds', 'dvm', 'od', 'do', 'rn', 'lpn', 'np', 'pa', 'pt', 'ot', 'cpa',
+    'jd', 'llm', 'mba', 'cfa', 'pe', 'ra',
+}
+
+# Legal citation patterns - statute references stenographers already know
+LEGAL_CITATION_PATTERNS = [
+    r'^[A-Z]{2,}\s+(?:SS|§)\s*\d+',  # CPLR SS3043, NY SS123
+    r'^\w+\s+Law\s+(?:SS|§)\s*\d+',   # Education Law SS6527
+    r'^\d+\s+[A-Z]+\s+\d+',            # 22 NYCRR 130
+    r'^[A-Z]{2,}\s+\d+',               # CPLR 4546 (without SS)
+]
+
+# Legal boilerplate phrase patterns - standard legal terminology
+LEGAL_BOILERPLATE_PATTERNS = [
+    r'Verified\s+(?:Bill|Answer|Complaint|Petition)',
+    r'Notice\s+of\s+Commencement',
+    r'Cause\s+of\s+Action',
+    r'Honorable\s+Court',
+    r'Answering\s+Defendant',
+]
+
+# Case citation pattern - case names (X v. Y)
+CASE_CITATION_PATTERN = r'^[A-Z][a-zA-Z]+\s+v\.?\s+[A-Z][a-zA-Z]+$'
+
+# Geographic code patterns - ZIP codes, etc.
+GEOGRAPHIC_CODE_PATTERNS = [
+    r'^\d{5}(?:-\d{4})?$',  # ZIP codes: 11354, 12345-6789
+    r'^[A-Z]{2}\s+\d{5}$',   # State + ZIP: NY 11354
+]
+
 
 class VocabularyExtractor:
     """
@@ -113,6 +147,11 @@ class VocabularyExtractor:
             self._load_word_list(medical_terms_path) if medical_terms_path else set()
         )
 
+        # Load common medical/legal words blacklist (defense-in-depth filtering)
+        # This catches common words that slip through frequency filtering
+        common_blacklist_path = Path(__file__).parent.parent.parent / "config" / "common_medical_legal.txt"
+        self.common_words_blacklist: Set[str] = self._load_word_list(common_blacklist_path)
+
         # Load Google word frequency dataset for rarity filtering
         self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
         self.frequency_rank_map: Dict[str, int] = {}  # Cached word→rank mapping
@@ -128,6 +167,10 @@ class VocabularyExtractor:
         # Ensure NLTK data is available
         self._ensure_nltk_data()
 
+    # The Google word frequency dataset is sourced from Peter Norvig's website:
+    # https://norvig.com/ngrams/
+    # Specifically, the 'count_1w.txt' file is used for word frequencies.
+    # https://norvig.com/ngrams/count_1w.txt
     def _load_frequency_dataset(self) -> Dict[str, int]:
         """
         Load Google word frequency dataset and build cached rank mapping.
@@ -197,6 +240,35 @@ class VocabularyExtractor:
                 return True
 
         return False
+
+    def _clean_entity_text(self, entity_text: str) -> str:
+        """
+        Clean spaCy entity text to remove leading/trailing junk.
+
+        Fixes issues like:
+        - "and/or lung" → "lung"
+        - "\nJohn Smith\n" → "John Smith"
+        - "(Dr. Martinez)" → "Dr. Martinez"
+
+        Args:
+            entity_text: Raw entity text from spaCy
+
+        Returns:
+            Cleaned entity text, or empty string if nothing remains
+        """
+        cleaned = entity_text.strip()
+
+        # Remove newlines and normalize whitespace
+        cleaned = ' '.join(cleaned.split())
+
+        # Remove leading/trailing conjunctions: "and/or lung" → "lung"
+        cleaned = re.sub(r'^(and/or|and|or)\s+', '', cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r'\s+(and/or|and|or)$', '', cleaned, flags=re.IGNORECASE)
+
+        # Remove leading/trailing punctuation (preserve internal hyphens/apostrophes)
+        cleaned = cleaned.strip('.,;:!?()[]{}"\'/\\')
+
+        return cleaned.strip()
 
     def _is_word_rare_enough(self, word: str) -> bool:
         """
@@ -412,21 +484,66 @@ class VocabularyExtractor:
         if lower_text in self.user_exclude_list:
             return False
 
+        # Skip common medical/legal blacklist (defense-in-depth)
+        # Catches words like "hospital", "doctor", "medical", "plaintiff", etc.
+        if lower_text in self.common_words_blacklist:
+            return False
+
         # Skip words matching variation patterns (plaintiff(s), defendant's, etc.)
         if self._matches_variation_filter(token.text):
             return False
 
-        # Named entities (Person, Org, Location) are always unusual
+        # Skip legal citations (CPLR SS3043, Education Law SS6527, etc.)
+        for pattern in LEGAL_CITATION_PATTERNS:
+            if re.match(pattern, token.text):
+                return False
+
+        # Skip legal boilerplate phrases (Verified Answer, Cause of Action, etc.)
+        for pattern in LEGAL_BOILERPLATE_PATTERNS:
+            if re.search(pattern, token.text, re.IGNORECASE):
+                return False
+
+        # Skip case citations (Mahr v. Perry pattern)
+        if re.match(CASE_CITATION_PATTERN, token.text):
+            return False
+
+        # Skip geographic codes (ZIP codes, etc.)
+        for pattern in GEOGRAPHIC_CODE_PATTERNS:
+            if re.match(pattern, token.text):
+                return False
+
+        # Named entities (Person, Org, Location) should bypass frequency check,
+        # BUT add safety net for common words to filter spaCy false positives
         if ent_type in ["PERSON", "ORG", "GPE", "LOC"]:
-            return True
+            # Multi-word entities always accepted (e.g., "John Smith", "Memorial Hospital")
+            if len(token.text.split()) > 1:
+                return True
 
-        # Medical terms are always unusual
+            # Single-word entities: still check frequency to filter "the", "and", etc.
+            # This catches spaCy tagging errors like "the Medical Center" → extracting "the"
+            if self.frequency_dataset:
+                if not self._is_word_rare_enough(token.text):
+                    return False  # Too common (even though tagged as entity) → reject
+
+            return True  # Rare single-word entity → accept
+
+        # Medical terms: filter common words, keep rare terms
+        # Common: "hospital" (rank 1345), "doctor" (rank 2034), "medical" (rank 501)
+        # Rare: "adenocarcinoma" (rank >150K), "bronchogenic" (rank >150K)
         if lower_text in self.medical_terms:
-            return True
+            # Use frequency threshold to separate common from rare
+            if self.frequency_dataset:
+                if not self._is_word_rare_enough(token.text):
+                    return False  # Common medical word → reject
 
-        # Acronyms (all caps, 2+ chars) are unusual
+            return True  # Rare medical term → accept
+
+        # Acronyms (all caps, 2+ chars) are unusual, EXCEPT title abbreviations
         if re.fullmatch(r'[A-Z]{2,}', token.text):
-            return True
+            # Filter common title abbreviations (M.D., Ph.D., Esq., R.N., etc.)
+            if lower_text in TITLE_ABBREVIATIONS:
+                return False  # Common title → reject
+            return True  # Rare acronym (HIPAA, FMLA, ADA) → accept
 
         # Check frequency-based rarity using Google word frequency dataset
         if self.frequency_dataset and not self._is_word_rare_enough(token.text):
@@ -537,7 +654,10 @@ class VocabularyExtractor:
         # First pass: Extract terms and count frequencies
         extracted_terms, term_frequencies = self._first_pass_extraction(doc)
 
-        # Second pass: Deduplicate, categorize, detect roles, and build final vocabulary
+        # Deduplicate terms (remove variants and substrings)
+        extracted_terms = self._deduplicate_terms(extracted_terms)
+
+        # Second pass: Categorize, detect roles, and build final vocabulary
         vocabulary = self._second_pass_processing(extracted_terms, term_frequencies, text)
 
         # Third pass: Sort by rarity if enabled
@@ -562,7 +682,13 @@ class VocabularyExtractor:
         # Extract named entities first (prioritize multi-word entities)
         for ent in doc.ents:
             if ent.label_ in ["PERSON", "ORG", "GPE", "LOC"]:
-                term_text = ent.text
+                # Clean entity text to remove fragments and junk
+                term_text = self._clean_entity_text(ent.text)
+
+                # Skip if nothing left after cleaning (e.g., "and/or" → "")
+                if not term_text:
+                    continue
+
                 lower_term = term_text.lower()
                 # Check both system and user exclusions (case-insensitive)
                 if lower_term not in self.exclude_list and lower_term not in self.user_exclude_list:
@@ -623,6 +749,66 @@ class VocabularyExtractor:
 
         # Combine: not-in-dataset (rarest) + in-dataset sorted by count
         return not_in_dataset + in_dataset
+
+    def _deduplicate_terms(self, extracted_terms: List[Dict]) -> List[Dict]:
+        """
+        Remove duplicate/variant entries from extracted terms.
+
+        Handles:
+        1. Prefix normalization: "the State of New York" → "State of New York"
+        2. Party label removal: "Plaintiff XIANJUN LIANG" → "XIANJUN LIANG"
+        3. Substring filtering: If "XIANJUN LIANG" exists, filter out "XIANJUN"
+
+        Args:
+            extracted_terms: List of extracted term dictionaries
+
+        Returns:
+            Deduplicated list of term dictionaries
+        """
+        normalized_map = {}  # normalized lower → original term dict
+
+        # First pass: Normalize and keep shortest version of each unique term
+        for term_dict in extracted_terms:
+            text = term_dict["Term"]
+
+            # Remove common article prefixes
+            normalized = re.sub(r'^(?:the|a|an)\s+', '', text, flags=re.IGNORECASE)
+
+            # Remove party label prefixes
+            normalized = re.sub(r'^(?:Plaintiff|Defendant)[\'s]?\s+', '', normalized, flags=re.IGNORECASE)
+
+            normalized_lower = normalized.lower()
+
+            # Keep shortest version (prefer "John Smith" over "Plaintiff John Smith")
+            if normalized_lower not in normalized_map or len(normalized) < len(normalized_map[normalized_lower]["Term"]):
+                # Update Term in dict to normalized version
+                updated_dict = term_dict.copy()
+                updated_dict["Term"] = normalized
+                normalized_map[normalized_lower] = updated_dict
+
+        # Second pass: Filter substring duplicates
+        # If "XIANJUN LIANG" exists, filter out "XIANJUN"
+        final_terms = []
+        terms_list = list(normalized_map.values())
+
+        for i, term_dict in enumerate(terms_list):
+            term_text = term_dict["Term"]
+            is_substring = False
+
+            # Check if this term is a substring of any other term
+            for j, other_dict in enumerate(terms_list):
+                if i != j:
+                    other_text = other_dict["Term"]
+                    # Case-insensitive substring check, and this term must be shorter
+                    if (term_text.lower() in other_text.lower() and
+                        len(term_text) < len(other_text)):
+                        is_substring = True
+                        break
+
+            if not is_substring:
+                final_terms.append(term_dict)
+
+        return final_terms
 
     def _second_pass_processing(
         self,
