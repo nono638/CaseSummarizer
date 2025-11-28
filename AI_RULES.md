@@ -35,7 +35,21 @@ You are a Senior Python Architect and UX-Focused QA Agent.
 
 ## 2. Documentation Ecosystem
 * **The Overview (`[ProjectName].md`):** Constitution. Must contain `## Technical Environment`.
-* **The Log (`DEV_LOG.md`):** `[Date] [Start-End Time] - Task - Outcome`.
+* **The Development Log (`development_log.md`):** Detailed timestamped log of all significant changes.
+  - **Format:** `## Session N - Title (YYYY-MM-DD)` followed by objectives, implementation details, testing results
+  - **AUTOMATIC CONDENSATION POLICY:**
+    * **Most Recent 5 Sessions:** Keep FULL detail (implementation specifics, code examples, testing results)
+    * **Sessions 6-20 (Older):** CONDENSE to ~50-100 lines per session:
+      - Keep: Session header, objective, problems fixed, files modified, test results
+      - Remove: Verbose explanations, detailed code examples, file structure diagrams
+    * **Sessions 21+ (Historical):** CONDENSE HEAVILY to ~20-30 lines per session:
+      - Keep: Session header, 1-2 sentence summary, files modified, impact
+      - Remove: All implementation details (refer to git commits for specifics)
+    * **Target File Size:** Keep development_log.md under ~1000 lines total
+  - **When to Apply Condensation:**
+    1. End of session when updating docs (before git push)
+    2. If file exceeds 1200 lines (trigger immediately)
+    3. When adding new session creates >25 total sessions
 * **The Backlog (`TODO.md`):** Future ideas (one per line).
 * **The Crash Pad (`IN_PROGRESS.md`):** Shared Whiteboard for **Planning** AND **Execution**. Clear **AFTER** success.
   - **During Planning:** List options, trade-offs, questions
@@ -192,3 +206,103 @@ You are a Senior Python Architect and UX-Focused QA Agent.
 2. **Propose 2-3 options** - Show trade-offs
 3. **Recommend one** - Based on context from codebase
 4. **Wait for user input** - Before proceeding
+
+---
+
+## 11. End-of-Session Documentation Workflow
+
+**Trigger:** User requests "update the md files, then push to github" (or similar).
+
+### Step 1: Update development_log.md
+
+1. **Add current session entry** (DETAILED):
+   - Session number, date, objective
+   - Problems addressed with full context
+   - Implementation details (files modified, key changes, code patterns)
+   - Testing results and verification
+   - Git commits and impact
+
+2. **Condense old entries** (apply condensation policy from Section 2):
+   - Count total sessions in development_log.md
+   - Identify which sessions need condensation:
+     * Sessions 1-5 (most recent): KEEP AS-IS
+     * Sessions 6-20: Condense to ~50-100 lines if not already condensed
+     * Sessions 21+: Condense to ~20-30 lines
+   - Apply condensation starting from oldest entries first
+   - If file still exceeds 1000 lines, condense more aggressively
+
+3. **Verify file size:**
+   - Count lines: `wc -l development_log.md`
+   - If >1000 lines, condense more aggressively
+   - Target: 800-1000 lines
+
+### Condensation Decision Tree
+
+For each session entry in development_log.md:
+
+1. Count total sessions in file (Session 11, Session 10, etc.)
+2. Determine session position (most recent = 1, second most recent = 2, etc.)
+3. Apply condensation based on position:
+   - **Positions 1-5 (Most Recent):** KEEP AS-IS (full detail)
+   - **Positions 6-20 (Older):** CONDENSE to 50-100 lines
+     * Keep: Header, objective, summary, files modified, testing
+     * Remove: Code examples, verbose explanations, diagrams
+   - **Positions 21+ (Historical):** CONDENSE HEAVILY to 20-30 lines
+     * Keep: Header, 1-2 sentence summary, files modified
+     * Remove: All implementation details
+4. Work from oldest to newest when condensing
+5. Verify final file size <1000 lines
+
+### Condensation Example
+
+**BEFORE (Overly Detailed - 743 lines):**
+```markdown
+## Session 7 - Separation of Concerns Refactoring (2025-11-26)
+
+**Objective:** Comprehensive code review...
+
+### Problems Addressed
+**Issue #1: VocabularyExtractor Location**
+- Was at `src/vocabulary_extractor.py` (root level)
+[... 730 more lines ...]
+```
+
+**AFTER (Condensed for Positions 6-20 - ~60 lines):**
+```markdown
+## Session 7 - Separation of Concerns Refactoring (2025-11-26)
+
+**Objective:** Comprehensive code review and refactoring to improve separation of concerns.
+
+**Summary:** Fixed 5 separation-of-concerns issues: moved VocabularyExtractor to package, created WorkflowOrchestrator to separate business logic from UI, replaced hardcoded config paths, unified dual logging systems, removed unused code.
+
+**Files Created:**
+- `src/vocabulary/` package with improved vocabulary_extractor.py
+- `src/ui/workflow_orchestrator.py` (workflow logic)
+- `src/logging_config.py` (unified logging)
+- `src/utils/text_utils.py` (text utilities)
+
+**Files Modified:**
+- Refactored `queue_message_handler.py` (UI-only routing)
+- Updated `main_window.py` to use orchestrator
+- Removed unused SystemMonitorWidget from `widgets.py`
+
+**Testing:** ✅ All 55 tests passing after refactoring
+
+**Impact:** Better code organization, eliminated duplication, all files under 300 lines
+```
+
+### Step 2: Update human_summary.md
+- Update "Latest Session" section with current work
+- Update file directory if new files were created
+- Keep status line current
+
+### Step 3: Git Operations
+```bash
+git add development_log.md human_summary.md [other modified files]
+git commit -m "docs: Update development_log and human_summary for Session N"
+git push
+```
+
+### Step 4: Confirm to user
+- Report session count and line count reduction if condensation occurred
+- Show commit hash and push status
