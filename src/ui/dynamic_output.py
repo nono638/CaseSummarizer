@@ -5,6 +5,12 @@ Displays AI-generated summaries, meta-summaries, and vocabulary CSVs.
 Provides copy/save functionality for export.
 The vocabulary display uses an Excel-like Treeview with frozen headers
 and right-click context menu for excluding terms from future extractions.
+
+Performance Optimizations (Session 14):
+- Text truncation prevents row height overflow and improves rendering speed
+- Batch insertion with reduced batch size for responsiveness
+- Garbage collection after large operations
+- Deferred Treeview creation until first use
 """
 
 import customtkinter as ctk
@@ -12,9 +18,39 @@ from tkinter import ttk, messagebox, filedialog, Menu
 import io
 import csv
 import os
+import gc
 
 from src.config import USER_VOCAB_EXCLUDE_PATH, VOCABULARY_DISPLAY_LIMIT, VOCABULARY_DISPLAY_MAX
 from src.logging_config import debug_log
+
+
+# Column width configuration (in pixels) - controls text truncation
+# Approximate character limits based on font size 10 Segoe UI
+COLUMN_CONFIG = {
+    "Term": {"width": 180, "max_chars": 30},
+    "Type": {"width": 100, "max_chars": 15},
+    "Role/Relevance": {"width": 180, "max_chars": 28},
+    "Definition": {"width": 400, "max_chars": 60}
+}
+
+
+def truncate_text(text: str, max_chars: int) -> str:
+    """
+    Truncate text to prevent Treeview row overflow.
+
+    Args:
+        text: Text to truncate
+        max_chars: Maximum characters before truncation
+
+    Returns:
+        Truncated text with ellipsis if needed
+    """
+    if not text:
+        return ""
+    text = str(text).replace('\n', ' ').replace('\r', '').strip()
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars - 3] + "..."
 
 
 class DynamicOutputWidget(ctk.CTkFrame):
@@ -95,6 +131,26 @@ class DynamicOutputWidget(ctk.CTkFrame):
         for widget in self.dynamic_content_frame.winfo_children():
             widget.grid_remove()
 
+    def cleanup(self):
+        """
+        Clean up resources when widget is no longer needed.
+        Call this to free memory after heavy processing.
+        """
+        # Clear internal data storage
+        self._outputs = {
+            "Meta-Summary": "",
+            "Rare Word List (CSV)": []
+        }
+        self._document_summaries = {}
+
+        # Clear treeview data if it exists
+        if self.csv_treeview is not None:
+            self.csv_treeview.delete(*self.csv_treeview.get_children())
+
+        # Force garbage collection
+        gc.collect()
+        debug_log("[VOCAB DISPLAY] Cleanup completed, memory freed.")
+
     def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None):
         """
         Updates the internal storage with new outputs and refreshes the dropdown.
@@ -140,13 +196,15 @@ class DynamicOutputWidget(ctk.CTkFrame):
         style.theme_use("default")
 
         # Main treeview styling - dark theme
+        # Row height 25px is tight but prevents text wrapping issues
+        # Text truncation handles overflow (see truncate_text function)
         style.configure(
             "Vocab.Treeview",
             background="#2b2b2b",
             foreground="white",
             fieldbackground="#2b2b2b",
             borderwidth=0,
-            rowheight=28,
+            rowheight=25,
             font=('Segoe UI', 10)
         )
         style.map('Vocab.Treeview', background=[('selected', '#3470b6')])
@@ -217,20 +275,14 @@ class DynamicOutputWidget(ctk.CTkFrame):
                 selectmode="browse"
             )
 
-            # Configure column headings and widths
-            column_widths = {
-                "Term": 150,
-                "Type": 120,
-                "Role/Relevance": 200,
-                "Definition": 350
-            }
-
+            # Configure column headings and widths using COLUMN_CONFIG
             for col in columns:
+                col_config = COLUMN_CONFIG.get(col, {"width": 100})
                 self.csv_treeview.heading(col, text=col, anchor='w')
                 self.csv_treeview.column(
                     col,
-                    width=column_widths.get(col, 100),
-                    minwidth=80,
+                    width=col_config["width"],
+                    minwidth=60,
                     anchor='w',
                     stretch=True if col == "Definition" else False
                 )
@@ -278,30 +330,35 @@ class DynamicOutputWidget(ctk.CTkFrame):
         debug_log(f"[VOCAB DISPLAY] Showing {min(total_items, MAX_DISPLAY_ROWS)} of {total_items} terms "
                   f"(limit: {VOCABULARY_DISPLAY_LIMIT}, ceiling: {VOCABULARY_DISPLAY_MAX})")
 
-        # Populate with limited data in batches for responsiveness
-        BATCH_SIZE = 25
-        for batch_start in range(0, len(display_items), BATCH_SIZE):
-            batch_end = min(batch_start + BATCH_SIZE, len(display_items))
-            batch = display_items[batch_start:batch_end]
+        # Populate data - insert all at once for speed, no intermediate updates
+        # This reduces flickering caused by excessive update_idletasks() calls
+        for item in display_items:
+            if isinstance(item, dict):
+                # Apply text truncation to prevent row overflow
+                values = (
+                    truncate_text(item.get("Term", ""), COLUMN_CONFIG["Term"]["max_chars"]),
+                    truncate_text(item.get("Type", ""), COLUMN_CONFIG["Type"]["max_chars"]),
+                    truncate_text(item.get("Role/Relevance", ""), COLUMN_CONFIG["Role/Relevance"]["max_chars"]),
+                    truncate_text(item.get("Definition", ""), COLUMN_CONFIG["Definition"]["max_chars"])
+                )
+            else:
+                # Handle list format (legacy) - apply truncation
+                raw_values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
+                columns = ["Term", "Type", "Role/Relevance", "Definition"]
+                values = tuple(
+                    truncate_text(str(v), COLUMN_CONFIG[columns[i]]["max_chars"])
+                    for i, v in enumerate(raw_values[:4])
+                )
 
-            for item in batch:
-                if isinstance(item, dict):
-                    values = (
-                        item.get("Term", ""),
-                        item.get("Type", ""),
-                        item.get("Role/Relevance", ""),
-                        item.get("Definition", "")
-                    )
-                else:
-                    # Handle list format (legacy)
-                    values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
-
-                self.csv_treeview.insert("", "end", values=values)
-
-            # Force UI update after each batch to keep responsive
-            self.update_idletasks()
+            self.csv_treeview.insert("", "end", values=values)
 
         self.csv_treeview.grid(row=0, column=0, sticky="nsew")
+
+        # Single UI update after all insertions complete (reduces flickering)
+        self.update_idletasks()
+
+        # Force garbage collection after large display operation
+        gc.collect()
 
         # Add info label if we're showing a subset
         if total_items > MAX_DISPLAY_ROWS:

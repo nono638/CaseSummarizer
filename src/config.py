@@ -138,13 +138,19 @@ VOCABULARY_SORT_BY_RARITY = True
 
 # GUI Display Limits for Vocabulary Table
 # Based on tkinter Treeview performance testing:
-# - < 500 rows: Generally acceptable
-# - 500-1,500 rows: Performance degrades significantly
-# - 1,500+ rows: Serious UI freezing
-# Default: 150 rows (safe for most systems, still useful for review)
-# Maximum ceiling: 500 rows (absolute limit to prevent freezing)
-VOCABULARY_DISPLAY_LIMIT = 150  # User-configurable default
-VOCABULARY_DISPLAY_MAX = 500    # Hard ceiling - cannot exceed this
+# - < 100 rows: Excellent performance
+# - 100-200 rows: Generally acceptable
+# - 200+ rows: Performance degrades, especially with text wrapping
+# Default: 50 rows (conservative for responsiveness)
+# Maximum ceiling: 200 rows (hard limit to prevent GUI freezing)
+VOCABULARY_DISPLAY_LIMIT = 50   # User-configurable default (conservative)
+VOCABULARY_DISPLAY_MAX = 200    # Hard ceiling - cannot exceed this
+
+# Vocabulary Extraction Performance Settings
+# Max text size in KB for spaCy NLP processing
+# spaCy processes ~10-20K words/sec; 200KB ≈ 35K words ≈ 2-3 seconds
+# Larger documents are truncated (still captures most named entities from early pages)
+VOCABULARY_MAX_TEXT_KB = 200  # 200KB max for NLP processing (200,000 characters)
 
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"

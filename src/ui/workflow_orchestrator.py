@@ -9,8 +9,12 @@ Manages the document processing workflow state machine, coordinating between:
 This module separates workflow orchestration logic from UI updates,
 improving testability and maintainability.
 
-Workflow State Machine:
-    IDLE -> EXTRACTING -> [VOCAB_EXTRACTION | AI_GENERATION] -> COMPLETE
+Workflow State Machine (SEQUENTIAL - Session 14 fix):
+    IDLE -> EXTRACTING -> VOCAB_EXTRACTION -> AI_GENERATION -> COMPLETE
+
+Key Design Decision:
+    Vocabulary extraction completes BEFORE AI generation starts.
+    This ensures the user can view/download the vocab list while AI runs.
 
 The orchestrator decides WHAT to do next; the QueueMessageHandler decides
 HOW to update the UI in response.
@@ -33,11 +37,15 @@ class WorkflowState:
         extracted_documents: List of documents that have been extracted
         pending_ai_params: AI generation parameters (model, length, options)
         output_options: Dictionary of requested output types
-        is_complete: Whether the workflow has finished
+        vocab_complete: Whether vocabulary extraction has finished
+        ai_complete: Whether AI generation has finished
+        is_complete: Whether the entire workflow has finished
     """
     extracted_documents: List[Dict] = None
     pending_ai_params: Optional[Dict] = None
     output_options: Optional[Dict] = None
+    vocab_complete: bool = False
+    ai_complete: bool = False
     is_complete: bool = False
 
     def __post_init__(self):
@@ -98,6 +106,11 @@ class WorkflowOrchestrator:
         This is the main orchestration method. It decides what workflow steps
         to execute next based on the current state and user options.
 
+        SEQUENTIAL WORKFLOW (Session 14):
+        1. If vocab requested → start vocab extraction, wait for completion
+        2. When vocab completes → start AI generation
+        3. This ensures user can view/export vocab while AI runs
+
         Args:
             extracted_documents: List of extracted document result dictionaries
             ai_params: AI generation parameters, or None if AI not requested
@@ -117,6 +130,8 @@ class WorkflowOrchestrator:
         self.state.extracted_documents = extracted_documents
         self.state.pending_ai_params = ai_params
         self.state.output_options = self.get_output_options()
+        self.state.vocab_complete = False
+        self.state.ai_complete = False
 
         actions_taken = {
             'vocab_extraction_started': False,
@@ -125,25 +140,29 @@ class WorkflowOrchestrator:
             'combined_text': None
         }
 
-        # If no AI generation requested, workflow is done
-        if not ai_params:
-            debug_log("[ORCHESTRATOR] No AI generation requested. Workflow complete.")
+        # If no AI generation requested and no vocab requested, workflow is done
+        if not ai_params and not self.state.output_options.get('vocab_csv', False):
+            debug_log("[ORCHESTRATOR] No outputs requested. Workflow complete.")
             self.state.is_complete = True
             actions_taken['workflow_complete'] = True
             return actions_taken
 
-        # Start vocabulary extraction if requested (runs in parallel with AI)
+        # SEQUENTIAL: Start vocabulary extraction FIRST if requested
+        # AI generation will start AFTER vocab completes (in on_vocab_complete)
         if self.state.output_options.get('vocab_csv', False):
             combined_text = self._get_combined_text(extracted_documents)
             actions_taken['combined_text'] = combined_text
             actions_taken['vocab_extraction_started'] = True
             self._start_vocab_extraction(combined_text)
-            debug_log("[ORCHESTRATOR] Started vocabulary extraction (parallel).")
+            debug_log("[ORCHESTRATOR] Started vocabulary extraction (AI will start after).")
+            # Do NOT start AI here - wait for vocab to complete
+            return actions_taken
 
-        # Start AI generation
-        self._start_ai_generation(extracted_documents, ai_params)
-        actions_taken['ai_generation_started'] = True
-        debug_log("[ORCHESTRATOR] Started AI summary generation.")
+        # If no vocab requested but AI is, start AI directly
+        if ai_params:
+            self._start_ai_generation(extracted_documents, ai_params)
+            actions_taken['ai_generation_started'] = True
+            debug_log("[ORCHESTRATOR] Started AI summary generation (no vocab requested).")
 
         return actions_taken
 
@@ -201,11 +220,42 @@ class WorkflowOrchestrator:
     def on_summary_complete(self):
         """Handle completion of AI summary generation."""
         debug_log("[ORCHESTRATOR] AI summary generation complete.")
-        # Note: Vocab extraction may still be running; that's fine (parallel)
+        self.state.ai_complete = True
+        self._check_workflow_complete()
 
     def on_vocab_complete(self):
-        """Handle completion of vocabulary extraction."""
+        """
+        Handle completion of vocabulary extraction.
+
+        SEQUENTIAL WORKFLOW: Now that vocab is done and visible to user,
+        start AI generation if it was requested.
+        """
         debug_log("[ORCHESTRATOR] Vocabulary extraction complete.")
+        self.state.vocab_complete = True
+
+        # Now start AI generation if it was requested
+        if self.state.pending_ai_params and self.state.output_options.get('meta_summary', False):
+            debug_log("[ORCHESTRATOR] Vocab complete, now starting AI generation...")
+            self._start_ai_generation(
+                self.state.extracted_documents,
+                self.state.pending_ai_params
+            )
+        else:
+            # No AI requested, workflow is complete
+            debug_log("[ORCHESTRATOR] No AI generation requested. Workflow complete.")
+            self._check_workflow_complete()
+
+    def _check_workflow_complete(self):
+        """Check if all requested workflow steps are complete."""
+        vocab_needed = self.state.output_options.get('vocab_csv', False) if self.state.output_options else False
+        ai_needed = self.state.output_options.get('meta_summary', False) if self.state.output_options else False
+
+        vocab_done = self.state.vocab_complete or not vocab_needed
+        ai_done = self.state.ai_complete or not ai_needed
+
+        if vocab_done and ai_done:
+            self.state.is_complete = True
+            debug_log("[ORCHESTRATOR] All workflow steps complete.")
 
     def reset(self):
         """Reset the orchestrator state for a new workflow."""

@@ -22,13 +22,14 @@ class SystemMonitor(ctk.CTkFrame):
     - 90%+: Red (critical) with exclamation mark indicator
     """
 
-    def __init__(self, parent=None, update_interval_ms=1000):
+    def __init__(self, parent=None, update_interval_ms=2000):
         """
         Initialize the system monitor.
 
         Args:
             parent: Parent widget
-            update_interval_ms: Update frequency in milliseconds (default 1000)
+            update_interval_ms: Update frequency in milliseconds (default 2000)
+                               Increased from 1000ms to reduce main thread load
         """
         super().__init__(parent, fg_color="transparent")
         self.update_interval_ms = update_interval_ms
@@ -100,19 +101,24 @@ class SystemMonitor(ctk.CTkFrame):
     def _monitoring_loop(self):
         """Background thread that collects metrics."""
         import time
+        # Initialize CPU percent tracking (first call returns 0)
+        psutil.cpu_percent(interval=None)
+
         while self.monitoring:
             try:
                 # Collect metrics (no GUI updates in background thread)
                 self._collect_metrics()
+                # Sleep for update interval (metrics collection is now non-blocking)
                 time.sleep(self.update_interval_ms / 1000.0)
             except Exception as e:
-                print(f"Monitor error: {e}")
+                pass  # Silently ignore errors to avoid console spam
 
     def _collect_metrics(self):
         """Collect current system metrics (background thread safe)."""
         try:
-            # Get current metrics
-            cpu_percent = psutil.cpu_percent(interval=0.1)
+            # NON-BLOCKING: Use interval=None to get CPU since last call
+            # This doesn't block - it returns immediately with delta since last measurement
+            cpu_percent = psutil.cpu_percent(interval=None)
             memory = psutil.virtual_memory()
             ram_used_gb = memory.used / (1024 ** 3)
             ram_total_gb = memory.total / (1024 ** 3)
@@ -126,18 +132,27 @@ class SystemMonitor(ctk.CTkFrame):
             self.current_ram_percent = ram_percent
             self._metrics_updated = True
 
-        except Exception as e:
-            print(f"Error collecting metrics: {e}")
+        except Exception:
+            pass  # Silently ignore errors
 
     def _schedule_main_thread_update(self):
         """Schedule the next display update check (main thread only)."""
-        if self.monitoring:
+        if not self.monitoring:
+            return
+
+        try:
             # Check if background thread has collected new metrics
             if self._metrics_updated:
                 self._update_display()
                 self._metrics_updated = False
-            # Schedule next check
+        except Exception:
+            pass  # Ignore display errors during heavy processing
+
+        # Schedule next check - use after() which is resilient to busy main thread
+        try:
             self.after(self.update_interval_ms, self._schedule_main_thread_update)
+        except Exception:
+            pass  # Widget may be destroyed
 
     def _update_display(self):
         """Update the display with stored metrics (main thread only)."""

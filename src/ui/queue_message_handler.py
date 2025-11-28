@@ -17,8 +17,13 @@ Message Types Handled:
 - processing_finished: Delegate to orchestrator, then update UI
 - summary_result: Display AI-generated summary
 - error: Show error dialog and reset UI
+
+Performance Optimizations (Session 14):
+- Explicit garbage collection after processing completes
+- Worker reference cleanup to prevent memory leaks
 """
 
+import gc
 from tkinter import messagebox
 from src.logging_config import debug_log
 
@@ -179,11 +184,24 @@ class QueueMessageHandler:
         self.main_window.generate_outputs_btn.configure(state="normal")
         self.main_window.output_options.unlock_controls()  # Unlock slider and checkboxes
 
-        # Explicitly hide cancel button and force UI update
-        self.main_window.cancel_btn.grid_remove()
-        debug_log("[QUEUE HANDLER] Cancel button hidden via grid_remove()")
+        # Disable cancel button (grey it out instead of hiding)
+        self.main_window.cancel_btn.configure(
+            state="disabled",
+            fg_color="#6c757d",  # Grey when disabled
+            hover_color="#5a6268"
+        )
+        debug_log("[QUEUE HANDLER] Cancel button disabled (greyed out)")
 
         self.main_window.progress_bar.grid_remove()
+
+        # Clear worker references to allow garbage collection
+        self.main_window.worker = None
+        if self.orchestrator:
+            self.orchestrator.vocab_worker = None
+
+        # Force garbage collection after heavy processing
+        gc.collect()
+        debug_log("[QUEUE HANDLER] Worker references cleared, garbage collected.")
 
         # Force immediate UI update to ensure button disappears
         self.main_window.update_idletasks()

@@ -278,6 +278,9 @@ class OutputOptionsWidget(ctk.CTkFrame):
         super().__init__(master, **kwargs)
         self.grid_columnconfigure(0, weight=1)
 
+        # Reference to generate button (set by quadrant_builder after creation)
+        self._generate_btn = None
+
         # Summary Length
         length_label = ctk.CTkLabel(self, text="Summary Length (Approx)", font=ctk.CTkFont(weight="bold"))
         length_label.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
@@ -294,17 +297,90 @@ class OutputOptionsWidget(ctk.CTkFrame):
         output_type_label = ctk.CTkLabel(self, text="Desired Outputs", font=ctk.CTkFont(weight="bold"))
         output_type_label.grid(row=3, column=0, padx=10, pady=(10, 0), sticky="w")
 
-        self.individual_summaries_check = ctk.CTkCheckBox(self, text="Individual Summaries")
+        self.individual_summaries_check = ctk.CTkCheckBox(
+            self, text="Individual Summaries",
+            command=self._update_generate_button_text
+        )
         self.individual_summaries_check.grid(row=4, column=0, padx=10, pady=5, sticky="w")
         self.individual_summaries_check.deselect() # Off by default
 
-        self.meta_summary_check = ctk.CTkCheckBox(self, text="Meta-Summary of All Documents")
+        self.meta_summary_check = ctk.CTkCheckBox(
+            self, text="Meta-Summary of All Documents",
+            command=self._update_generate_button_text
+        )
         self.meta_summary_check.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.meta_summary_check.select() # On by default
 
-        self.vocab_csv_check = ctk.CTkCheckBox(self, text="Rare Word List (CSV)")
+        self.vocab_csv_check = ctk.CTkCheckBox(
+            self, text="Rare Word List (CSV)",
+            command=self._update_generate_button_text
+        )
         self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.vocab_csv_check.select()  # On by default
+
+    def set_generate_button(self, button):
+        """
+        Set reference to the generate button for dynamic text updates.
+
+        Args:
+            button: The CTkButton to update
+        """
+        self._generate_btn = button
+        self._update_generate_button_text()
+
+    def set_document_count(self, count: int):
+        """
+        Set the number of documents selected for processing.
+        Used to calculate output count when individual summaries is checked.
+
+        Args:
+            count: Number of documents selected
+        """
+        self._document_count = count
+        self._update_generate_button_text()
+
+    def _update_generate_button_text(self):
+        """Update generate button text based on number of outputs to generate."""
+        if self._generate_btn is None:
+            return
+
+        count = self.get_output_count()
+        if count == 0:
+            self._generate_btn.configure(text="Select Outputs")
+        elif count == 1:
+            self._generate_btn.configure(text="Generate 1 Output")
+        else:
+            self._generate_btn.configure(text=f"Generate {count} Outputs")
+
+    def get_output_count(self) -> int:
+        """
+        Return the total number of outputs that will be generated.
+
+        Individual summaries count = number of documents (not 1).
+        Meta-summary and vocab CSV each count as 1.
+        """
+        count = 0
+        doc_count = getattr(self, '_document_count', 0)
+
+        if self.individual_summaries_check.get():
+            # Individual summaries = one per document
+            count += max(doc_count, 1)  # At least 1 if checkbox is checked
+        if self.meta_summary_check.get():
+            count += 1
+        if self.vocab_csv_check.get():
+            count += 1
+        return count
+
+    def get_checked_count(self) -> int:
+        """Return the number of checked checkboxes (not document-aware)."""
+        count = 0
+        if self.individual_summaries_check.get():
+            count += 1
+        if self.meta_summary_check.get():
+            count += 1
+        if self.vocab_csv_check.get():
+            count += 1
+        return count
 
     def lock_controls(self):
         """Disable all output option controls during processing."""

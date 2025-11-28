@@ -14,10 +14,16 @@ Architecture:
 - Message Routing: Delegated to QueueMessageHandler
 - Workflow Logic: Delegated to WorkflowOrchestrator
 - Background Work: Delegated to workers.py
+
+Performance Optimizations (Session 14):
+- Explicit garbage collection after processing completes
+- Worker reference cleanup to prevent memory leaks
+- Improved queue processing to prevent duplicate AI message handling
 """
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import os
+import gc
 from queue import Queue, Empty
 
 from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
@@ -190,7 +196,10 @@ class MainWindow(ctk.CTk):
             self.selected_files = filepaths
             self.files_label.configure(text=f"{len(filepaths)} file(s) selected")
             self.generate_outputs_btn.configure(state="normal")
-            
+
+            # Update output options with document count for dynamic button text
+            self.output_options.set_document_count(len(filepaths))
+
             # Populate file table with initial pending status
             self.file_table.clear() # Clear existing entries
             for filepath in filepaths:
@@ -209,6 +218,7 @@ class MainWindow(ctk.CTk):
             self.selected_files = []
             self.files_label.configure(text="No files selected")
             self.generate_outputs_btn.configure(state="disabled")
+            self.output_options.set_document_count(0)  # Reset document count
             self.file_table.clear()
 
     def _start_generation(self):
@@ -246,8 +256,12 @@ class MainWindow(ctk.CTk):
         self.generate_outputs_btn.configure(state="disabled")
         self.output_options.lock_controls()  # Lock slider and checkboxes
 
-        # Show cancel button
-        self.cancel_btn.grid()
+        # Enable cancel button (make it red and clickable)
+        self.cancel_btn.configure(
+            state="normal",
+            fg_color="#dc3545",  # Red when active
+            hover_color="#b02a37"
+        )
 
         self.progress_bar.grid()  # Make progress bar visible (already gridded at column 1)
         # DO NOT clear the file table - users need to see which files are being processed
@@ -301,13 +315,25 @@ class MainWindow(ctk.CTk):
         self.generate_outputs_btn.configure(state="normal")
         self.output_options.unlock_controls()
 
-        # Hide cancel button
-        self.cancel_btn.grid_remove()
+        # Disable cancel button (grey it out instead of hiding)
+        self.cancel_btn.configure(
+            state="disabled",
+            fg_color="#6c757d",  # Grey when disabled
+            hover_color="#5a6268"
+        )
 
-        # Clear pending AI generation
+        # Clear pending AI generation and processed results
         self.pending_ai_generation = None
+        self.processed_results = []
 
-        debug_log("[MAIN WINDOW] Cancellation complete. UI restored.")
+        # Clear worker references to allow garbage collection
+        self.worker = None
+        self.workflow_orchestrator.vocab_worker = None
+
+        # Force garbage collection to free memory
+        gc.collect()
+
+        debug_log("[MAIN WINDOW] Cancellation complete. UI restored, memory cleaned.")
 
     def _start_ai_generation(self, extracted_documents, ai_params):
         """
@@ -354,6 +380,8 @@ class MainWindow(ctk.CTk):
 
         Uses the QueueMessageHandler for decoupled, testable message routing.
         Processes messages in batches to keep GUI responsive during heavy loads.
+
+        AI messages are processed directly (not re-queued) to prevent duplicates.
         """
         # Process up to 10 messages per cycle to keep GUI responsive
         # For 260-page PDFs, this prevents blocking the main thread
@@ -369,19 +397,20 @@ class MainWindow(ctk.CTk):
 
         except Empty:
             pass  # No messages in queue
-        finally:
-            # Also check AI worker manager for messages
-            if hasattr(self, 'ai_worker_manager'):
-                ai_messages = self.ai_worker_manager.check_for_messages()
-                for msg_type, msg_data in ai_messages:
-                    # Put AI messages back in the main queue for processing
-                    self.ui_queue.put((msg_type, msg_data))
 
-            # Force UI update to keep responsive during heavy processing
-            if messages_processed > 0:
-                self.update_idletasks()
+        # Process AI worker messages directly (not re-queued to prevent duplicates)
+        if hasattr(self, 'ai_worker_manager'):
+            ai_messages = self.ai_worker_manager.check_for_messages()
+            for msg_type, msg_data in ai_messages:
+                # Process AI messages directly through message handler
+                self.message_handler.process_message(msg_type, msg_data)
+                messages_processed += 1
 
-            self.after(100, self._process_queue)  # Poll again after 100ms
+        # Force UI update to keep responsive during heavy processing
+        if messages_processed > 0:
+            self.update_idletasks()
+
+        self.after(100, self._process_queue)  # Poll again after 100ms
 
     def _check_ollama_service(self):
         """Check if Ollama service is running on startup."""

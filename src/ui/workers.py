@@ -1,7 +1,22 @@
+"""
+Background Workers Module
+
+Contains threading and multiprocessing workers for document processing:
+- ProcessingWorker: Document extraction thread
+- VocabularyWorker: Vocabulary extraction thread
+- OllamaAIWorkerManager: AI generation process manager
+
+Performance Optimizations (Session 14):
+- Non-blocking termination for AI worker
+- Improved queue cleanup
+- Better daemon thread management
+"""
+
 import threading
 import multiprocessing
 import time
 import os
+import gc
 import traceback
 from queue import Queue, Empty
 from pathlib import Path
@@ -101,7 +116,10 @@ class VocabularyWorker(threading.Thread):
                 self.ui_queue.put(('error', "Vocabulary extraction cancelled."))
                 return
 
-            self.ui_queue.put(('progress', (30, "Extracting vocabulary...")))
+            # Show text size to set user expectations
+            text_len = len(self.combined_text)
+            text_kb = text_len // 1024
+            self.ui_queue.put(('progress', (30, f"Analyzing {text_kb}KB of text...")))
 
             # Create extractor with graceful fallback for missing files
             try:
@@ -119,16 +137,28 @@ class VocabularyWorker(threading.Thread):
                     user_exclude_path=self.user_exclude_path  # Still try user list
                 )
 
-            self.ui_queue.put(('progress', (50, "Categorizing terms...")))
+            # Check for cancellation before heavy processing
+            if self._stop_event.is_set():
+                debug_log("[VOCAB WORKER] Cancelled before extraction.")
+                return
 
-            # Extract vocabulary
+            # Update progress - NLP processing is the slow part
+            self.ui_queue.put(('progress', (40, "Running NLP analysis (this may take a while)...")))
+
+            # Extract vocabulary - this is the slow part
             vocab_data = extractor.extract(self.combined_text)
 
-            self.ui_queue.put(('progress', (70, "Vocabulary extraction complete")))
+            # Check for cancellation after extraction
+            if self._stop_event.is_set():
+                debug_log("[VOCAB WORKER] Cancelled after extraction.")
+                return
+
+            term_count = len(vocab_data) if vocab_data else 0
+            self.ui_queue.put(('progress', (70, f"Found {term_count} vocabulary terms")))
 
             # Send results to GUI
             self.ui_queue.put(('vocab_csv_generated', vocab_data))
-            debug_log("[VOCAB WORKER] Vocabulary extraction completed successfully.")
+            debug_log(f"[VOCAB WORKER] Vocabulary extraction completed: {term_count} terms.")
 
         except Exception as e:
             error_msg = f"Vocabulary extraction failed: {str(e)}"
@@ -177,22 +207,49 @@ class OllamaAIWorkerManager:
         self.is_running = True
         debug_log(f"[OLLAMA MANAGER] Worker process started with PID: {self.process.pid}")
 
-    def stop_worker(self):
-        """Sends a termination signal and stops the Ollama AI worker process."""
+    def stop_worker(self, blocking=False):
+        """
+        Sends a termination signal and stops the Ollama AI worker process.
+
+        Args:
+            blocking: If True, wait for process to terminate. If False (default),
+                     terminate immediately without blocking the main thread.
+        """
         if self.is_running and self.process and self.process.is_alive():
             debug_log("[OLLAMA MANAGER] Sending TERMINATE signal to worker.")
             try:
-                self.input_queue.put_nowait("TERMINATE") # Non-blocking put
-                self.process.join(timeout=5) # Wait for worker to exit gracefully
+                self.input_queue.put_nowait("TERMINATE")  # Non-blocking put
+
+                if blocking:
+                    # Wait briefly for graceful shutdown
+                    self.process.join(timeout=2)
+                else:
+                    # Non-blocking: check if it's already dead, but don't wait
+                    self.process.join(timeout=0.1)
+
             except Exception as e:
-                debug_log(f"[OLLAMA MANAGER] Error sending terminate signal or joining: {e}")
-            
-            if self.process.is_alive():
+                debug_log(f"[OLLAMA MANAGER] Error sending terminate signal: {e}")
+
+            # Force terminate if still alive
+            if self.process and self.process.is_alive():
                 debug_log("[OLLAMA MANAGER] Worker did not terminate gracefully, forcing shutdown.")
-                self.process.terminate()
+                try:
+                    self.process.terminate()
+                    self.process.join(timeout=0.5)  # Brief wait for terminate
+                except Exception as e:
+                    debug_log(f"[OLLAMA MANAGER] Error during force terminate: {e}")
+
+            # Clean up queues to prevent memory leaks
+            self._clear_queue(self.input_queue)
+            self._clear_queue(self.output_queue)
+
             self.process = None
             self.is_running = False
-            debug_log("[OLLAMA MANAGER] Ollama AI worker process stopped.")
+
+            # Force garbage collection
+            gc.collect()
+
+            debug_log("[OLLAMA MANAGER] Ollama AI worker process stopped, memory cleaned.")
         elif self.is_running:
             debug_log("[OLLAMA MANAGER] Worker process already stopped or not alive.")
             self.process = None

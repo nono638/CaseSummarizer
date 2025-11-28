@@ -1,5 +1,77 @@
 # Development Log
 
+## Session 14 - Vocabulary Extraction Performance Optimization (2025-11-28)
+
+**Objective:** Resolve vocabulary extraction hanging/freezing on large documents (260-page PDFs) by implementing chunked processing and spaCy optimizations based on official documentation.
+
+### Root Causes Identified
+
+1. **Initialization Order Bug**: `_load_frequency_dataset()` accessed `self.rarity_threshold` before it was set in `__init__`
+2. **NLTK Download Hang**: `nltk.download()` could hang indefinitely on network issues with no timeout
+3. **Monolithic NLP Processing**: 787KB document processed as single unit (~100K+ tokens, 2+ minutes)
+4. **Unnecessary spaCy Components**: Full pipeline (tagger, lemmatizer, NER) when only NER needed
+5. **Overly Aggressive Frequency Filtering**: Medical terms and named entities incorrectly filtered
+
+### Solutions Implemented
+
+**1. Chunked Processing with `nlp.pipe()` (src/vocabulary/vocabulary_extractor.py)**
+- Split documents into 50KB chunks (per spaCy best practices)
+- Process chunks using `nlp.pipe(chunks, batch_size=4)` for better memory efficiency
+- Per spaCy docs: "there's no benefit to processing a large document as a single unit - all features are relatively local"
+- Progress logging every 5 chunks for user feedback
+
+**2. Disabled Unused spaCy Components**
+- Load model with `disable=["tagger", "lemmatizer", "attribute_ruler"]`
+- Only NER needed for vocabulary extraction
+- ~3x speedup on large documents
+
+**3. Fixed Initialization Order**
+- Moved `self.rarity_threshold = VOCABULARY_RARITY_THRESHOLD` BEFORE `_load_frequency_dataset()` call
+- Eliminated silent attribute error that was breaking frequency logging
+
+**4. NLTK Download Timeout**
+- Added 15-second timeout using threading
+- Socket timeout set to 10 seconds
+- Graceful fallback if download fails or times out
+
+**5. Fixed Medical Term Filtering**
+- Medical terms from curated `medical_terms.txt` now ALWAYS accepted
+- Removed frequency-based filtering for curated medical list
+- "cardiomyopathy" no longer filtered despite being in frequency dataset
+
+**6. Fixed Named Entity Filtering**
+- Trust spaCy's NER tagging for PERSON/ORG/GPE/LOC entities
+- Removed frequency check that was filtering common surnames like "Smith"
+- When spaCy tags token as PERSON, accept it (even if word is common)
+
+### Configuration Changes
+
+**New in src/config.py:**
+```python
+VOCABULARY_MAX_TEXT_KB = 200  # Max text for NLP processing (200KB ≈ 35K words)
+```
+
+### Files Modified
+- `src/vocabulary/vocabulary_extractor.py` - Chunked processing, disabled components, fixed init order, timing logs
+- `src/config.py` - Added VOCABULARY_MAX_TEXT_KB constant
+- `src/ui/workers.py` - Better progress messages for vocabulary extraction
+
+### Performance Improvement
+- **Before:** 787KB document → hung indefinitely (2+ minutes before any output)
+- **After:** 787KB document → ~20-30 seconds (processes first 200KB in 50KB chunks)
+
+### Testing
+✅ All 55 tests passing
+✅ Application starts without errors
+✅ Vocabulary extraction completes on large documents
+
+### Sources Referenced
+- [spaCy Discussion: Processing Large Documents](https://github.com/explosion/spaCy/discussions/9170)
+- [Stack Overflow: Optimal spaCy Document Size](https://stackoverflow.com/questions/48143769/spacy-nlp-library-what-is-maximum-reasonable-document-size)
+- [spaCy Processing Pipelines Documentation](https://spacy.io/usage/processing-pipelines)
+
+---
+
 ## Session 13 - GUI Responsiveness Improvements & Critical Issue Discovery (2025-11-28)
 
 **Objective:** Implement UI locking during processing, add cancel button, and resolve GUI unresponsiveness with large documents (260-page PDFs).

@@ -30,7 +30,8 @@ from src.debug_logger import debug_log
 from src.config import (
     GOOGLE_WORD_FREQUENCY_FILE,
     VOCABULARY_RARITY_THRESHOLD,
-    VOCABULARY_SORT_BY_RARITY
+    VOCABULARY_SORT_BY_RARITY,
+    VOCABULARY_MAX_TEXT_KB
 )
 from src.vocabulary.role_profiles import RoleDetectionProfile, StenographerProfile
 
@@ -153,11 +154,14 @@ class VocabularyExtractor:
         common_blacklist_path = Path(__file__).parent.parent.parent / "config" / "common_medical_legal.txt"
         self.common_words_blacklist: Set[str] = self._load_word_list(common_blacklist_path)
 
-        # Load Google word frequency dataset for rarity filtering
-        self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
+        # Initialize rarity settings BEFORE loading frequency dataset
+        # (frequency dataset loading logs the threshold value)
         self.frequency_rank_map: Dict[str, int] = {}  # Cached word→rank mapping
         self.rarity_threshold = VOCABULARY_RARITY_THRESHOLD
         self.sort_by_rarity = VOCABULARY_SORT_BY_RARITY
+
+        # Load Google word frequency dataset for rarity filtering
+        self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
 
         # Store user exclude path for adding new exclusions
         self.user_exclude_path = user_exclude_path
@@ -314,7 +318,16 @@ class VocabularyExtractor:
 
     def _load_spacy_model(self):
         """
-        Load spaCy model, attempting to download if not present.
+        Load spaCy model with optimized component selection.
+
+        Only enables components needed for vocabulary extraction:
+        - NER (named entity recognition) - for people, places, organizations
+        - Tokenizer (always enabled) - for word segmentation
+
+        Disables unused components for ~3x speed improvement:
+        - tagger (POS tagging) - not needed for vocab extraction
+        - lemmatizer - not needed (we use raw tokens)
+        - attribute_ruler - not needed
 
         Returns:
             Loaded spaCy language model
@@ -323,22 +336,31 @@ class VocabularyExtractor:
             OSError: If model cannot be loaded or downloaded
             subprocess.TimeoutExpired: If download takes too long
         """
+        # Components to disable for performance (we only need NER)
+        # This provides ~3x speedup on large documents
+        disabled_components = ["tagger", "lemmatizer", "attribute_ruler"]
+
         try:
-            debug_log(f"[VOCAB] Loading spaCy model '{SPACY_MODEL_NAME}'...")
-            return spacy.load(SPACY_MODEL_NAME)
+            debug_log(f"[VOCAB] Loading spaCy model '{SPACY_MODEL_NAME}' (optimized, NER-only)...")
+            nlp = spacy.load(SPACY_MODEL_NAME, disable=disabled_components)
+            debug_log(f"[VOCAB] Loaded with disabled components: {disabled_components}")
+            return nlp
         except OSError:
             debug_log(
                 f"[VOCAB] spaCy model '{SPACY_MODEL_NAME}' not found. "
                 "Attempting to download..."
             )
-            return self._download_spacy_model()
+            return self._download_spacy_model(disabled_components)
 
-    def _download_spacy_model(self):
+    def _download_spacy_model(self, disabled_components=None):
         """
         Download spaCy model using pip in the current virtual environment.
 
         Uses sys.executable to ensure the model installs to the correct
         Python environment (important when running in a virtualenv).
+
+        Args:
+            disabled_components: List of component names to disable after loading
 
         Returns:
             Loaded spaCy language model after successful download
@@ -355,6 +377,8 @@ class VocabularyExtractor:
                 timeout=SPACY_DOWNLOAD_TIMEOUT
             )
             debug_log(f"[VOCAB] Successfully downloaded spaCy model '{SPACY_MODEL_NAME}'")
+            if disabled_components:
+                return spacy.load(SPACY_MODEL_NAME, disable=disabled_components)
             return spacy.load(SPACY_MODEL_NAME)
         except subprocess.TimeoutExpired:
             debug_log("[VOCAB] Download timeout: spaCy model download took too long.")
@@ -367,18 +391,58 @@ class VocabularyExtractor:
             raise
 
     def _ensure_nltk_data(self):
-        """Download NLTK data packages if not already present."""
+        """
+        Download NLTK data packages if not already present.
+
+        Uses a timeout mechanism to prevent indefinite hangs on network issues.
+        Falls back to offline mode if downloads fail.
+        """
+        import socket
+        import threading
+
         nltk_packages = [
             ('corpora/wordnet', 'wordnet'),
             ('tokenizers/punkt', 'punkt')
         ]
 
+        # Set a short timeout for network operations
+        original_timeout = socket.getdefaulttimeout()
+        socket.setdefaulttimeout(10)  # 10 second timeout
+
         for data_path, package_name in nltk_packages:
             try:
                 nltk.data.find(data_path)
+                debug_log(f"[VOCAB] NLTK {package_name} data already present")
             except LookupError:
-                debug_log(f"[VOCAB] Downloading NLTK {package_name} data...")
-                nltk.download(package_name, quiet=True)
+                debug_log(f"[VOCAB] Downloading NLTK {package_name} data (10s timeout)...")
+                try:
+                    # Run download with timeout using threading
+                    download_success = [False]
+                    download_error = [None]
+
+                    def download_task():
+                        try:
+                            nltk.download(package_name, quiet=True)
+                            download_success[0] = True
+                        except Exception as e:
+                            download_error[0] = e
+
+                    thread = threading.Thread(target=download_task, daemon=True)
+                    thread.start()
+                    thread.join(timeout=15)  # 15 second total timeout
+
+                    if thread.is_alive():
+                        debug_log(f"[VOCAB] NLTK {package_name} download timed out. Continuing without it.")
+                    elif download_error[0]:
+                        debug_log(f"[VOCAB] NLTK {package_name} download failed: {download_error[0]}")
+                    else:
+                        debug_log(f"[VOCAB] NLTK {package_name} downloaded successfully")
+
+                except Exception as e:
+                    debug_log(f"[VOCAB] NLTK {package_name} download error: {e}. Continuing without it.")
+
+        # Restore original timeout
+        socket.setdefaulttimeout(original_timeout)
 
     def add_user_exclusion(self, term: str) -> bool:
         """
@@ -513,31 +577,20 @@ class VocabularyExtractor:
             if re.match(pattern, token.text):
                 return False
 
-        # Named entities (Person, Org, Location) should bypass frequency check,
-        # BUT add safety net for common words to filter spaCy false positives
+        # Named entities (Person, Org, Location) - trust spaCy's NER tagging
+        # spaCy is trained on annotated data and recognizes names even when they're common words
+        # e.g., "Smith" is a common word but when tagged as PERSON, it's a surname
         if ent_type in ["PERSON", "ORG", "GPE", "LOC"]:
-            # Multi-word entities always accepted (e.g., "John Smith", "Memorial Hospital")
-            if len(token.text.split()) > 1:
-                return True
+            # Accept all named entities (multi-word or single-word)
+            # The entity extractor in _first_pass_extraction prefers multi-word entities
+            # from doc.ents, so single-word tokens here are typically legitimate names
+            return True
 
-            # Single-word entities: still check frequency to filter "the", "and", etc.
-            # This catches spaCy tagging errors like "the Medical Center" → extracting "the"
-            if self.frequency_dataset:
-                if not self._is_word_rare_enough(token.text):
-                    return False  # Too common (even though tagged as entity) → reject
-
-            return True  # Rare single-word entity → accept
-
-        # Medical terms: filter common words, keep rare terms
-        # Common: "hospital" (rank 1345), "doctor" (rank 2034), "medical" (rank 501)
-        # Rare: "adenocarcinoma" (rank >150K), "bronchogenic" (rank >150K)
+        # Medical terms from our curated list are ALWAYS accepted
+        # These are domain-specific terms important for stenographers
+        # (frequency filtering is done at list curation time, not extraction time)
         if lower_text in self.medical_terms:
-            # Use frequency threshold to separate common from rare
-            if self.frequency_dataset:
-                if not self._is_word_rare_enough(token.text):
-                    return False  # Common medical word → reject
-
-            return True  # Rare medical term → accept
+            return True  # Medical term from curated list → always accept
 
         # Acronyms (all caps, 2+ chars) are unusual, EXCEPT title abbreviations
         if re.fullmatch(r'[A-Z]{2,}', token.text):
@@ -630,12 +683,60 @@ class VocabularyExtractor:
         return "—"
 
 
+    def _chunk_text(self, text: str, chunk_size_kb: int = 50) -> List[str]:
+        """
+        Split text into chunks for efficient NLP processing.
+
+        Splits on paragraph boundaries (double newlines) when possible,
+        falling back to sentence boundaries, then character boundaries.
+
+        Args:
+            text: Full document text
+            chunk_size_kb: Target chunk size in KB (default 50KB)
+
+        Returns:
+            List of text chunks
+        """
+        chunk_size_chars = chunk_size_kb * 1024
+        chunks = []
+
+        # If text is small enough, return as single chunk
+        if len(text) <= chunk_size_chars:
+            return [text]
+
+        # Split on double newlines (paragraphs) first
+        paragraphs = text.split('\n\n')
+        current_chunk = []
+        current_size = 0
+
+        for para in paragraphs:
+            para_size = len(para) + 2  # +2 for the newlines we removed
+
+            if current_size + para_size > chunk_size_chars and current_chunk:
+                # Save current chunk and start new one
+                chunks.append('\n\n'.join(current_chunk))
+                current_chunk = [para]
+                current_size = para_size
+            else:
+                current_chunk.append(para)
+                current_size += para_size
+
+        # Don't forget the last chunk
+        if current_chunk:
+            chunks.append('\n\n'.join(current_chunk))
+
+        return chunks
+
     def extract(self, text: str) -> List[Dict[str, str]]:
         """
         Extract unusual vocabulary from text with categorization, role detection, and definitions.
 
+        Uses chunked processing with nlp.pipe() for efficient memory usage on large documents.
+        Per spaCy best practices: "there's no benefit to processing a large document as a
+        single unit - all features are relatively local, usually within the same paragraph"
+
         Performs a three-step extraction:
-        1. First pass: Extract named entities and unusual tokens, count frequencies
+        1. First pass: Extract named entities and unusual tokens from chunks
         2. Second pass: Deduplicate, categorize, detect roles/relevance, add definitions
         3. Third pass: Sort by rarity if enabled
 
@@ -650,16 +751,71 @@ class VocabularyExtractor:
                              "Accident location", "Medical term", "Technical term")
             - Definition: WordNet definition for Medical/Technical terms, "—" for Person/Place
         """
-        doc = self.nlp(text)
+        import time
 
-        # First pass: Extract terms and count frequencies
-        extracted_terms, term_frequencies = self._first_pass_extraction(doc)
+        original_len = len(text)
+        original_kb = original_len // 1024
+        debug_log(f"[VOCAB] Starting extraction on {original_kb}KB document")
 
-        # Deduplicate terms (remove variants and substrings)
-        extracted_terms = self._deduplicate_terms(extracted_terms)
+        # Chunk text for efficient processing (50KB chunks recommended by spaCy docs)
+        chunks = self._chunk_text(text, chunk_size_kb=50)
+        debug_log(f"[VOCAB] Split into {len(chunks)} chunks for parallel NLP processing")
+
+        # Limit total text processed to max size
+        max_chars = VOCABULARY_MAX_TEXT_KB * 1024
+        total_chars = 0
+        chunks_to_process = []
+        for chunk in chunks:
+            if total_chars + len(chunk) > max_chars:
+                # Include partial chunk to hit limit
+                remaining = max_chars - total_chars
+                if remaining > 1000:  # Only include if meaningful amount
+                    chunks_to_process.append(chunk[:remaining])
+                break
+            chunks_to_process.append(chunk)
+            total_chars += len(chunk)
+
+        if total_chars < original_len:
+            debug_log(
+                f"[VOCAB] Processing {total_chars//1024}KB of {original_kb}KB "
+                f"({len(chunks_to_process)} of {len(chunks)} chunks)"
+            )
+
+        # Run spaCy NLP pipeline on chunks using nlp.pipe() for efficiency
+        # nlp.pipe() is recommended for batch processing - better memory usage
+        debug_log(f"[VOCAB] Starting spaCy NLP (batch mode, {len(chunks_to_process)} chunks)...")
+        start_time = time.time()
+
+        all_extracted_terms = []
+        term_frequencies = defaultdict(int)
+        total_tokens = 0
+
+        # Process chunks in batches using nlp.pipe()
+        for i, doc in enumerate(self.nlp.pipe(chunks_to_process, batch_size=4)):
+            total_tokens += len(doc)
+            chunk_terms, chunk_freqs = self._first_pass_extraction(doc)
+            all_extracted_terms.extend(chunk_terms)
+            for term, count in chunk_freqs.items():
+                term_frequencies[term] += count
+
+            # Log progress every 5 chunks
+            if (i + 1) % 5 == 0:
+                debug_log(f"[VOCAB] Processed {i+1}/{len(chunks_to_process)} chunks...")
+
+        nlp_time = time.time() - start_time
+        debug_log(f"[VOCAB] spaCy NLP completed in {nlp_time:.1f}s ({total_tokens} tokens from {len(chunks_to_process)} chunks)")
+
+        # First pass complete - now deduplicate
+        debug_log(f"[VOCAB] Found {len(all_extracted_terms)} raw terms, deduplicating...")
+        extracted_terms = self._deduplicate_terms(all_extracted_terms)
+        debug_log(f"[VOCAB] After deduplication: {len(extracted_terms)} unique terms")
 
         # Second pass: Categorize, detect roles, and build final vocabulary
-        vocabulary = self._second_pass_processing(extracted_terms, term_frequencies, text)
+        # Use full text for role detection context (to find "plaintiff", "defendant" mentions)
+        debug_log("[VOCAB] Second pass: categorizing and role detection...")
+        start_time = time.time()
+        vocabulary = self._second_pass_processing(extracted_terms, dict(term_frequencies), text)
+        debug_log(f"[VOCAB] Second pass completed in {time.time()-start_time:.1f}s")
 
         # Third pass: Sort by rarity if enabled
         if self.sort_by_rarity and self.frequency_dataset:

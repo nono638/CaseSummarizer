@@ -144,25 +144,30 @@ def build_output_options_quadrant(parent_frame):
     output_options = OutputOptionsWidget(parent_frame)
     output_options.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
 
-    # Generate button
+    # Generate button (text updated dynamically based on checkbox count)
     generate_btn = ctk.CTkButton(
         parent_frame,
-        text="Generate All Outputs",
+        text="Generate 2 Outputs",  # Default: meta-summary + vocab (2 checked by default)
         font=ctk.CTkFont(size=12, weight="bold")
     )
     generate_btn.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 5))
     generate_btn.configure(state="disabled")
 
-    # Cancel button (initially hidden)
+    # Wire up output_options to update generate button text dynamically
+    output_options.set_generate_button(generate_btn)
+
+    # Cancel button (always visible, disabled when not processing)
+    # Keeping it visible prevents UI stutter from grid/grid_remove operations
     cancel_btn = ctk.CTkButton(
         parent_frame,
         text="Cancel Processing",
         font=ctk.CTkFont(size=12, weight="bold"),
-        fg_color="#dc3545",  # Red background
-        hover_color="#b02a37"  # Darker red on hover
+        fg_color="#6c757d",  # Grey when disabled (will change to red when enabled)
+        hover_color="#5a6268",
+        state="disabled"  # Disabled by default
     )
     cancel_btn.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
-    cancel_btn.grid_remove()  # Hidden by default
+    # NOT using grid_remove() - button stays visible but greyed out
 
     return {
         'frame': parent_frame,
