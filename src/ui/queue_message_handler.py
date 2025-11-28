@@ -173,9 +173,21 @@ class QueueMessageHandler:
 
     def _reset_ui_after_processing(self):
         """Reset UI buttons and progress bar to post-processing state."""
+        debug_log("[QUEUE HANDLER] Resetting UI after processing complete...")
+
         self.main_window.select_files_btn.configure(state="normal")
         self.main_window.generate_outputs_btn.configure(state="normal")
+        self.main_window.output_options.unlock_controls()  # Unlock slider and checkboxes
+
+        # Explicitly hide cancel button and force UI update
+        self.main_window.cancel_btn.grid_remove()
+        debug_log("[QUEUE HANDLER] Cancel button hidden via grid_remove()")
+
         self.main_window.progress_bar.grid_remove()
+
+        # Force immediate UI update to ensure button disappears
+        self.main_window.update_idletasks()
+        debug_log("[QUEUE HANDLER] UI reset complete.")
 
     def process_message(self, message_type: str, data) -> bool:
         """

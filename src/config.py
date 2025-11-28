@@ -136,6 +136,16 @@ VOCABULARY_RARITY_THRESHOLD = 150000
 # When enabled, sort CSV results by rarity (words not in dataset first, then lowest frequency count)
 VOCABULARY_SORT_BY_RARITY = True
 
+# GUI Display Limits for Vocabulary Table
+# Based on tkinter Treeview performance testing:
+# - < 500 rows: Generally acceptable
+# - 500-1,500 rows: Performance degrades significantly
+# - 1,500+ rows: Serious UI freezing
+# Default: 150 rows (safe for most systems, still useful for review)
+# Maximum ceiling: 500 rows (absolute limit to prevent freezing)
+VOCABULARY_DISPLAY_LIMIT = 150  # User-configurable default
+VOCABULARY_DISPLAY_MAX = 500    # Hard ceiling - cannot exceed this
+
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"
 USER_PROMPTS_DIR = APPDATA_DIR / "prompts"  # User-created prompts survive app updates

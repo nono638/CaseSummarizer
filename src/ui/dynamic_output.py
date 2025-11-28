@@ -13,7 +13,7 @@ import io
 import csv
 import os
 
-from src.config import USER_VOCAB_EXCLUDE_PATH
+from src.config import USER_VOCAB_EXCLUDE_PATH, VOCABULARY_DISPLAY_LIMIT, VOCABULARY_DISPLAY_MAX
 from src.logging_config import debug_log
 
 
@@ -268,22 +268,61 @@ class DynamicOutputWidget(ctk.CTkFrame):
         # Clear existing data
         self.csv_treeview.delete(*self.csv_treeview.get_children())
 
-        # Populate with new data
-        for item in data:
-            if isinstance(item, dict):
-                values = (
-                    item.get("Term", ""),
-                    item.get("Type", ""),
-                    item.get("Role/Relevance", ""),
-                    item.get("Definition", "")
-                )
-            else:
-                # Handle list format (legacy)
-                values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
+        # PERFORMANCE FIX: Only display limited items to keep GUI responsive
+        # Large vocabulary lists (260-page PDFs) can have 500+ terms which freezes the GUI
+        # Enforce ceiling to prevent user config from causing freezing
+        MAX_DISPLAY_ROWS = min(VOCABULARY_DISPLAY_LIMIT, VOCABULARY_DISPLAY_MAX)
+        total_items = len(data)
+        display_items = data[:MAX_DISPLAY_ROWS]
 
-            self.csv_treeview.insert("", "end", values=values)
+        debug_log(f"[VOCAB DISPLAY] Showing {min(total_items, MAX_DISPLAY_ROWS)} of {total_items} terms "
+                  f"(limit: {VOCABULARY_DISPLAY_LIMIT}, ceiling: {VOCABULARY_DISPLAY_MAX})")
+
+        # Populate with limited data in batches for responsiveness
+        BATCH_SIZE = 25
+        for batch_start in range(0, len(display_items), BATCH_SIZE):
+            batch_end = min(batch_start + BATCH_SIZE, len(display_items))
+            batch = display_items[batch_start:batch_end]
+
+            for item in batch:
+                if isinstance(item, dict):
+                    values = (
+                        item.get("Term", ""),
+                        item.get("Type", ""),
+                        item.get("Role/Relevance", ""),
+                        item.get("Definition", "")
+                    )
+                else:
+                    # Handle list format (legacy)
+                    values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
+
+                self.csv_treeview.insert("", "end", values=values)
+
+            # Force UI update after each batch to keep responsive
+            self.update_idletasks()
 
         self.csv_treeview.grid(row=0, column=0, sticky="nsew")
+
+        # Add info label if we're showing a subset
+        if total_items > MAX_DISPLAY_ROWS:
+            if not hasattr(self, 'vocab_info_label'):
+                self.vocab_info_label = ctk.CTkLabel(
+                    self.treeview_frame,
+                    text="",
+                    font=ctk.CTkFont(size=11, weight="bold"),
+                    text_color="#ffc107"  # Warning yellow
+                )
+                self.vocab_info_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+
+            remaining = total_items - MAX_DISPLAY_ROWS
+            self.vocab_info_label.configure(
+                text=f"⚠ Displaying {MAX_DISPLAY_ROWS} of {total_items} terms. "
+                     f"{remaining} more available via 'Save to File' button."
+            )
+            self.vocab_info_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        elif hasattr(self, 'vocab_info_label'):
+            # Hide label if showing all items
+            self.vocab_info_label.grid_remove()
 
     def _create_context_menu(self):
         """Create right-click context menu for vocabulary table."""

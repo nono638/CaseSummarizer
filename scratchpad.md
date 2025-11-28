@@ -1,5 +1,39 @@
 # Scratchpad - Future Ideas & Refinements
 
+## 🔴 CRITICAL ISSUE: GUI Severe Unresponsiveness After Large PDF Processing (Session 13)
+**Priority:** HIGH - Blocking user workflow
+**Status:** Unresolved - needs investigation
+**Added:** 2025-11-28
+
+### Symptoms
+- After processing 260-page PDF, GUI becomes severely unresponsive
+- Dragging window causes freezing/lag
+- Switching output views (Meta-Summary → Rare Word List) extremely slow
+- UI sometimes renders blank (only "Generate All Outputs" button visible)
+- Persists even after processing completes
+
+### Attempted Fixes (Session 13)
+✅ Batch queue processing (10 messages/cycle) - helped but insufficient
+✅ Vocabulary display limit (150 rows default, 500 ceiling) - helped but insufficient
+✅ Forced UI updates with `update_idletasks()` - helped but insufficient
+✅ Cancel button implementation - works but doesn't fix responsiveness
+
+### Hypotheses to Investigate
+1. **Memory leak**: Large PDF (260 pages) may be creating thousands of objects not being garbage collected
+2. **Background threads not terminating**: AI worker, vocabulary worker, or processing worker may still be running
+3. **UI event queue saturation**: Too many pending UI updates from large document
+4. **Treeview/widget corruption**: Switching views may be triggering expensive redraws
+5. **Windows-specific issue**: May need platform-specific optimizations
+
+### Next Steps
+1. Profile memory usage during/after 260-page PDF processing
+2. Check if all worker threads properly terminate after completion
+3. Add explicit garbage collection after large document processing
+4. Consider splitting vocabulary display into pages (e.g., 50 rows/page with pagination)
+5. Test on different system specs to isolate hardware vs. software issue
+
+---
+
 ## Session 8 Testing Checklist (Vocabulary Workflow Verification)
 **Status:** Awaiting user testing
 **Time estimate:** 15-20 minutes

@@ -87,10 +87,20 @@ class VocabularyWorker(threading.Thread):
         self.exclude_list_path = exclude_list_path or "config/legal_exclude.txt"
         self.medical_terms_path = medical_terms_path or "config/medical_terms.txt"
         self.user_exclude_path = user_exclude_path  # User's personal exclusion list
+        self._stop_event = threading.Event()  # Event for graceful stopping
+
+    def stop(self):
+        """Signals the worker to stop processing."""
+        self._stop_event.set()
 
     def run(self):
         """Execute vocabulary extraction in background thread."""
         try:
+            if self._stop_event.is_set():
+                debug_log("[VOCAB WORKER] Stop signal received before starting. Exiting.")
+                self.ui_queue.put(('error', "Vocabulary extraction cancelled."))
+                return
+
             self.ui_queue.put(('progress', (30, "Extracting vocabulary...")))
 
             # Create extractor with graceful fallback for missing files

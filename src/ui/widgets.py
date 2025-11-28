@@ -306,3 +306,17 @@ class OutputOptionsWidget(ctk.CTkFrame):
         self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.vocab_csv_check.select()  # On by default
 
+    def lock_controls(self):
+        """Disable all output option controls during processing."""
+        self.length_slider.configure(state="disabled")
+        self.individual_summaries_check.configure(state="disabled")
+        self.meta_summary_check.configure(state="disabled")
+        self.vocab_csv_check.configure(state="disabled")
+
+    def unlock_controls(self):
+        """Re-enable all output option controls after processing completes."""
+        self.length_slider.configure(state="normal")
+        self.individual_summaries_check.configure(state="normal")
+        self.meta_summary_check.configure(state="normal")
+        self.vocab_csv_check.configure(state="normal")
+

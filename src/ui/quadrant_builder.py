@@ -150,13 +150,25 @@ def build_output_options_quadrant(parent_frame):
         text="Generate All Outputs",
         font=ctk.CTkFont(size=12, weight="bold")
     )
-    generate_btn.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 10))
+    generate_btn.grid(row=2, column=0, sticky="ew", padx=10, pady=(5, 5))
     generate_btn.configure(state="disabled")
+
+    # Cancel button (initially hidden)
+    cancel_btn = ctk.CTkButton(
+        parent_frame,
+        text="Cancel Processing",
+        font=ctk.CTkFont(size=12, weight="bold"),
+        fg_color="#dc3545",  # Red background
+        hover_color="#b02a37"  # Darker red on hover
+    )
+    cancel_btn.grid(row=3, column=0, sticky="ew", padx=10, pady=(5, 10))
+    cancel_btn.grid_remove()  # Hidden by default
 
     return {
         'frame': parent_frame,
         'widget': output_options,
         'button': generate_btn,
+        'cancel_button': cancel_btn,
         'label': output_options_label,
         'name': 'Output Options'
     }
@@ -175,7 +187,8 @@ def create_central_widget_layout(main_window, model_manager, prompt_template_man
         prompt_template_manager: The PromptTemplateManager instance (optional)
 
     Returns:
-        tuple: (main_content_frame, file_table, model_selection, summary_results, output_options, generate_btn)
+        tuple: (main_content_frame, file_table, model_selection, summary_results,
+                output_options, generate_btn, cancel_btn)
     """
     # Create main content frame
     main_content_frame = ctk.CTkFrame(main_window, corner_radius=0, fg_color="transparent")
@@ -215,9 +228,10 @@ def create_central_widget_layout(main_window, model_manager, prompt_template_man
 
     return (
         main_content_frame,
-        doc_quad['widget'],      # file_table
-        model_quad['widget'],    # model_selection
-        output_quad['widget'],   # summary_results
-        options_quad['widget'],  # output_options
-        options_quad['button']   # generate_btn
+        doc_quad['widget'],           # file_table
+        model_quad['widget'],         # model_selection
+        output_quad['widget'],        # summary_results
+        options_quad['widget'],       # output_options
+        options_quad['button'],       # generate_btn
+        options_quad['cancel_button'] # cancel_btn
     )

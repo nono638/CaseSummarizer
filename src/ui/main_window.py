@@ -148,11 +148,15 @@ class MainWindow(ctk.CTk):
             self.model_selection,
             self.summary_results,
             self.output_options,
-            self.generate_outputs_btn
+            self.generate_outputs_btn,
+            self.cancel_btn
         ) = create_central_widget_layout(self, self.model_manager, self.prompt_template_manager)
 
         # Bind the generate button command
         self.generate_outputs_btn.configure(command=self._start_generation)
+
+        # Bind the cancel button command
+        self.cancel_btn.configure(command=self._cancel_processing)
 
         # Initialize prompt selector with available templates
         self.model_selection.refresh_prompts()
@@ -237,8 +241,14 @@ class MainWindow(ctk.CTk):
 
     def start_processing(self, file_paths, selected_model, summary_length, output_options):
         """Start background processing of selected documents."""
+        # Disable UI elements to prevent mid-flight changes
         self.select_files_btn.configure(state="disabled")
-        self.generate_outputs_btn.configure(state="disabled") # Disable new button
+        self.generate_outputs_btn.configure(state="disabled")
+        self.output_options.lock_controls()  # Lock slider and checkboxes
+
+        # Show cancel button
+        self.cancel_btn.grid()
+
         self.progress_bar.grid()  # Make progress bar visible (already gridded at column 1)
         # DO NOT clear the file table - users need to see which files are being processed
         # The table entries will be updated with status as files are processed
@@ -261,6 +271,43 @@ class MainWindow(ctk.CTk):
             self.ui_queue
         )
         self.worker.start()
+
+    def _cancel_processing(self):
+        """Cancel all running background workers and restore UI state."""
+        debug_log("[MAIN WINDOW] User requested cancellation.")
+
+        # Stop ProcessingWorker if running
+        if self.worker and self.worker.is_alive():
+            debug_log("[MAIN WINDOW] Stopping ProcessingWorker...")
+            self.worker.stop()
+
+        # Stop VocabularyWorker if running (via orchestrator)
+        if self.workflow_orchestrator.vocab_worker and self.workflow_orchestrator.vocab_worker.is_alive():
+            debug_log("[MAIN WINDOW] Stopping VocabularyWorker...")
+            self.workflow_orchestrator.vocab_worker.stop()
+
+        # Stop AI worker if running
+        if self.ai_worker_manager.is_running:
+            debug_log("[MAIN WINDOW] Stopping AI worker...")
+            self.ai_worker_manager.stop_worker()
+
+        # Reset UI state
+        self.status_label.configure(text="Processing cancelled by user.")
+        self.progress_bar.set(0)
+        self.progress_bar.grid_remove()
+
+        # Re-enable UI controls
+        self.select_files_btn.configure(state="normal")
+        self.generate_outputs_btn.configure(state="normal")
+        self.output_options.unlock_controls()
+
+        # Hide cancel button
+        self.cancel_btn.grid_remove()
+
+        # Clear pending AI generation
+        self.pending_ai_generation = None
+
+        debug_log("[MAIN WINDOW] Cancellation complete. UI restored.")
 
     def _start_ai_generation(self, extracted_documents, ai_params):
         """
@@ -306,12 +353,19 @@ class MainWindow(ctk.CTk):
         Process messages from the worker thread queue and AI worker manager.
 
         Uses the QueueMessageHandler for decoupled, testable message routing.
+        Processes messages in batches to keep GUI responsive during heavy loads.
         """
+        # Process up to 10 messages per cycle to keep GUI responsive
+        # For 260-page PDFs, this prevents blocking the main thread
+        MAX_MESSAGES_PER_CYCLE = 10
+        messages_processed = 0
+
         try:
-            while True:
+            while messages_processed < MAX_MESSAGES_PER_CYCLE:
                 message_type, data = self.ui_queue.get_nowait()
                 # Delegate to message handler for routing and processing
                 self.message_handler.process_message(message_type, data)
+                messages_processed += 1
 
         except Empty:
             pass  # No messages in queue
@@ -322,6 +376,10 @@ class MainWindow(ctk.CTk):
                 for msg_type, msg_data in ai_messages:
                     # Put AI messages back in the main queue for processing
                     self.ui_queue.put((msg_type, msg_data))
+
+            # Force UI update to keep responsive during heavy processing
+            if messages_processed > 0:
+                self.update_idletasks()
 
             self.after(100, self._process_queue)  # Poll again after 100ms
 

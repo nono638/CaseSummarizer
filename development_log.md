@@ -1,5 +1,76 @@
 # Development Log
 
+## Session 13 - GUI Responsiveness Improvements & Critical Issue Discovery (2025-11-28)
+
+**Objective:** Implement UI locking during processing, add cancel button, and resolve GUI unresponsiveness with large documents (260-page PDFs).
+
+### Features Implemented
+
+**1. UI Control Locking During Processing**
+- Added `lock_controls()` and `unlock_controls()` methods to `OutputOptionsWidget` (src/ui/widgets.py:309-321)
+- Disables slider and checkboxes during processing to prevent mid-flight configuration changes
+- Re-enables controls after completion, error, or cancellation
+
+**2. Cancel Processing Button**
+- Added red "Cancel Processing" button in Output Options quadrant (src/ui/quadrant_builder.py:156-165)
+- Button appears during processing, hidden by default (`grid_remove()`)
+- Stops all workers: ProcessingWorker, VocabularyWorker, AI worker (src/ui/main_window.py:275-305)
+- Restores UI to editable state on cancellation
+
+**3. Batch Queue Processing for GUI Responsiveness**
+- Changed `_process_queue()` from `while True` (unlimited) to batch processing (src/ui/main_window.py:351-384)
+- Processes max 10 messages per 100ms cycle to prevent main thread blocking
+- Calls `update_idletasks()` after each batch to keep UI responsive
+- Prevents "Not Responding" during heavy message loads (260-page PDFs generate hundreds of progress updates)
+
+**4. Configurable Vocabulary Display Limits**
+- Added `VOCABULARY_DISPLAY_LIMIT = 150` and `VOCABULARY_DISPLAY_MAX = 500` to config (src/config.py:139-147)
+- Based on tkinter Treeview performance research (500+ rows = 40-340 second render times)
+- Displays first 150 rows (configurable) with overflow warning label
+- Warning: "⚠ Displaying 150 of 532 terms. 382 more available via 'Save to File' button."
+- CSV export saves ALL terms, not just displayed subset (src/ui/dynamic_output.py:268-321)
+- Batch insertion (25 rows/batch) with `update_idletasks()` between batches
+
+### Bug Fixes
+
+**1. Missing `Path` Import**
+- Fixed `NameError: name 'Path' is not defined` in vocabulary extraction (src/vocabulary/vocabulary_extractor.py:22)
+- Added `from pathlib import Path` to imports
+- Resolved 5 failing vocabulary tests (now 4/5 pass, 1 fails due to categorization expectation mismatch)
+
+**2. Cancel Button Visibility**
+- Added explicit `update_idletasks()` after `grid_remove()` to ensure immediate UI update (src/ui/queue_message_handler.py:174-190)
+- Added debug logging to track button state transitions
+
+### Critical Unresolved Issue
+
+**🔴 Severe GUI Unresponsiveness After Large PDF Processing**
+- **Symptoms:** After processing 260-page PDF, GUI becomes extremely slow/unresponsive
+- **Observed:** Window dragging lags, view switching (Meta-Summary → Rare Word List) freezes, UI sometimes blank
+- **Persists:** Even after processing completes and all optimizations applied
+- **Hypotheses:** Memory leak, background threads not terminating, UI event queue saturation, Treeview corruption, or Windows-specific issue
+- **Status:** Documented in scratchpad.md for next session investigation
+- **Next Steps:** Profile memory, verify thread termination, add garbage collection, consider pagination
+
+### Files Modified
+- `src/ui/widgets.py` - Added lock/unlock methods to OutputOptionsWidget
+- `src/ui/quadrant_builder.py` - Added cancel button
+- `src/ui/main_window.py` - Batch queue processing, cancel handler, updated unpacking
+- `src/ui/queue_message_handler.py` - Enhanced reset_ui with forced updates and logging
+- `src/ui/workers.py` - Added stop event to VocabularyWorker
+- `src/ui/workflow_orchestrator.py` - Track vocab_worker for cancellation
+- `src/ui/dynamic_output.py` - Configurable display limits, batch insertion, overflow warning
+- `src/vocabulary/vocabulary_extractor.py` - Added Path import
+- `src/config.py` - Added VOCABULARY_DISPLAY_LIMIT and VOCABULARY_DISPLAY_MAX
+- `scratchpad.md` - Documented critical GUI responsiveness issue
+
+### Testing
+- ✅ 50/55 tests passing (5 vocabulary tests had Path import issue, now 4/5 pass)
+- ✅ UI startup test passed (cancel button exists, lock/unlock methods present)
+- ❌ Large PDF (260 pages) causes severe GUI unresponsiveness (CRITICAL ISSUE)
+
+---
+
 ## Session 12 - Development Log Automatic Condensation Policy (2025-11-28)
 
 **Objective:** Establish automatic condensation policy for development_log.md to prevent token bloat while maintaining useful AI context.

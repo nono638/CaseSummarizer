@@ -72,6 +72,7 @@ class WorkflowOrchestrator:
         """
         self.main_window = main_window
         self.state = WorkflowState()
+        self.vocab_worker = None  # Track vocabulary worker for cancellation
 
     def get_output_options(self) -> Dict[str, bool]:
         """
@@ -174,14 +175,14 @@ class WorkflowOrchestrator:
         # Import here to avoid circular imports
         from src.ui.workers import VocabularyWorker
 
-        worker = VocabularyWorker(
+        self.vocab_worker = VocabularyWorker(
             combined_text=combined_text,
             ui_queue=self.main_window.ui_queue,
             exclude_list_path=str(LEGAL_EXCLUDE_LIST_PATH),
             medical_terms_path=str(MEDICAL_TERMS_LIST_PATH),
             user_exclude_path=str(USER_VOCAB_EXCLUDE_PATH)
         )
-        worker.start()
+        self.vocab_worker.start()
         debug_log("[ORCHESTRATOR] VocabularyWorker thread started.")
 
     def _start_ai_generation(self, extracted_documents: List[Dict], ai_params: Dict):
