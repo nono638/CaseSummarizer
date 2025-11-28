@@ -150,10 +150,10 @@ class WorkflowOrchestrator:
         # SEQUENTIAL: Start vocabulary extraction FIRST if requested
         # AI generation will start AFTER vocab completes (in on_vocab_complete)
         if self.state.output_options.get('vocab_csv', False):
-            combined_text = self._get_combined_text(extracted_documents)
+            combined_text, doc_count = self._get_combined_text(extracted_documents)
             actions_taken['combined_text'] = combined_text
             actions_taken['vocab_extraction_started'] = True
-            self._start_vocab_extraction(combined_text)
+            self._start_vocab_extraction(combined_text, doc_count)
             debug_log("[ORCHESTRATOR] Started vocabulary extraction (AI will start after).")
             # Do NOT start AI here - wait for vocab to complete
             return actions_taken
@@ -166,7 +166,7 @@ class WorkflowOrchestrator:
 
         return actions_taken
 
-    def _get_combined_text(self, extracted_documents: List[Dict]) -> str:
+    def _get_combined_text(self, extracted_documents: List[Dict]) -> tuple:
         """
         Get combined text from all documents for vocabulary extraction.
 
@@ -176,20 +176,21 @@ class WorkflowOrchestrator:
             extracted_documents: List of document result dictionaries
 
         Returns:
-            Combined text from all documents, separated by double newlines
+            Tuple of (combined_text, doc_count)
         """
         combined = combine_document_texts(extracted_documents, include_headers=False)
         doc_count = sum(1 for d in extracted_documents if d.get('extracted_text'))
         debug_log(f"[ORCHESTRATOR] Combined {doc_count} documents "
                   f"({len(combined)} characters total).")
-        return combined
+        return combined, doc_count
 
-    def _start_vocab_extraction(self, combined_text: str):
+    def _start_vocab_extraction(self, combined_text: str, doc_count: int = 1):
         """
         Start vocabulary extraction worker thread.
 
         Args:
             combined_text: Combined text from all documents
+            doc_count: Number of documents being processed (for frequency filtering)
         """
         # Import here to avoid circular imports
         from src.ui.workers import VocabularyWorker
@@ -199,10 +200,11 @@ class WorkflowOrchestrator:
             ui_queue=self.main_window.ui_queue,
             exclude_list_path=str(LEGAL_EXCLUDE_LIST_PATH),
             medical_terms_path=str(MEDICAL_TERMS_LIST_PATH),
-            user_exclude_path=str(USER_VOCAB_EXCLUDE_PATH)
+            user_exclude_path=str(USER_VOCAB_EXCLUDE_PATH),
+            doc_count=doc_count
         )
         self.vocab_worker.start()
-        debug_log("[ORCHESTRATOR] VocabularyWorker thread started.")
+        debug_log(f"[ORCHESTRATOR] VocabularyWorker thread started (doc_count={doc_count}).")
 
     def _start_ai_generation(self, extracted_documents: List[Dict], ai_params: Dict):
         """

@@ -37,9 +37,12 @@ from src.vocabulary.role_profiles import RoleDetectionProfile, StenographerProfi
 
 
 # Constants for spaCy model
-SPACY_MODEL_NAME = "en_core_web_sm"
+# Using large model (lg) for ~4% better NER accuracy vs small model (sm)
+# Model size: 560MB download, ~741MB on disk
+# Speed: ~10,014 words/sec on CPU (vs ~684 for transformer model)
+SPACY_MODEL_NAME = "en_core_web_lg"
 SPACY_MODEL_VERSION = "3.8.0"
-SPACY_DOWNLOAD_TIMEOUT = 300  # 5 minutes
+SPACY_DOWNLOAD_TIMEOUT = 600  # 10 minutes (larger download)
 
 # Regex patterns for filtering out word variations
 # These match common patterns that shouldn't be included as "rare" vocabulary
@@ -84,6 +87,39 @@ GEOGRAPHIC_CODE_PATTERNS = [
     r'^\d{5}(?:-\d{4})?$',  # ZIP codes: 11354, 12345-6789
     r'^[A-Z]{2}\s+\d{5}$',   # State + ZIP: NY 11354
 ]
+
+# --- NEW FILTERS (Session 15) ---
+
+# Address fragment patterns - partial addresses extracted as entities
+ADDRESS_FRAGMENT_PATTERNS = [
+    r'\d+(?:st|nd|rd|th)\s+Floor',     # "11th Floor", "2nd Floor"
+    r'\b(?:Street|Drive|Avenue|Road|Lane|Court|Boulevard|Place|Way)\b',  # Street suffixes
+    r'^\d+\s+[A-Z]',                    # "123 Main" - number followed by word
+]
+
+# Document fragment patterns - multi-word junk from legal documents
+DOCUMENT_FRAGMENT_PATTERNS = [
+    r'^(?:SUPREME|CIVIL|FAMILY|DISTRICT)\s+COURT',  # Court headers
+    r'^NOTICE\s+OF',                                  # Notice headers
+    r'Attorneys?\s+for\s+(?:Plaintiff|Defendant)',   # Attorney listings
+    r'Services?\s+-\s+(?:Plaintiff|Defendant|None)', # Table rows
+    r"^(?:Plaintiff|Defendant)(?:'s)?$",              # Just "Plaintiff's"
+    r'^(?:FIRST|SECOND|THIRD|FOURTH|FIFTH)\s+CAUSE', # Causes of action
+    r'^\d+\s+of\s+\d+$',                              # Page numbers "1 of 5"
+]
+
+# Entity length limits
+MIN_ENTITY_LENGTH = 3    # Skip "M.D", "Esq" fragments (too short)
+MAX_ENTITY_LENGTH = 60   # Skip very long fragments (document titles, etc.)
+
+# Organization indicator words for category detection
+ORGANIZATION_INDICATORS = {
+    'LLP', 'PLLC', 'P.C.', 'LLC', 'Inc', 'Corp', 'Corporation',
+    'Law Firm', 'Law Office', 'Firm',
+    'Hospital', 'Medical', 'Healthcare', 'Health', 'Clinic',
+    'University', 'College', 'School',
+    'Bank', 'Insurance', 'Services',
+}
 
 
 class VocabularyExtractor:
@@ -274,6 +310,127 @@ class VocabularyExtractor:
         cleaned = cleaned.strip('.,;:!?()[]{}"\'/\\')
 
         return cleaned.strip()
+
+    def _matches_entity_filter(self, entity_text: str) -> bool:
+        """
+        Check if an entity should be filtered out based on pattern matching.
+
+        Catches:
+        - Address fragments (NY 11354, 11th Floor, Community Drive)
+        - Document fragments (SUPREME COURT, Notice of, Attorneys for)
+        - Entities that are too short or too long
+        - Legal boilerplate phrases
+
+        Args:
+            entity_text: The cleaned entity text to check
+
+        Returns:
+            True if the entity should be FILTERED OUT, False if it should be kept
+        """
+        # Length checks
+        if len(entity_text) < MIN_ENTITY_LENGTH:
+            return True  # Too short
+        if len(entity_text) > MAX_ENTITY_LENGTH:
+            return True  # Too long (likely document fragment)
+
+        # Check address fragment patterns
+        for pattern in ADDRESS_FRAGMENT_PATTERNS:
+            if re.search(pattern, entity_text, re.IGNORECASE):
+                return True
+
+        # Check document fragment patterns
+        for pattern in DOCUMENT_FRAGMENT_PATTERNS:
+            if re.search(pattern, entity_text, re.IGNORECASE):
+                return True
+
+        # Check existing legal boilerplate patterns
+        for pattern in LEGAL_BOILERPLATE_PATTERNS:
+            if re.search(pattern, entity_text, re.IGNORECASE):
+                return True
+
+        # Check geographic code patterns (ZIP codes)
+        for pattern in GEOGRAPHIC_CODE_PATTERNS:
+            if re.match(pattern, entity_text):
+                return True
+
+        # Check legal citation patterns
+        for pattern in LEGAL_CITATION_PATTERNS:
+            if re.match(pattern, entity_text):
+                return True
+
+        return False
+
+    def _looks_like_person_name(self, text: str) -> bool:
+        """
+        Heuristic: Does this text look like a person's name?
+
+        Checks for patterns typical of names:
+        - Two or more words
+        - Words are capitalized
+        - No business/organization indicators
+
+        Args:
+            text: The entity text to check
+
+        Returns:
+            True if it looks like a person name, False otherwise
+        """
+        if not text:
+            return False
+
+        words = text.split()
+
+        # Single words can be names (surnames like "Smith", "Martinez")
+        # But we're less confident about them
+        if len(words) == 1:
+            # If it's all caps and long, might be an acronym
+            if text.isupper() and len(text) > 4:
+                return False
+            # Otherwise could be a surname
+            return text[0].isupper()
+
+        # Multi-word: check all words are capitalized
+        for word in words:
+            if not word:
+                continue
+            # Allow lowercase particles: "de", "van", "von"
+            if word.lower() in {'de', 'van', 'von', 'da', 'del', 'della', 'di', 'la', 'le'}:
+                continue
+            if not word[0].isupper():
+                return False
+
+        # Reject if contains organization indicators
+        for indicator in ORGANIZATION_INDICATORS:
+            if indicator.upper() in text.upper():
+                return False
+
+        # Reject if it's all uppercase (likely an acronym or header)
+        if text.isupper() and len(text) > 10:
+            return False
+
+        return True
+
+    def _looks_like_organization(self, text: str) -> bool:
+        """
+        Heuristic: Does this text look like an organization?
+
+        Checks for organization indicator words like LLP, Hospital, University, etc.
+
+        Args:
+            text: The entity text to check
+
+        Returns:
+            True if it looks like an organization, False otherwise
+        """
+        if not text:
+            return False
+
+        text_upper = text.upper()
+        for indicator in ORGANIZATION_INDICATORS:
+            if indicator.upper() in text_upper:
+                return True
+
+        return False
 
     def _is_word_rare_enough(self, word: str) -> bool:
         """
@@ -610,37 +767,54 @@ class VocabularyExtractor:
         # Otherwise, consider it unusual (rare/technical term)
         return True
 
-    def _get_category(self, token, ent_type: str) -> Optional[str]:
+    def _get_category(self, token, ent_type: str, full_term: str = None) -> Optional[str]:
         """
         Determine the simplified category for an unusual term.
 
         Categories:
-        - Person: Named individuals
-        - Place: Organizations, locations, facilities
+        - Person: Named individuals (validated with heuristics)
+        - Place: Organizations, locations, facilities (validated)
         - Medical: Medical/anatomical terms
         - Technical: Other rare/unusual terms
+        - Unknown: When spaCy's classification conflicts with heuristics
 
         Args:
             token: spaCy Token object
             ent_type: Entity type string from spaCy NER
+            full_term: Full entity text (for multi-word entity validation)
 
         Returns:
             Category string or None if term should be skipped
         """
         lower_text = token.text.lower()
+        term_to_validate = full_term or token.text
 
-        # Check medical terms first (highest priority)
+        # Check medical terms first (highest priority - curated list)
         if lower_text in self.medical_terms:
             return "Medical"
 
-        # Categorize by entity type
+        # Categorize by entity type with validation
         if ent_type:
-            # People
+            # People - validate with heuristics
             if ent_type == "PERSON":
-                return "Person"
+                # Check if it actually looks like a person name
+                if self._looks_like_person_name(term_to_validate):
+                    return "Person"
+                # spaCy says PERSON but doesn't look like a name
+                # Could be a misclassification - mark as Unknown
+                return "Unknown"
 
-            # Places/Organizations
+            # Places/Organizations - validate with heuristics
             if ent_type in ["ORG", "GPE", "LOC"]:
+                # Check for obvious organization indicators
+                if self._looks_like_organization(term_to_validate):
+                    return "Place"
+                # Check if it actually looks like a person name (misclassified)
+                if self._looks_like_person_name(term_to_validate):
+                    # spaCy says ORG/GPE/LOC but looks like a person
+                    # Could be "ANDY CHOY" misclassified as ORG
+                    return "Unknown"
+                # No conflict - accept as Place
                 return "Place"
 
             # Skip entity types that aren't useful (dates, money, etc.)
@@ -664,15 +838,15 @@ class VocabularyExtractor:
 
         Args:
             term: The term to look up
-            category: Term category (Person/Place/Medical/Technical)
+            category: Term category (Person/Place/Medical/Technical/Unknown)
 
         Returns:
             Definition string for Medical/Technical terms
-            "—" for Person/Place (no definition needed)
+            "—" for Person/Place/Unknown (no definition needed)
             "—" if WordNet lookup fails
         """
-        # Skip definitions for people and places
-        if category in ["Person", "Place"]:
+        # Skip definitions for people, places, and unknown categories
+        if category in ["Person", "Place", "Unknown"]:
             return "—"
 
         # Look up definition for Medical/Technical terms
@@ -727,7 +901,7 @@ class VocabularyExtractor:
 
         return chunks
 
-    def extract(self, text: str) -> List[Dict[str, str]]:
+    def extract(self, text: str, doc_count: int = 1) -> List[Dict[str, str]]:
         """
         Extract unusual vocabulary from text with categorization, role detection, and definitions.
 
@@ -742,14 +916,17 @@ class VocabularyExtractor:
 
         Args:
             text: The document text to analyze
+            doc_count: Number of documents being processed (for frequency-based filtering).
+                      Terms appearing more than doc_count * 4 times are filtered out
+                      (except PERSON entities which are preserved).
 
         Returns:
             List of dictionaries, each containing:
             - Term: The extracted term
-            - Type: One of "Person", "Place", "Medical", or "Technical"
+            - Type: One of "Person", "Place", "Medical", "Technical", or "Unknown"
             - Role/Relevance: Context-specific role (e.g., "Plaintiff", "Treating physician",
-                             "Accident location", "Medical term", "Technical term")
-            - Definition: WordNet definition for Medical/Technical terms, "—" for Person/Place
+                             "Accident location", "Medical term", "Technical term", "Needs review")
+            - Definition: WordNet definition for Medical/Technical terms, "—" for Person/Place/Unknown
         """
         import time
 
@@ -812,9 +989,9 @@ class VocabularyExtractor:
 
         # Second pass: Categorize, detect roles, and build final vocabulary
         # Use full text for role detection context (to find "plaintiff", "defendant" mentions)
-        debug_log("[VOCAB] Second pass: categorizing and role detection...")
+        debug_log(f"[VOCAB] Second pass: categorizing and role detection (doc_count={doc_count}, freq_threshold={doc_count*4})...")
         start_time = time.time()
-        vocabulary = self._second_pass_processing(extracted_terms, dict(term_frequencies), text)
+        vocabulary = self._second_pass_processing(extracted_terms, dict(term_frequencies), text, doc_count)
         debug_log(f"[VOCAB] Second pass completed in {time.time()-start_time:.1f}s")
 
         # Third pass: Sort by rarity if enabled
@@ -845,6 +1022,18 @@ class VocabularyExtractor:
                 # Skip if nothing left after cleaning (e.g., "and/or" → "")
                 if not term_text:
                     continue
+
+                # NEW: Apply pattern-based entity filter (Phase 3)
+                # Catches addresses, boilerplate, length issues
+                if self._matches_entity_filter(term_text):
+                    continue
+
+                # NEW: Single-word entities need rarity check (Phase 4)
+                # EXCEPT PERSON - names like "Smith" should be kept
+                words = term_text.split()
+                if len(words) == 1 and ent.label_ != "PERSON":
+                    if not self._is_word_rare_enough(term_text):
+                        continue
 
                 lower_term = term_text.lower()
                 # Check both system and user exclusions (case-insensitive)
@@ -971,7 +1160,8 @@ class VocabularyExtractor:
         self,
         extracted_terms: List[Dict],
         term_frequencies: Dict[str, int],
-        full_text: str
+        full_text: str,
+        doc_count: int = 1
     ) -> List[Dict[str, str]]:
         """
         Second pass: Deduplicate, categorize, detect roles, and build final vocabulary list.
@@ -980,6 +1170,7 @@ class VocabularyExtractor:
             extracted_terms: List of term dictionaries from first pass
             term_frequencies: Dictionary mapping lowercase terms to frequency counts
             full_text: Complete document text for role/relevance detection
+            doc_count: Number of documents being processed (for frequency threshold)
 
         Returns:
             Final vocabulary list with Type, Role/Relevance, and Definition
@@ -988,20 +1179,32 @@ class VocabularyExtractor:
         vocabulary = []
         seen_terms = set()
 
+        # Calculate dynamic frequency threshold: doc_count * 4
+        # Terms appearing more than this are likely common legal jargon
+        frequency_threshold = doc_count * 4
+
         for item in extracted_terms:
             term = item["Term"]
             lower_term = term.lower()
             ent_type = item["ent_type"]
+            term_count = term_frequencies.get(lower_term, 1)
 
             # Skip duplicates
             if lower_term in seen_terms:
                 continue
 
-            # Determine category (simplified: Person/Place/Medical/Technical)
-            category = self._get_category(self.nlp(term)[0], ent_type=ent_type)
+            # Determine category (simplified: Person/Place/Medical/Technical/Unknown)
+            # Pass full term for proper validation
+            category = self._get_category(self.nlp(term)[0], ent_type=ent_type, full_term=term)
 
             # Skip if category is None (e.g., DATE, TIME entities)
             if category is None:
+                continue
+
+            # Document frequency filtering (Phase 2)
+            # Skip non-PERSON terms that appear too frequently
+            # PERSON entities are exempt - parties' names appear often but are important
+            if category != "Person" and term_count > frequency_threshold:
                 continue
 
             # Detect role/relevance using profession-specific profile
@@ -1011,12 +1214,14 @@ class VocabularyExtractor:
                 role_relevance = self.role_profile.detect_place_relevance(term, full_text)
             elif category == "Medical":
                 role_relevance = "Medical term"
+            elif category == "Unknown":
+                role_relevance = "Needs review"
             else:  # Technical
                 role_relevance = "Technical term"
 
             vocabulary.append({
                 "Term": term,
-                "Type": category,  # Simplified: Person/Place/Medical/Technical
+                "Type": category,  # Simplified: Person/Place/Medical/Technical/Unknown
                 "Role/Relevance": role_relevance,  # Context-specific relevance
                 "Definition": self._get_definition(term, category)  # Only for Medical/Technical
             })

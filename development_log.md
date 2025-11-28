@@ -1,5 +1,97 @@
 # Development Log
 
+## Session 15 - Vocabulary Extraction Quality Improvements (2025-11-28)
+
+**Objective:** Improve vocabulary extraction quality by reducing false positives (common words, address fragments, legal boilerplate) and fixing incorrect categorization (person names labeled as Place, organizations labeled as Medical).
+
+### Problems Addressed
+
+User review of vocabulary CSV output revealed major quality issues:
+- Common words flooding results ("tests", "factors", "continued", "truth")
+- Wrong categorization (ANDY CHOY → Place instead of Person)
+- Partial addresses extracted ("NY 11354")
+- Legal boilerplate appearing ("Answering Defendants", "Verified Answer")
+- Almost everything labeled as "Medical" incorrectly
+
+### Root Causes Identified
+
+1. **Entity extraction bypassed rarity filters** - spaCy-tagged entities were trusted unconditionally
+2. **spaCy misclassifying entities** - ALL CAPS names like "ANDY CHOY" tagged as ORG instead of PERSON
+3. **No pattern filtering for entities** - Address fragments and legal boilerplate weren't filtered
+4. **No frequency limiting** - High-frequency terms weren't deprioritized
+
+### Solutions Implemented (6 Phases)
+
+**Phase 1: spaCy Model Upgrade**
+- Changed from `en_core_web_sm` (12MB) to `en_core_web_lg` (560MB)
+- ~4% better NER accuracy (85.5% vs 81.6%)
+- Increased download timeout to 600 seconds
+
+**Phase 2: Document Frequency Filtering**
+- Added `doc_count` parameter throughout call chain
+- Dynamic threshold: `doc_count × 4` (4 docs → max 16 occurrences)
+- PERSON entities exempt from frequency filtering (parties' names should stay)
+- Updated: VocabularyWorker, workflow_orchestrator, vocabulary_extractor
+
+**Phase 3: Pattern-Based Entity Validation**
+- Added `ADDRESS_FRAGMENT_PATTERNS` (floor numbers, street suffixes)
+- Added `DOCUMENT_FRAGMENT_PATTERNS` (court headers, attorney listings)
+- Added `MIN_ENTITY_LENGTH = 3`, `MAX_ENTITY_LENGTH = 60`
+- New `_matches_entity_filter()` method filters junk before extraction
+
+**Phase 4: Rarity Filter for Single-Word Entities**
+- Single-word non-PERSON entities must pass rarity check
+- Multi-word entities still trusted (harder to get wrong)
+- Applied in `_first_pass_extraction()` before adding to results
+
+**Phase 5: Category Validation with "Unknown"**
+- Added `_looks_like_person_name()` heuristic (2+ capitalized words, no business indicators)
+- Added `_looks_like_organization()` heuristic (LLP, Firm, Hospital, Clinic, etc.)
+- Returns "Unknown" when spaCy classification conflicts with heuristics
+- Better than wrong classification (user can review)
+
+**Phase 6: Unknown Category Handling**
+- Added "Clinic" to `ORGANIZATION_INDICATORS`
+- Unknown category shows "Needs review" as role/relevance
+- Definition returns "—" for Unknown (like Person/Place)
+
+### UI Improvement
+
+**Dropdown Placeholder Removal**
+- Modified `_refresh_dropdown()` in `dynamic_output.py`
+- "No outputs yet" placeholder now removed once real outputs available
+- Prevents users from selecting useless blank state
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/vocabulary/vocabulary_extractor.py` | Model upgrade, patterns, filters, Unknown category |
+| `src/ui/workers.py` | Added `doc_count` parameter to VocabularyWorker |
+| `src/ui/workflow_orchestrator.py` | Pass doc_count through call chain |
+| `src/ui/dynamic_output.py` | Remove placeholder from dropdown when outputs exist |
+| `tests/test_vocabulary_extractor.py` | Updated for `full_term` parameter and flexible assertions |
+
+### Expected Quality Improvements
+
+| Before | After |
+|--------|-------|
+| "tests", "factors" in results | Filtered (common words) |
+| "NY 11354" | Filtered (address pattern) |
+| "Answering Defendants" | Filtered (legal boilerplate) |
+| "ANDY CHOY" → Place | "ANDY CHOY" → Person (or Unknown) |
+| "Mayo Clinic" → Unknown | "Mayo Clinic" → Place ("Clinic" indicator) |
+
+### Testing
+- ✅ All 55 tests passing
+- ✅ Downloaded `en_core_web_lg` model (400MB)
+- ✅ Application starts and runs
+
+### Configuration Note
+First run after this update will download the larger spaCy model (~400MB). This is a one-time download that takes 1-2 minutes on fast connections.
+
+---
+
 ## Session 14 - Vocabulary Extraction Performance Optimization (2025-11-28)
 
 **Objective:** Resolve vocabulary extraction hanging/freezing on large documents (260-page PDFs) by implementing chunked processing and spaCy optimizations based on official documentation.

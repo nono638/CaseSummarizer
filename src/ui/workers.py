@@ -95,13 +95,14 @@ class VocabularyWorker(threading.Thread):
     Background worker for vocabulary extraction (Step 2.5).
     Extracts unusual terms from combined document text asynchronously.
     """
-    def __init__(self, combined_text, ui_queue, exclude_list_path=None, medical_terms_path=None, user_exclude_path=None):
+    def __init__(self, combined_text, ui_queue, exclude_list_path=None, medical_terms_path=None, user_exclude_path=None, doc_count=1):
         super().__init__(daemon=True)
         self.combined_text = combined_text
         self.ui_queue = ui_queue
         self.exclude_list_path = exclude_list_path or "config/legal_exclude.txt"
         self.medical_terms_path = medical_terms_path or "config/medical_terms.txt"
         self.user_exclude_path = user_exclude_path  # User's personal exclusion list
+        self.doc_count = doc_count  # Number of documents (for frequency filtering)
         self._stop_event = threading.Event()  # Event for graceful stopping
 
     def stop(self):
@@ -146,7 +147,8 @@ class VocabularyWorker(threading.Thread):
             self.ui_queue.put(('progress', (40, "Running NLP analysis (this may take a while)...")))
 
             # Extract vocabulary - this is the slow part
-            vocab_data = extractor.extract(self.combined_text)
+            # Pass doc_count for frequency-based filtering
+            vocab_data = extractor.extract(self.combined_text, doc_count=self.doc_count)
 
             # Check for cancellation after extraction
             if self._stop_event.is_set():

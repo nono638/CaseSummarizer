@@ -171,7 +171,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
     def _refresh_dropdown(self):
         """Refreshes the output selection dropdown based on available outputs."""
-        options = ["No outputs yet"]
+        options = []
+
         if self._outputs.get("Meta-Summary"):
             options.append("Meta-Summary")
         if self._outputs.get("Rare Word List (CSV)"):
@@ -182,10 +183,14 @@ class DynamicOutputWidget(ctk.CTkFrame):
             doc_summary_options.sort()
             options.extend(doc_summary_options)
 
+        # Only include placeholder if no real outputs exist
+        if not options:
+            options = ["No outputs yet"]
+
         self.output_selector.configure(values=options)
-        if len(options) > 1:
-            self.output_selector.set(options[1])
-            self._on_output_selection(options[1])
+        if options and options[0] != "No outputs yet":
+            self.output_selector.set(options[0])
+            self._on_output_selection(options[0])
         else:
             self.output_selector.set("No outputs yet")
             self._on_output_selection("No outputs yet")
