@@ -1,0 +1,30 @@
+# Ruff configuration for LocalScribe
+# https://docs.astral.sh/ruff/configuration/
+
+target-version = "py311"
+line-length = 100
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes (unused imports, undefined names)
+    "I",      # isort (import sorting)
+    "UP",     # pyupgrade (Python version upgrades)
+    "B",      # flake8-bugbear (common bugs)
+    "C4",     # flake8-comprehensions (better comprehensions)
+]
+ignore = [
+    "E501",   # line too long (we use line-length = 100, but don't enforce strictly)
+    "B008",   # function call in default argument (common pattern in some frameworks)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011"]  # Allow assert statements in tests
+
+[lint.isort]
+known-first-party = ["src"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
