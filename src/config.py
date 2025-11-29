@@ -19,9 +19,15 @@ CACHE_DIR = APPDATA_DIR / "cache"
 LOGS_DIR = APPDATA_DIR / "logs"
 CONFIG_DIR = APPDATA_DIR / "config"
 
+# Data directory for ML training data
+DATA_DIR = APPDATA_DIR / "data"
+
 # Ensure directories exist
-for directory in [APPDATA_DIR, MODELS_DIR, CACHE_DIR, LOGS_DIR, CONFIG_DIR]:
+for directory in [APPDATA_DIR, MODELS_DIR, CACHE_DIR, LOGS_DIR, CONFIG_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+# Processing Metrics CSV (for future ML prediction of processing time)
+PROCESSING_METRICS_CSV = DATA_DIR / "processing_metrics.csv"
 
 # File Processing Limits
 MAX_FILE_SIZE_MB = 500

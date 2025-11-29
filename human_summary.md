@@ -3,16 +3,19 @@
 ## Project Status
 **Phase 2.1 - UI Refactor Complete** ✅ Application UI successfully migrated to CustomTkinter with all visual and interaction improvements finalized, application stable and production-ready.
 
-**Roadmap Established** ✅ (2025-11-23) 5-phase development roadmap created and documented in scratchpad, aligned with official project specification. Covers document prioritization, parallel processing, system monitoring, model compatibility, and license integration.
+**Roadmap Established** ✅ (2025-11-23) 5-phase development roadmap created and documented in TODO.md, aligned with official project specification. Covers document prioritization, parallel processing, system monitoring, model compatibility, and license integration.
 
 **Code Patterns Refined** ✅ (2025-11-25) Session 5 refined code patterns: Reverted Session 4's descriptive variable naming to more Pythonic variable reuse pattern with comprehensive logging. All transformation stages now use single `text` variable with 4-category logging (execution tracking, performance timing, text metrics, error details). Simpler code, better observability, trusts Python's GC. Updated PROJECT_OVERVIEW.md Section 12. All 50 core tests passing.
 
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** 🟢 **ARCHITECTURE DOCUMENTATION | SESSION 21 CONTINUED** - Added comprehensive Mermaid-based architecture diagrams and AI rules for diagram maintenance.
+**Status:** 🟢 **UI IMPROVEMENTS & DOCUMENTATION | SESSION 22** - Processing timer, button feedback, human-readable durations, TODO consolidation.
 
-**Latest Session (2025-11-29 Session 21 Continued - Architecture Documentation):**
+**Latest Session (2025-11-29 Session 22 - UI Improvements & Documentation Consolidation):**
+Added user experience improvements: (1) "Generate X outputs" button now shows "Generating X outputs..." while processing, (2) Visible processing timer (⏱ 0:45 format) during operations, (3) Processing metrics logged to CSV for future ML duration prediction, (4) Status bar now 18pt bold bright cyan for better visibility, (5) Completion times now human-readable ("11m 20s" instead of "680.6s"). Consolidated documentation: merged scratchpad.md into TODO.md, updated CLAUDE.md Section 3.2 to reference TODO. Added high-priority brainstorming sections for vocabulary CSV quality and summary prompt quality improvements.
+
+**Previous Session (2025-11-29 Session 21 Continued - Architecture Documentation):**
 Created `ARCHITECTURE.md` with Mermaid diagrams documenting entire system architecture. Converted ASCII art diagrams to maintainable Mermaid format. Added mandatory architecture maintenance rules to `AI_RULES.md` Section 11D - diagrams must be updated when structure changes. Includes: High-Level Overview, UI Layer, Processing Pipeline, Multi-Document Summarization Pipeline (with actual prompt templates), AI Integration, Vocabulary Extraction, Parallel Processing, Configuration, Complete Data Flow, and File Directory.
 
 **Previous Session (2025-11-29 Session 21 - Thread-Through Prompt Template Architecture):**
@@ -147,7 +150,7 @@ All integration tests passing. **Complete workflow now functional:**
 
 ## Development Roadmap (2025-11-23)
 
-**Strategic direction established for Phases 2.2 through 5.** All items are documented in `scratchpad.md` with implementation estimates and technical specifications.
+**Strategic direction established for Phases 2.2 through 5.** All items are documented in `TODO.md` with implementation estimates and technical specifications.
 
 ### Immediate Next Steps (Quick Wins - 1 hour each)
 1. **Test Larger AI Models** - Pull `llama2:13b` and `mistral:7b` to test summary quality improvement. Hypothesis: 7B-13B models provide substantially better reasoning than 1B models currently in use.
@@ -194,7 +197,7 @@ All integration tests passing. **Complete workflow now functional:**
 - **AI_RULES.md** - AI engineering partner instructions (UPDATED Session 21: Section 11D architecture diagram maintenance rules)
 - **development_log.md** - Timestamped log of all code changes and features
 - **human_summary.md** - This file; high-level status report for human consumption
-- **scratchpad.md** - Brainstorming document for future ideas and potential enhancements
+- **TODO.md** - Backlog of future features, improvements, and ideas (merged from scratchpad.md)
 - **README.md** - Project overview with installation and usage instructions
 - **ONNX_MIGRATION_LOG.md** - Comprehensive technical log of ONNX Runtime migration (historical reference)
 
@@ -226,6 +229,7 @@ All integration tests passing. **Complete workflow now functional:**
 - **src/ui/widgets.py** (209 lines) - Custom widgets: FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
 - **src/ui/workers.py** - Background workers (ProcessingWorker, VocabularyWorker, OllamaAIWorkerManager)
 - **src/ui/dialogs.py** - Progress dialogs (ModelLoadProgressDialog with timer, SimpleProgressDialog)
+- **src/ui/processing_timer.py** - **NEW (Session 22)** Processing timer widget, CSV metrics logging, and `format_duration()` utility function
 - **src/ui/system_monitor.py** - Real-time CPU/RAM display widget with independent color indicators and hover tooltip
 - **src/ui/dynamic_output.py** - **UPDATED (Session 8)** Dynamic output display with Excel-like vocabulary Treeview and right-click exclusion menu
 - **src/ui/tooltip_helper.py** - **REWRITTEN (Session 8)** Mouse-relative tooltip positioning with boundary detection

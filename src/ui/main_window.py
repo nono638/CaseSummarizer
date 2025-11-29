@@ -35,6 +35,7 @@ from src.ui.settings import SettingsDialog
 from src.ui.menu_handler import create_menus
 from src.ui.quadrant_builder import create_central_widget_layout
 from src.ui.queue_message_handler import QueueMessageHandler
+from src.ui.processing_timer import ProcessingTimer
 from src.ui.system_monitor import SystemMonitor
 from src.ui.workers import OllamaAIWorkerManager, ProcessingWorker
 from src.ui.workflow_orchestrator import WorkflowOrchestrator
@@ -165,29 +166,40 @@ class MainWindow(ctk.CTk):
         self.model_selection.refresh_prompts()
 
     def _create_status_bar(self):
-        """Create status bar for messages and system monitoring."""
-        self.status_bar_frame = ctk.CTkFrame(self, height=32, corner_radius=0)
+        """Create status bar for messages, timer, and system monitoring."""
+        self.status_bar_frame = ctk.CTkFrame(self, height=40, corner_radius=0)
         self.status_bar_frame.grid(row=2, column=0, sticky="ew")
         self.status_bar_frame.grid_columnconfigure(0, weight=1)  # Status label expands
-        self.status_bar_frame.grid_columnconfigure(1, weight=0)  # Progress bar fixed
-        self.status_bar_frame.grid_columnconfigure(2, weight=0)  # Monitor fixed
+        self.status_bar_frame.grid_columnconfigure(1, weight=0)  # Timer fixed
+        self.status_bar_frame.grid_columnconfigure(2, weight=0)  # Progress bar fixed
+        self.status_bar_frame.grid_columnconfigure(3, weight=0)  # Monitor fixed
 
-        # Status label - larger and bolder for visibility
+        # Status label - much larger for high visibility
+        # Using white/light cyan text on dark background for contrast
         self.status_label = ctk.CTkLabel(
             self.status_bar_frame,
             text="Ready",
             anchor="w",
-            font=ctk.CTkFont(size=14, weight="bold")
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="#00E5FF"  # Bright cyan - high contrast on dark bg
         )
-        self.status_label.grid(row=0, column=0, sticky="ew", padx=10, pady=4)
+        self.status_label.grid(row=0, column=0, sticky="ew", padx=10, pady=6)
+
+        # Processing timer - shows elapsed time during processing
+        self.processing_timer = ProcessingTimer(
+            self.status_bar_frame,
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#FFD700"  # Gold color for timer visibility
+        )
+        self.processing_timer.grid(row=0, column=1, sticky="e", padx=(5, 10))
 
         self.progress_bar = ctk.CTkProgressBar(self.status_bar_frame, mode="determinate")
         self.progress_bar.set(0)
-        self.progress_bar.grid(row=0, column=1, sticky="e", padx=(5, 5))
+        self.progress_bar.grid(row=0, column=2, sticky="e", padx=(5, 5))
 
         # Add system monitor (CPU/RAM display with hover tooltip)
         self.system_monitor = SystemMonitor(self.status_bar_frame)
-        self.system_monitor.grid(row=0, column=2, sticky="e", padx=(0, 5))
+        self.system_monitor.grid(row=0, column=3, sticky="e", padx=(0, 5))
 
     def select_files(self):
         """Open file dialog and update selected files."""
@@ -259,6 +271,9 @@ class MainWindow(ctk.CTk):
         self.generate_outputs_btn.configure(state="disabled")
         self.output_options.lock_controls()  # Lock slider and checkboxes
 
+        # Update button text to show "Generating..."
+        self.output_options.set_generating_state(True)
+
         # Enable cancel button (make it red and clickable)
         self.cancel_btn.configure(
             state="normal",
@@ -274,6 +289,31 @@ class MainWindow(ctk.CTk):
 
         # Get selected prompt preset
         selected_preset_id = self.model_selection.get_selected_preset_id()
+
+        # Build list of outputs being requested for metrics logging
+        outputs_requested = []
+        if output_options.get("individual_summaries"):
+            outputs_requested.append("individual_summaries")
+        if output_options.get("meta_summary"):
+            outputs_requested.append("meta_summary")
+        if output_options.get("vocab_csv"):
+            outputs_requested.append("vocab_csv")
+
+        # Gather document metadata for the timer/metrics
+        documents_metadata = []
+        for filepath in file_paths:
+            documents_metadata.append({
+                'filename': os.path.basename(filepath),
+                'file_size': os.path.getsize(filepath),
+                'page_count': 0  # Will be updated after extraction
+            })
+
+        # Start the processing timer with job metadata for CSV logging
+        self.processing_timer.start({
+            'documents': documents_metadata,
+            'model_name': selected_model,
+            'outputs_requested': outputs_requested
+        })
 
         # Store AI generation parameters for after document extraction completes
         self.pending_ai_generation = {
@@ -308,6 +348,9 @@ class MainWindow(ctk.CTk):
             debug_log("[MAIN WINDOW] Stopping AI worker...")
             self.ai_worker_manager.stop_worker()
 
+        # Stop timer without logging (cancelled jobs shouldn't be in metrics)
+        self.processing_timer.reset()
+
         # Reset UI state
         self.status_label.configure(text="Processing cancelled by user.")
         self.progress_bar.set(0)
@@ -317,6 +360,9 @@ class MainWindow(ctk.CTk):
         self.select_files_btn.configure(state="normal")
         self.generate_outputs_btn.configure(state="normal")
         self.output_options.unlock_controls()
+
+        # Reset button text from "Generating..." back to normal
+        self.output_options.set_generating_state(False)
 
         # Disable cancel button (grey it out instead of hiding)
         self.cancel_btn.configure(

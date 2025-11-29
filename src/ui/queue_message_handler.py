@@ -26,6 +26,7 @@ Performance Optimizations (Session 14):
 import gc
 from tkinter import messagebox
 from src.logging_config import debug_log
+from src.ui.processing_timer import format_duration
 
 
 class QueueMessageHandler:
@@ -196,9 +197,9 @@ class QueueMessageHandler:
 
         # Update progress and status
         self.main_window.progress_bar.set(1.0)
+        duration_str = format_duration(data.total_processing_time_seconds)
         status_msg = (f"Multi-document summarization complete! "
-                     f"{data.documents_processed} documents in "
-                     f"{data.total_processing_time_seconds:.1f}s")
+                     f"{data.documents_processed} documents in {duration_str}")
         if data.documents_failed > 0:
             status_msg += f" ({data.documents_failed} failed)"
         self.main_window.status_label.configure(text=status_msg)
@@ -229,9 +230,26 @@ class QueueMessageHandler:
         """Reset UI buttons and progress bar to post-processing state."""
         debug_log("[QUEUE HANDLER] Resetting UI after processing complete...")
 
+        # Stop timer and log metrics to CSV
+        if hasattr(self.main_window, 'processing_timer'):
+            # Update document metadata with actual page counts from processed results
+            if self.main_window.processing_timer._job_metadata:
+                docs_meta = self.main_window.processing_timer._job_metadata.get('documents', [])
+                for doc_meta in docs_meta:
+                    # Find matching processed result to get actual page count
+                    for result in self.main_window.processed_results:
+                        if result.get('filename') == doc_meta.get('filename'):
+                            doc_meta['page_count'] = result.get('page_count', 0)
+                            break
+
+            self.main_window.processing_timer.stop_and_log()
+
         self.main_window.select_files_btn.configure(state="normal")
         self.main_window.generate_outputs_btn.configure(state="normal")
         self.main_window.output_options.unlock_controls()  # Unlock slider and checkboxes
+
+        # Reset button text from "Generating..." back to normal
+        self.main_window.output_options.set_generating_state(False)
 
         # Disable cancel button (grey it out instead of hiding)
         self.main_window.cancel_btn.configure(

@@ -350,6 +350,10 @@ class OutputOptionsWidget(ctk.CTkFrame):
         if self._generate_btn is None:
             return
 
+        # Don't update if we're in "generating" mode
+        if hasattr(self, '_is_generating') and self._is_generating:
+            return
+
         count = self.get_output_count()
         if count == 0:
             self._generate_btn.configure(text="Select Outputs")
@@ -357,6 +361,28 @@ class OutputOptionsWidget(ctk.CTkFrame):
             self._generate_btn.configure(text="Generate 1 Output")
         else:
             self._generate_btn.configure(text=f"Generate {count} Outputs")
+
+    def set_generating_state(self, is_generating: bool):
+        """
+        Set the button to show 'Generating...' state.
+
+        Args:
+            is_generating: True to show generating text, False to restore normal text
+        """
+        self._is_generating = is_generating
+
+        if self._generate_btn is None:
+            return
+
+        if is_generating:
+            count = self.get_output_count()
+            if count == 1:
+                self._generate_btn.configure(text="Generating 1 Output...")
+            else:
+                self._generate_btn.configure(text=f"Generating {count} Outputs...")
+        else:
+            # Restore normal text
+            self._update_generate_button_text()
 
     def get_output_count(self) -> int:
         """

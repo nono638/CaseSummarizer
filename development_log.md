@@ -1,5 +1,55 @@
 # Development Log
 
+## Session 22 - UI Improvements & Documentation Consolidation (2025-11-29)
+
+**Objective:** Improve user experience with better processing feedback and consolidate documentation structure.
+
+### UI Improvements
+
+| Feature | Description |
+|---------|-------------|
+| **Button State Feedback** | "Generate X outputs" button now shows "Generating X outputs..." while processing |
+| **Processing Timer** | Visible timer displays elapsed time during processing (⏱ 0:45 format) |
+| **Metrics CSV Logging** | Processing duration, document count, page counts, model name logged to `processing_metrics.csv` for future ML-based duration prediction |
+| **Status Bar Enhancement** | Status text now 18pt bold with bright cyan (#00E5FF) for better visibility on dark background |
+| **Human-Readable Completion Time** | Changed completion message from "680.6s" to "11m 20s" format |
+
+### New Files Created
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/ui/processing_timer.py` | Timer widget + CSV metrics logging + `format_duration()` utility | ~220 |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/ui/widgets.py` | Added `set_generating_state()` method to OutputOptionsWidget |
+| `src/ui/main_window.py` | Integrated ProcessingTimer, enhanced status bar styling |
+| `src/ui/queue_message_handler.py` | Stop timer on completion, log metrics, use human-readable duration format |
+| `src/config.py` | Added `DATA_DIR` and `PROCESSING_METRICS_CSV` paths |
+
+### Documentation Consolidation
+
+- **Merged `scratchpad.md` → `TODO.md`**: Single backlog file for all future ideas
+- **Updated `CLAUDE.md`**: Section 3.2 now references TODO.md instead of scratchpad
+- **Added brainstorming sections to TODO.md**: Vocabulary CSV quality and summary prompt quality marked as high-priority areas needing fundamental rethinking
+
+### Utility Function: `format_duration()`
+
+Created reusable duration formatter for human-readable time display:
+```python
+format_duration(45)    # → "45s"
+format_duration(150)   # → "2m 30s"
+format_duration(680.6) # → "11m 20s"
+format_duration(3725)  # → "1h 2m 5s"
+```
+
+### Tests
+All 149 tests passing.
+
+---
+
 ## Session 21 Continued - Architecture Documentation (2025-11-29)
 
 **Objective:** Create comprehensive, maintainable architecture documentation with visual diagrams to help understand and troubleshoot the system.
