@@ -148,7 +148,7 @@ class QueueMessageHandler:
 
     def handle_summary_result(self, data):
         """
-        Handle 'summary_result' message - AI summary generated.
+        Handle 'summary_result' message - AI summary generated (single doc).
 
         Args:
             data: Dictionary with 'summary' key containing the generated text
@@ -161,6 +161,55 @@ class QueueMessageHandler:
         self.main_window.status_label.configure(text="Summary generation complete!")
         self._reset_ui_after_processing()
         self.main_window.pending_ai_generation = None
+
+        if self.orchestrator:
+            self.orchestrator.on_summary_complete()
+
+    def handle_multi_doc_result(self, data):
+        """
+        Handle 'multi_doc_result' message - multi-document summarization complete.
+
+        Displays both individual document summaries and the combined meta-summary.
+
+        Args:
+            data: MultiDocumentSummaryResult with individual_summaries and meta_summary
+        """
+        # Import here to avoid circular imports
+        from src.summarization import MultiDocumentSummaryResult
+
+        debug_log(f"[QUEUE HANDLER] Multi-doc result received: "
+                 f"{data.documents_processed} processed, {data.documents_failed} failed")
+
+        # Extract individual summaries as dict[filename, summary_text]
+        individual_summaries = {}
+        for filename, result in data.individual_summaries.items():
+            if result.success:
+                individual_summaries[filename] = result.summary
+            else:
+                individual_summaries[filename] = f"[Error: {result.error_message}]"
+
+        # Update UI with both individual summaries and meta-summary
+        self.main_window.summary_results.update_outputs(
+            meta_summary=data.meta_summary,
+            document_summaries=individual_summaries
+        )
+
+        # Update progress and status
+        self.main_window.progress_bar.set(1.0)
+        status_msg = (f"Multi-document summarization complete! "
+                     f"{data.documents_processed} documents in "
+                     f"{data.total_processing_time_seconds:.1f}s")
+        if data.documents_failed > 0:
+            status_msg += f" ({data.documents_failed} failed)"
+        self.main_window.status_label.configure(text=status_msg)
+
+        # Reset UI
+        self._reset_ui_after_processing()
+        self.main_window.pending_ai_generation = None
+
+        # Clean up worker reference
+        if self.orchestrator and hasattr(self.orchestrator, 'multi_doc_worker'):
+            self.orchestrator.multi_doc_worker = None
 
         if self.orchestrator:
             self.orchestrator.on_summary_complete()
@@ -225,6 +274,7 @@ class QueueMessageHandler:
             'vocab_csv_generated': self.handle_vocab_csv_generated,
             'processing_finished': self.handle_processing_finished,
             'summary_result': self.handle_summary_result,
+            'multi_doc_result': self.handle_multi_doc_result,
             'error': self.handle_error,
         }
 

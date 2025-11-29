@@ -10,9 +10,18 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** 🟢 **SETTINGS GUI + UI POLISH | SESSION 19** - Session 19 (2025-11-28) added comprehensive Settings dialog with auto-generated UI from registry, plus UI polish fixes for tooltips, dependent settings, tab styling, and status bar visibility. All 111 tests passing.
+**Status:** 🟢 **ARCHITECTURE DOCUMENTATION | SESSION 21 CONTINUED** - Added comprehensive Mermaid-based architecture diagrams and AI rules for diagram maintenance.
 
-**Latest Session (2025-11-28 Session 19 - Settings GUI + UI Polish):**
+**Latest Session (2025-11-29 Session 21 Continued - Architecture Documentation):**
+Created `ARCHITECTURE.md` with Mermaid diagrams documenting entire system architecture. Converted ASCII art diagrams to maintainable Mermaid format. Added mandatory architecture maintenance rules to `AI_RULES.md` Section 11D - diagrams must be updated when structure changes. Includes: High-Level Overview, UI Layer, Processing Pipeline, Multi-Document Summarization Pipeline (with actual prompt templates), AI Integration, Vocabulary Extraction, Parallel Processing, Configuration, Complete Data Flow, and File Directory.
+
+**Previous Session (2025-11-29 Session 21 - Thread-Through Prompt Template Architecture):**
+Fixed critical gap where multi-doc mode ignored user's selected prompt template. Implemented thread-through focus architecture: AI extracts focus areas (emphasis + instructions) from user's template, then threads them through all pipeline stages - chunk prompts, document final prompts, and meta-summary prompt. New modules: `src/prompt_focus_extractor.py` (FocusExtractor ABC + AIFocusExtractor), `src/prompt_adapters.py` (PromptAdapter ABC + MultiDocPromptAdapter). Key design: ALL templates use AI extraction (no hardcoded mappings), cache by content hash (edits trigger re-extraction), dependency injection for testability. 22 new tests, all passing.
+
+**Previous Session (2025-11-29 Session 20 - Multi-Document Hierarchical Summarization):**
+Fixed critical gap where multiple documents were naively concatenated and sent to Ollama (which silently truncated ~97% of content). Implemented hierarchical map-reduce: **Map Phase** processes each document in parallel through `ProgressiveDocumentSummarizer` (chunking → chunk summaries → document summary), **Reduce Phase** combines individual summaries into coherent meta-summary. New `src/summarization/` package with clean abstractions. `WorkflowOrchestrator` automatically routes: single doc → fast direct path, multiple docs → hierarchical path. 16 new tests, all passing.
+
+**Previous Session (2025-11-28 Session 19 - Settings GUI + UI Polish):**
 **Part A - Settings Dialog:** Implemented complete settings infrastructure with auto-generated tabbed UI. SettingsRegistry defines settings with metadata (type, default, min/max, getter/setter). SettingsDialog dynamically creates tabs per category with appropriate widgets (slider, checkbox, dropdown, spinbox). Four initial settings: summary length range (50-2000 words), temperature (0-2.0), auto-detect CPU cores, manual worker count. **Part B - UI Polish (User Feedback):** Fixed 4 user-reported issues: (1) **Tooltips not disappearing** - Added mouse position checking to hide tooltip when mouse leaves both icon and popup, (2) **Worker count always editable** - Added `set_enabled()` to SpinboxSetting and `_setup_dependencies()` to link checkbox state, (3) **More prominent tabs** - Enlarged tab buttons (size 14 bold, height 36) with custom colors, (4) **Better status bar visibility** - Made status label larger (size 14) and bold for readability. All 111 tests passing.
 
 **Previous Session (2025-11-28 Session 16 - GUI Performance & Smart Preprocessing):**
@@ -181,7 +190,9 @@ All integration tests passing. **Complete workflow now functional:**
 
 ### Documentation Files
 - **PROJECT_OVERVIEW.md** - Complete technical specification for LocalScribe (PRIMARY SOURCE OF TRUTH, 1148 lines)
-- **development_log.md** - Timestamped log of all code changes and features (UPDATED with Session 8 Part 5 Google frequency dataset integration)
+- **ARCHITECTURE.md** - **NEW (Session 21)** Living program architecture with Mermaid diagrams (view with `Ctrl+Shift+V` in VS Code)
+- **AI_RULES.md** - AI engineering partner instructions (UPDATED Session 21: Section 11D architecture diagram maintenance rules)
+- **development_log.md** - Timestamped log of all code changes and features
 - **human_summary.md** - This file; high-level status report for human consumption
 - **scratchpad.md** - Brainstorming document for future ideas and potential enhancements
 - **README.md** - Project overview with installation and usage instructions
@@ -234,12 +245,21 @@ All integration tests passing. **Complete workflow now functional:**
   - **src/preprocessing/header_footer_remover.py** - Removes repetitive headers/footers using frequency analysis
   - **src/preprocessing/title_page_remover.py** - Removes cover pages using score-based detection
   - **src/preprocessing/qa_converter.py** - Converts Q./A. notation to Question:/Answer: format
+- **src/summarization/** - **NEW (Session 20)** Multi-document hierarchical summarization package
+  - **src/summarization/__init__.py** - Package exports
+  - **src/summarization/result_types.py** - `DocumentSummaryResult`, `MultiDocumentSummaryResult` dataclasses
+  - **src/summarization/document_summarizer.py** - `DocumentSummarizer` ABC + `ProgressiveDocumentSummarizer` wrapper (UPDATED Session 21: accepts prompt_adapter)
+  - **src/summarization/multi_document_orchestrator.py** - Parallel document processing with map-reduce pattern (UPDATED Session 21: accepts prompt_adapter)
+- **src/prompt_focus_extractor.py** - **NEW (Session 21)** Extracts focus areas from prompt templates using AI; `FocusExtractor` ABC + `AIFocusExtractor` with content-hash caching
+- **src/prompt_adapters.py** - **NEW (Session 21)** Generates stage-specific prompts with focus emphasis; `PromptAdapter` ABC + `MultiDocPromptAdapter` for thread-through architecture
 - **src/performance_tracker.py** - Performance tracking for time estimates
 - **src/__init__.py** - Package initialization
 
 ### Tests
 - **tests/test_raw_text_extractor.py** (24 unit tests - ALL PASSING) - Comprehensive test coverage for RawTextExtractor (Steps 1-2)
 - **tests/test_preprocessing.py** - **NEW (Session 16)** 16 tests for preprocessing pipeline and all 4 preprocessors
+- **tests/test_multi_document_summarization.py** - **NEW (Session 20)** 16 tests for hierarchical map-reduce summarization
+- **tests/test_prompt_adapters.py** - **NEW (Session 21)** 22 tests for focus extraction and prompt adapters (ABC contracts, caching, parsing)
 - **tests/sample_docs/test_complaint.txt** - Sample legal document for testing
 - **tests/sample_docs/test_motion.rtf** - Sample RTF legal document for testing
 - **tests/output/** - Test output directory (gitignored)

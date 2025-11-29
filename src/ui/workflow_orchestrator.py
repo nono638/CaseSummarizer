@@ -211,16 +211,53 @@ class WorkflowOrchestrator:
 
     def _start_ai_generation(self, extracted_documents: list[dict], ai_params: dict):
         """
-        Start AI summary generation via main window.
+        Start AI summary generation - routes to single or multi-doc mode.
 
-        Delegates to main_window._start_ai_generation() which manages
-        the AI worker process.
+        Single document: Uses existing Ollama worker for direct summarization.
+        Multiple documents: Uses MultiDocSummaryWorker for hierarchical
+        map-reduce summarization (each doc chunked, then meta-summarized).
 
         Args:
             extracted_documents: List of extracted document dictionaries
             ai_params: AI generation parameters (model, length, options)
         """
-        self.main_window._start_ai_generation(extracted_documents, ai_params)
+        # Count documents with actual text
+        valid_docs = [d for d in extracted_documents if d.get('extracted_text')]
+        doc_count = len(valid_docs)
+
+        debug_log(f"[ORCHESTRATOR] Starting AI generation for {doc_count} document(s)")
+
+        if doc_count <= 1:
+            # Single document: Use existing fast path via main window
+            debug_log("[ORCHESTRATOR] Single document mode - using direct Ollama summarization")
+            self.main_window._start_ai_generation(extracted_documents, ai_params)
+        else:
+            # Multiple documents: Use hierarchical map-reduce via MultiDocSummaryWorker
+            debug_log("[ORCHESTRATOR] Multi-document mode - using hierarchical summarization")
+            self._start_multi_doc_generation(valid_docs, ai_params)
+
+    def _start_multi_doc_generation(self, documents: list[dict], ai_params: dict):
+        """
+        Start multi-document hierarchical summarization.
+
+        Uses MultiDocSummaryWorker which:
+        1. Summarizes each document in parallel via progressive chunking
+        2. Combines individual summaries into a coherent meta-summary
+
+        Args:
+            documents: List of documents with 'filename' and 'extracted_text'
+            ai_params: AI parameters (model_name, summary_length, etc.)
+        """
+        from src.ui.workers import MultiDocSummaryWorker
+
+        # Track worker for cancellation
+        self.multi_doc_worker = MultiDocSummaryWorker(
+            documents=documents,
+            ui_queue=self.main_window.ui_queue,
+            ai_params=ai_params
+        )
+        self.multi_doc_worker.start()
+        debug_log(f"[ORCHESTRATOR] MultiDocSummaryWorker started for {len(documents)} documents")
 
     def on_summary_complete(self):
         """Handle completion of AI summary generation."""

@@ -1,5 +1,205 @@
 # Development Log
 
+## Session 21 Continued - Architecture Documentation (2025-11-29)
+
+**Objective:** Create comprehensive, maintainable architecture documentation with visual diagrams to help understand and troubleshoot the system.
+
+### New Files Created
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `ARCHITECTURE.md` | Living program architecture with Mermaid diagrams | ~650 |
+
+### ARCHITECTURE.md Contents
+
+Created comprehensive documentation covering:
+1. **High-Level Overview** - System components and connections
+2. **User Interface Layer** - MainWindow structure, widget hierarchy, message flow
+3. **Processing Pipeline** - Extraction → Sanitization → Preprocessing stages
+4. **Multi-Document Summarization Pipeline** - Focus threading architecture with actual prompt templates
+5. **AI Integration Layer** - Ollama, PromptTemplateManager, PostProcessor
+6. **Vocabulary Extraction System** - spaCy NLP flow
+7. **Parallel Processing Architecture** - Strategy pattern for execution
+8. **Configuration & Settings** - All config files and their purposes
+9. **Complete Data Flow** - End-to-end 7-stage visualization
+10. **File Directory Quick Reference** - One-line descriptions of all source files
+
+### AI_RULES.md Updates
+
+Added **Section 11D - ARCHITECTURE.md Maintenance (Mandatory)**:
+- When to update (10 specific triggers in table)
+- When to skip (bug fixes, internal refactoring)
+- Update format template
+- Thoroughness requirements ("be thorough, not summarized")
+- Mermaid syntax quick reference
+- Architecture update checklist (6 items)
+
+Added to **Mandatory Patterns Checklist** (Appendix):
+- "ARCHITECTURE.md updated if structure changed"
+
+### Technology Choice: Mermaid
+
+Chose Mermaid over ASCII art because:
+1. **Maintainability** - Update code like `flowchart TB` instead of aligning box characters
+2. **Version Control** - Diffs show semantic changes, not character shifts
+3. **Rendering** - GitHub, VS Code (Mermaid Chart extension), Obsidian render natively
+4. **Official Support** - Mermaid Chart is the official VS Code extension from the Mermaid.js team
+
+### Viewing the Diagrams
+
+In VS Code: Press `Ctrl+Shift+V` to open Markdown Preview (requires Mermaid Chart extension)
+
+---
+
+## Session 21 - Thread-Through Prompt Template Architecture (2025-11-29)
+
+**Objective:** Make multi-document summarization prompt-guided - the user's selected template should guide the entire pipeline, not just the final output. Previously, multi-doc mode ignored the user's template and used hardcoded prompts.
+
+### Problem Discovered
+
+Multi-document summarization had a critical gap:
+- **User's template:** Contains focus areas (injuries, damages, timeline, etc.)
+- **Multi-doc pipeline:** Was using hardcoded prompts throughout
+- **Result:** Meta-summary didn't prioritize what the user actually wanted
+
+### Solution: Thread-Through Architecture
+
+Implemented focus area extraction and propagation through all pipeline stages:
+
+1. **Focus Extraction Phase:** AI analyzes user's template to extract:
+   - `emphasis`: Short phrase for intermediate prompts (e.g., "injuries, damages, timeline")
+   - `instructions`: Numbered list for meta-summary generation
+
+2. **Thread-Through Phases:**
+   - Chunk prompts include focus emphasis
+   - Document final prompts include focus emphasis
+   - Meta-summary prompt uses extracted instructions
+
+### New Modules Created
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/prompt_focus_extractor.py` | Extracts focus from templates using AI | ~262 |
+| `src/prompt_adapters.py` | Generates stage-specific prompts with focus | ~314 |
+| `tests/test_prompt_adapters.py` | 22 unit tests for new modules | ~290 |
+
+### Architecture: Abstract Base Classes for Future-Proofing
+
+Both modules use ABCs for swappable implementations:
+
+**FocusExtractor ABC:**
+- `AIFocusExtractor` (current): Uses Ollama to extract focus
+- Future: `KeywordFocusExtractor`, `HybridFocusExtractor`
+
+**PromptAdapter ABC:**
+- `MultiDocPromptAdapter` (current): Threads focus through all stages
+- Future: `VerbatimPromptAdapter`, `DebugPromptAdapter`
+
+### Key Design Decisions
+
+1. **ALL templates use AI extraction** - No hardcoded mappings for built-in templates
+2. **Cache by content hash** - Template edits trigger re-extraction
+3. **Dependency injection** - All components accept adapters as optional params
+4. **Graceful fallback** - Generic focus if extraction fails
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/ui/workers.py` | `MultiDocSummaryWorker` creates and passes prompt_adapter |
+| `src/summarization/document_summarizer.py` | `ProgressiveDocumentSummarizer` uses adapter for chunk/final prompts |
+| `src/summarization/multi_document_orchestrator.py` | Uses adapter for meta-summary prompt |
+
+### Data Flow
+
+```
+User selects template → preset_id passed to worker
+                           ↓
+        MultiDocPromptAdapter created with template_manager
+                           ↓
+        AIFocusExtractor extracts focus (emphasis + instructions)
+                           ↓
+        ┌─────────────────────────────────────────────┐
+        │  For each document:                         │
+        │    For each chunk:                          │
+        │      create_chunk_prompt(focus.emphasis)    │
+        │    create_document_final_prompt(focus)      │
+        └─────────────────────────────────────────────┘
+                           ↓
+        create_meta_summary_prompt(focus.instructions)
+                           ↓
+        Final meta-summary guided by user's template
+```
+
+### Test Results
+
+- **22 new tests** in `tests/test_prompt_adapters.py`
+- **All 38 tests passing** (22 new + 16 existing multi-doc tests)
+- Tests cover: ABC contracts, caching, parsing, focus propagation
+
+### Pattern Documented
+
+**Thread-Through Focus Pattern:** When implementing multi-stage pipelines where user intent should propagate through all stages, use:
+1. ABC for extraction strategy (swappable extraction methods)
+2. ABC for prompt generation (swappable prompt templates)
+3. Content-hash caching (efficient, responds to edits)
+4. Dependency injection (testable, future-proof)
+
+---
+
+## Session 20 - Multi-Document Hierarchical Summarization (2025-11-29)
+
+**Objective:** Implement proper multi-document summarization using a hierarchical map-reduce architecture. Previously, multiple documents were naively concatenated and sent to Ollama, which silently truncated ~97% of content due to context window limits.
+
+### Problem Discovered
+
+The existing code had a critical gap:
+- **Single document:** Proper chunking via `ProgressiveSummarizer` (working well)
+- **Multiple documents:** Naive concatenation → Ollama silently truncates most content
+
+### Solution: Hierarchical Map-Reduce
+
+Implemented a two-phase approach:
+1. **Map Phase:** Each document processed in parallel through `ProgressiveDocumentSummarizer` (chunking → chunk summaries → document summary)
+2. **Reduce Phase:** Individual document summaries combined into coherent meta-summary
+
+### New Package: `src/summarization/`
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `__init__.py` | Package exports | ~55 |
+| `result_types.py` | `DocumentSummaryResult`, `MultiDocumentSummaryResult` dataclasses | ~95 |
+| `document_summarizer.py` | `DocumentSummarizer` ABC + `ProgressiveDocumentSummarizer` | ~240 |
+| `multi_document_orchestrator.py` | Parallel doc processing with map-reduce | ~290 |
+
+### Files Modified (3)
+
+| File | Changes |
+|------|---------|
+| `src/ui/workers.py` | Added `MultiDocSummaryWorker` class (~115 lines) |
+| `src/ui/workflow_orchestrator.py` | Routing logic: single doc → direct path, multiple docs → hierarchical |
+| `src/ui/queue_message_handler.py` | Handler for `multi_doc_result` message type |
+
+### Architecture Highlights
+
+- **Strategy Pattern:** Uses existing `ThreadPoolStrategy` for parallel document processing
+- **Automatic Routing:** `WorkflowOrchestrator._start_ai_generation()` detects doc count and routes appropriately
+- **Progress Aggregation:** Uses existing `ProgressAggregator` for throttled UI updates
+- **Context Window Safety:** Meta-summary generator chunks if combined summaries exceed context window
+- **Testability:** Uses `SequentialStrategy` for deterministic testing
+
+### Test Results
+
+- **16 new tests** in `tests/test_multi_document_summarization.py`
+- **All passing:** Result types, summarizer interface, orchestrator, imports
+
+### Snags Encountered
+
+1. **ProgressiveSummarizer has no `update_chunk_summary()` method** - Solved by directly updating DataFrame in `ProgressiveDocumentSummarizer`
+2. **Test collection error with UI tests** - Unrelated to new code; core tests pass
+
+---
+
 ## Session 19 - Extensible Settings GUI (2025-11-28)
 
 **Objective:** Create a comprehensive, extensible Settings GUI for LocalScribe with tabbed interface, tooltips, and easy extensibility for future settings.

@@ -395,3 +395,139 @@ class OllamaAIWorkerManager:
         return self.process is not None and self.process.is_alive()
 
 
+class MultiDocSummaryWorker(threading.Thread):
+    """
+    Background worker for multi-document hierarchical summarization.
+
+    Uses MultiDocumentOrchestrator to process multiple documents in parallel
+    with a map-reduce approach:
+    1. Map: Each document summarized via ProgressiveDocumentSummarizer
+    2. Reduce: Individual summaries combined into meta-summary
+
+    This worker runs in a background thread to keep the UI responsive
+    during potentially long summarization operations.
+
+    Attributes:
+        documents: List of document dicts with 'filename' and 'extracted_text'.
+        ui_queue: Queue for communication with the main UI thread.
+        ai_params: AI parameters (summary_length, meta_length, etc.).
+        strategy: ExecutorStrategy for parallel processing.
+    """
+
+    def __init__(
+        self,
+        documents: list[dict],
+        ui_queue: Queue,
+        ai_params: dict,
+        strategy: ExecutorStrategy = None
+    ):
+        """
+        Initialize the multi-document summary worker.
+
+        Args:
+            documents: List of document dicts with 'filename' and 'extracted_text'.
+            ui_queue: Queue for UI communication.
+            ai_params: Dict with 'summary_length', 'meta_length', 'model_name', etc.
+            strategy: ExecutorStrategy for parallel execution. Defaults to
+                     ThreadPoolStrategy with PARALLEL_MAX_WORKERS.
+        """
+        super().__init__(daemon=True)
+        self.documents = documents
+        self.ui_queue = ui_queue
+        self.ai_params = ai_params
+        self.strategy = strategy or ThreadPoolStrategy(max_workers=PARALLEL_MAX_WORKERS)
+        self._stop_event = threading.Event()
+        self._orchestrator = None
+
+    def stop(self):
+        """Signal the worker to stop processing."""
+        debug_log("[MULTI-DOC WORKER] Stop signal received.")
+        self._stop_event.set()
+        if self._orchestrator:
+            self._orchestrator.stop()
+        self.strategy.shutdown(wait=False, cancel_futures=True)
+
+    def run(self):
+        """Execute multi-document summarization in background thread."""
+        try:
+            doc_count = len(self.documents)
+            debug_log(f"[MULTI-DOC WORKER] Starting summarization of {doc_count} documents")
+
+            # Import here to avoid circular imports
+            from src.ai import OllamaModelManager
+            from src.prompt_adapters import MultiDocPromptAdapter
+            from src.summarization import (
+                MultiDocumentOrchestrator,
+                ProgressiveDocumentSummarizer,
+            )
+
+            # Initialize components
+            model_manager = OllamaModelManager()
+
+            # Load specified model if provided
+            model_name = self.ai_params.get('model_name')
+            if model_name:
+                model_manager.load_model(model_name)
+
+            # Extract preset_id from ai_params (set by main_window from user selection)
+            preset_id = self.ai_params.get('preset_id', 'factual-summary')
+            debug_log(f"[MULTI-DOC WORKER] Using preset_id: {preset_id}")
+
+            # Create prompt adapter for thread-through focus areas
+            # This adapter extracts focus from the user's template and threads
+            # it through all stages of the summarization pipeline
+            prompt_adapter = MultiDocPromptAdapter(
+                template_manager=model_manager.prompt_template_manager,
+                model_manager=model_manager
+            )
+
+            doc_summarizer = ProgressiveDocumentSummarizer(
+                model_manager,
+                prompt_adapter=prompt_adapter,
+                preset_id=preset_id
+            )
+
+            self._orchestrator = MultiDocumentOrchestrator(
+                document_summarizer=doc_summarizer,
+                model_manager=model_manager,
+                strategy=self.strategy,
+                prompt_adapter=prompt_adapter,
+                preset_id=preset_id
+            )
+
+            # Progress callback to UI
+            def on_progress(percent: int, message: str):
+                if not self._stop_event.is_set():
+                    self.ui_queue.put(('progress', (percent, message)))
+
+            # Get parameters
+            summary_length = self.ai_params.get('summary_length', 200)
+            meta_length = self.ai_params.get('meta_length', 500)
+
+            # Execute summarization
+            result = self._orchestrator.summarize_documents(
+                documents=self.documents,
+                max_words_per_document=summary_length,
+                max_meta_summary_words=meta_length,
+                progress_callback=on_progress,
+                ui_queue=self.ui_queue
+            )
+
+            # Send result to UI
+            if not self._stop_event.is_set():
+                self.ui_queue.put(('multi_doc_result', result))
+                debug_log(f"[MULTI-DOC WORKER] Completed: {result.documents_processed} documents, "
+                         f"{result.documents_failed} failed, {result.total_processing_time_seconds:.1f}s")
+            else:
+                debug_log("[MULTI-DOC WORKER] Processing cancelled by user.")
+                self.ui_queue.put(('error', "Multi-document summarization cancelled."))
+
+        except Exception as e:
+            error_msg = f"Multi-document summarization failed: {str(e)}"
+            debug_log(f"[MULTI-DOC WORKER] {error_msg}\n{traceback.format_exc()}")
+            self.ui_queue.put(('error', error_msg))
+
+        finally:
+            # Cleanup
+            self.strategy.shutdown(wait=False)
+            gc.collect()
