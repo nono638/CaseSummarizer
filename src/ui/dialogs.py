@@ -1,8 +1,10 @@
 """
 LocalScribe - Custom Dialogs (CustomTkinter Refactor)
 """
-import customtkinter as ctk
 import time
+
+import customtkinter as ctk
+
 
 class ModelLoadProgressDialog(ctk.CTkToplevel):
     """
@@ -24,7 +26,7 @@ class ModelLoadProgressDialog(ctk.CTkToplevel):
 
         info_label = ctk.CTkLabel(self, text="This may take 30-60 seconds depending on your hardware.", wraplength=350)
         info_label.grid(row=1, column=0, padx=20, pady=5)
-        
+
         self.progress_bar = ctk.CTkProgressBar(self, mode="indeterminate")
         self.progress_bar.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
         self.progress_bar.start()
@@ -34,7 +36,7 @@ class ModelLoadProgressDialog(ctk.CTkToplevel):
 
         self.status_label = ctk.CTkLabel(self, text="Initializing...")
         self.status_label.grid(row=4, column=0, padx=20, pady=5)
-        
+
         self._update_timer()
 
     def _update_timer(self):
@@ -64,7 +66,7 @@ class SimpleProgressDialog(ctk.CTkToplevel):
 
         self.message_label = ctk.CTkLabel(self, text="Starting...", wraplength=350)
         self.message_label.grid(row=0, column=0, padx=20, pady=(20, 10))
-        
+
         self.progress_bar = ctk.CTkProgressBar(self, mode="determinate")
         self.progress_bar.set(0)
         self.progress_bar.grid(row=1, column=0, padx=20, pady=10, sticky="ew")

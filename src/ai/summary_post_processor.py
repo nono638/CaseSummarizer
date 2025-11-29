@@ -8,18 +8,17 @@ Handles post-processing of AI-generated summaries, including:
 This module is AI-backend-agnostic - it works with any text generation function.
 """
 
-from typing import Callable, Optional
-from pathlib import Path
+from collections.abc import Callable
 
 from ..config import (
+    PROMPTS_DIR,
     SUMMARY_LENGTH_TOLERANCE,
     SUMMARY_MAX_CONDENSE_ATTEMPTS,
-    PROMPTS_DIR,
-    USER_PROMPTS_DIR
+    USER_PROMPTS_DIR,
 )
+from ..logging_config import debug_log
 from ..prompt_config import get_prompt_config
 from ..prompt_template_manager import PromptTemplateManager
-from ..debug_logger import debug_log
 
 
 class SummaryPostProcessor:
@@ -43,7 +42,7 @@ class SummaryPostProcessor:
     def __init__(
         self,
         generate_text_fn: Callable[[str, int], str],
-        prompt_template_manager: Optional[PromptTemplateManager] = None,
+        prompt_template_manager: PromptTemplateManager | None = None,
         tolerance: float = None,
         max_attempts: int = None
     ):

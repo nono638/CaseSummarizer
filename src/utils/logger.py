@@ -16,15 +16,15 @@ See src/logging_config.py for full documentation on the unified logging system.
 
 # Re-export all logging functions from the unified module
 from src.logging_config import (
-    debug_log,
+    DEBUG_MODE,
+    Timer,
+    close_debug_log,
+    critical,
     debug,
+    debug_log,
+    error,
     info,
     warning,
-    error,
-    critical,
-    close_debug_log,
-    Timer,
-    DEBUG_MODE,
 )
 
 __all__ = [

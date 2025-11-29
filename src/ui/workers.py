@@ -2,92 +2,208 @@
 Background Workers Module
 
 Contains threading and multiprocessing workers for document processing:
-- ProcessingWorker: Document extraction thread
+- ProcessingWorker: Document extraction thread (with parallel processing)
 - VocabularyWorker: Vocabulary extraction thread
 - OllamaAIWorkerManager: AI generation process manager
 
-Performance Optimizations (Session 14):
-- Non-blocking termination for AI worker
-- Improved queue cleanup
-- Better daemon thread management
+Performance Optimizations:
+- Session 14: Non-blocking termination for AI worker
+- Session 18: Parallel document extraction via Strategy Pattern
 """
 
-import threading
-import multiprocessing
-import time
-import os
 import gc
-import traceback
-from queue import Queue, Empty
+import multiprocessing
+import os
 from pathlib import Path
+import threading
+import traceback
+from queue import Empty, Queue
 
+from src.config import PARALLEL_MAX_WORKERS
 from src.extraction import RawTextExtractor
-from src.debug_logger import debug_log
-from src.progressive_summarizer import ProgressiveSummarizer
-from src.vocabulary import VocabularyExtractor
-from src.ai.ollama_model_manager import OllamaModelManager # Import for context
+from src.logging_config import debug_log
+from src.parallel import (
+    ExecutorStrategy,
+    ParallelTaskRunner,
+    ProgressAggregator,
+    ThreadPoolStrategy,
+)
 from src.ui.ollama_worker import ollama_generation_worker_process
+from src.vocabulary import VocabularyExtractor
 
 
 class ProcessingWorker(threading.Thread):
     """
-    Background worker for document extraction and normalization (Steps 1-2).
-    Communicates with the main UI via a queue.
+    Background worker for parallel document extraction and normalization.
+
+    Uses the Strategy Pattern for parallel execution, enabling:
+    - Production: ThreadPoolStrategy for concurrent document processing
+    - Testing: SequentialStrategy for deterministic, debuggable tests
+
+    The worker processes multiple documents concurrently (up to PARALLEL_MAX_WORKERS)
+    while maintaining responsive UI updates via ProgressAggregator.
+
+    Attributes:
+        file_paths: List of document paths to process.
+        ui_queue: Queue for communication with the main UI thread.
+        jurisdiction: Legal jurisdiction for document parsing (default "ny").
+        strategy: ExecutorStrategy for parallel execution (injectable for testing).
+        processed_results: List of extraction results after processing.
+
+    Example:
+        # Standard usage (parallel)
+        worker = ProcessingWorker(file_paths, ui_queue)
+        worker.start()
+
+        # Testing (sequential, deterministic)
+        from src.parallel import SequentialStrategy
+        worker = ProcessingWorker(
+            file_paths, ui_queue,
+            strategy=SequentialStrategy()
+        )
     """
-    def __init__(self, file_paths, ui_queue, jurisdiction="ny"):
+
+    def __init__(
+        self,
+        file_paths: list,
+        ui_queue: Queue,
+        jurisdiction: str = "ny",
+        strategy: ExecutorStrategy = None
+    ):
+        """
+        Initialize the processing worker.
+
+        Args:
+            file_paths: List of document file paths to process.
+            ui_queue: Queue for UI communication.
+            jurisdiction: Legal jurisdiction for parsing (default "ny").
+            strategy: ExecutorStrategy for execution. Defaults to ThreadPoolStrategy
+                     with PARALLEL_MAX_WORKERS from config.
+        """
         super().__init__(daemon=True)
         self.file_paths = file_paths
         self.ui_queue = ui_queue
         self.jurisdiction = jurisdiction
+
+        # Dependency injection: use provided strategy or default ThreadPool
+        self.strategy = strategy or ThreadPoolStrategy(max_workers=PARALLEL_MAX_WORKERS)
+
+        # RawTextExtractor is thread-safe (stateless after init)
         self.extractor = RawTextExtractor(jurisdiction=self.jurisdiction)
-        self.processed_results = [] # Store results for later AI processing
-        self._stop_event = threading.Event() # Event for graceful stopping
+
+        self.processed_results = []
+        self._stop_event = threading.Event()
+        self._runner = None  # Track runner for cancellation
 
     def stop(self):
-        """Signals the worker to stop processing."""
+        """
+        Signals the worker to stop processing.
+
+        Cancels any pending tasks and shuts down the executor.
+        Tasks in progress may complete before shutdown.
+        """
+        debug_log("[PROCESSING WORKER] Stop signal received.")
         self._stop_event.set()
+        if self._runner:
+            self._runner.cancel()
+        self.strategy.shutdown(wait=False, cancel_futures=True)
 
     def run(self):
-        """Execute document extraction and normalization (Steps 1-2) in background thread."""
+        """
+        Execute parallel document extraction.
+
+        Processes documents concurrently using the configured strategy.
+        Results are collected in completion order and sent to the UI
+        as they finish.
+        """
         try:
             total_files = len(self.file_paths)
             self.processed_results = []
 
-            for idx, file_path in enumerate(self.file_paths):
+            if total_files == 0:
+                self.ui_queue.put(('processing_finished', []))
+                return
+
+            debug_log(f"[PROCESSING WORKER] Starting parallel extraction of {total_files} documents "
+                     f"(max_workers={self.strategy.max_workers})")
+
+            # Set up progress aggregation
+            aggregator = ProgressAggregator(self.ui_queue, throttle_ms=100)
+            aggregator.set_total(total_files)
+
+            def process_single_doc(file_path: str) -> dict:
+                """
+                Process a single document (called in thread pool).
+
+                Args:
+                    file_path: Path to the document file.
+
+                Returns:
+                    dict: Extraction result from RawTextExtractor.
+
+                Raises:
+                    InterruptedError: If stop signal received during processing.
+                """
                 if self._stop_event.is_set():
-                    debug_log("[PROCESSING WORKER] Stop signal received. Exiting.")
-                    self.ui_queue.put(('error', "Document processing cancelled."))
-                    return # Exit gracefully
-                
-                percentage = int((idx / total_files) * 100)
-                filename = os.path.basename(file_path)
-                
-                self.ui_queue.put(('progress', (percentage, f"Extracting and normalizing {filename}...")))
+                    raise InterruptedError("Processing cancelled")
 
-                def progress_callback(msg):
+                filename = Path(file_path).name
+                aggregator.update(file_path, f"Extracting {filename}...")
+
+                # Progress callback that checks for cancellation
+                def progress_callback(msg, pct=0):
                     if self._stop_event.is_set():
-                        # If stop requested during callback, don't update UI further
                         raise InterruptedError("Processing stopped by user.")
-                    self.ui_queue.put(('progress', (percentage, msg)))
+                    # Update aggregator with detailed message
+                    aggregator.update(file_path, msg)
 
-                try:
-                    extracted_result = self.extractor.process_document(file_path, progress_callback=progress_callback)
-                except InterruptedError:
-                    debug_log("[PROCESSING WORKER] Document extraction interrupted by user.")
-                    self.ui_queue.put(('error', "Document processing cancelled."))
-                    return # Exit gracefully
-                
-                # Store the cleaned result for subsequent AI processing
-                self.processed_results.append(extracted_result)
-                self.ui_queue.put(('file_processed', extracted_result))
-            
-            if not self._stop_event.is_set(): # Only send finished if not stopped
+                result = self.extractor.process_document(
+                    file_path,
+                    progress_callback=progress_callback
+                )
+
+                aggregator.complete(file_path)
+                return result
+
+            def on_task_complete(task_id: str, result: dict):
+                """Callback when a document finishes processing."""
+                self.ui_queue.put(('file_processed', result))
+
+            # Create and run the task runner
+            self._runner = ParallelTaskRunner(
+                strategy=self.strategy,
+                on_task_complete=on_task_complete
+            )
+
+            # Prepare tasks: (task_id, payload) tuples
+            items = [(fp, fp) for fp in self.file_paths]
+
+            # Execute parallel processing
+            results = self._runner.run(process_single_doc, items)
+
+            # Collect successful results
+            for task_result in results:
+                if task_result.success:
+                    self.processed_results.append(task_result.result)
+                else:
+                    # Log errors but continue with other documents
+                    debug_log(f"[PROCESSING WORKER] Document failed: {task_result.task_id} - {task_result.error}")
+
+            # Send completion message if not cancelled
+            if not self._stop_event.is_set():
                 self.ui_queue.put(('processing_finished', self.processed_results))
-                self.ui_queue.put(('progress', (100, "Document processing complete")))
+                self.ui_queue.put(('progress', (100, f"Processed {len(self.processed_results)}/{total_files} documents")))
+                debug_log(f"[PROCESSING WORKER] Completed: {len(self.processed_results)}/{total_files} documents")
+            else:
+                debug_log("[PROCESSING WORKER] Processing cancelled by user.")
+                self.ui_queue.put(('error', "Document processing cancelled."))
 
         except Exception as e:
             debug_log(f"ProcessingWorker encountered a critical error: {e}\n{traceback.format_exc()}")
             self.ui_queue.put(('error', f"Critical document processing error: {str(e)}"))
+        finally:
+            # Ensure cleanup
+            self.strategy.shutdown(wait=False)
 
 
 class VocabularyWorker(threading.Thread):
@@ -261,7 +377,7 @@ class OllamaAIWorkerManager:
         """Sends a task to the worker process."""
         if not (self.is_running and self.process and self.process.is_alive()):
             self.start_worker() # Ensure worker is running before sending task
-        
+
         debug_log(f"[OLLAMA MANAGER] Sending task '{task_type}' to worker.")
         self.input_queue.put((task_type, payload))
 

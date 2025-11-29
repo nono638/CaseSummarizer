@@ -35,25 +35,25 @@ def wrap_prompt_for_model(model_name: str, prompt: str) -> str:
     # Apply model-specific wrapping
     if any(x in base_model for x in ['llama', 'mistral']):
         wrapped = f"[INST] {prompt} [/INST]"
-        debug(f"[PROMPT FORMAT] Applied Llama/Mistral format (wrapped with [INST]...[/INST])")
+        debug("[PROMPT FORMAT] Applied Llama/Mistral format (wrapped with [INST]...[/INST])")
         return wrapped
 
     elif 'gemma' in base_model:
-        debug(f"[PROMPT FORMAT] Applied Gemma format (raw prompt, no wrapping)")
+        debug("[PROMPT FORMAT] Applied Gemma format (raw prompt, no wrapping)")
         return prompt
 
     elif any(x in base_model for x in ['neural-chat', 'dolphin']):
         wrapped = f"### User:\n{prompt}\n\n### Assistant:"
-        debug(f"[PROMPT FORMAT] Applied Neural-Chat/Dolphin format")
+        debug("[PROMPT FORMAT] Applied Neural-Chat/Dolphin format")
         return wrapped
 
     elif 'qwen' in base_model:
         # Qwen models use a similar format to Llama
         wrapped = f"[INST] {prompt} [/INST]"
-        debug(f"[PROMPT FORMAT] Applied Qwen format (Llama-compatible)")
+        debug("[PROMPT FORMAT] Applied Qwen format (Llama-compatible)")
         return wrapped
 
     else:
         # Default: raw prompt (fallback for unknown/future models)
-        debug(f"[PROMPT FORMAT] Unknown model type, using raw prompt (will work with instruction-tuned models)")
+        debug("[PROMPT FORMAT] Unknown model type, using raw prompt (will work with instruction-tuned models)")
         return prompt

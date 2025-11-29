@@ -5,6 +5,7 @@ Centralized configuration for the application.
 
 import os
 from pathlib import Path
+
 import yaml
 
 # Debug Mode Configuration
@@ -39,6 +40,11 @@ OLLAMA_MODEL_FALLBACK = "gemma3:1b"  # Fallback if the primary model fails
 OLLAMA_TIMEOUT_SECONDS = 600  # 10 minutes for long summaries
 QUEUE_TIMEOUT_SECONDS = 2.0  # Timeout for multiprocessing queue operations
 
+# Context Window Configuration
+# Optimized for CPU inference on business laptops (8-16GB RAM, no GPU)
+# Research shows: 2k context = ~150 tokens/sec, 8k = ~43 t/s, 64k = ~9 t/s
+OLLAMA_CONTEXT_WINDOW = 2048  # Tokens - matches Ollama's default for CPU performance
+
 # --- New Model Configuration System ---
 MODEL_CONFIG_FILE = Path(__file__).parent.parent / "config" / "models.yaml"
 MODEL_CONFIGS = {}
@@ -47,7 +53,7 @@ def load_model_configs():
     """Loads model configurations from config/models.yaml."""
     global MODEL_CONFIGS
     try:
-        with open(MODEL_CONFIG_FILE, 'r') as f:
+        with open(MODEL_CONFIG_FILE) as f:
             data = yaml.safe_load(f)
             MODEL_CONFIGS = data.get('models', {})
         if DEBUG_MODE and MODEL_CONFIGS:
@@ -72,11 +78,11 @@ def get_model_config(model_name: str) -> dict:
     """
     if not MODEL_CONFIGS:
         load_model_configs()
-    
+
     # 1. Try to find the exact model name
     if model_name in MODEL_CONFIGS:
         return MODEL_CONFIGS[model_name]
-    
+
     # 2. Fallback for base names (e.g., user has 'gemma3:1b-instruct', config has 'gemma3:1b')
     base_name = model_name.split(':')[0]
     for name, config in MODEL_CONFIGS.items():
@@ -146,11 +152,51 @@ VOCABULARY_SORT_BY_RARITY = True
 VOCABULARY_DISPLAY_LIMIT = 50   # User-configurable default (conservative)
 VOCABULARY_DISPLAY_MAX = 200    # Hard ceiling - cannot exceed this
 
+# System Monitor Color Thresholds (CPU and RAM)
+# Used for color-coded status indicators in the system monitor widget
+# Applied independently to both CPU and RAM percentages
+SYSTEM_MONITOR_THRESHOLD_GREEN = 75    # 0-74%: Green (healthy)
+SYSTEM_MONITOR_THRESHOLD_YELLOW = 85   # 75-84%: Yellow (elevated)
+SYSTEM_MONITOR_THRESHOLD_CRITICAL = 90 # 90%+: Red with "!" indicator
+
 # Vocabulary Extraction Performance Settings
 # Max text size in KB for spaCy NLP processing
 # spaCy processes ~10-20K words/sec; 200KB ≈ 35K words ≈ 2-3 seconds
 # Larger documents are truncated (still captures most named entities from early pages)
 VOCABULARY_MAX_TEXT_KB = 200  # 200KB max for NLP processing (200,000 characters)
+
+# spaCy batch processing - higher values process faster with more memory
+# Testing shows: batch_size=4 (baseline), 8 (~17% faster), 16 (~25% faster but +100MB RAM)
+# Default: 8 for optimal balance on 8-16GB systems
+VOCABULARY_BATCH_SIZE = 8
+
+# Parallel Processing Configuration
+# Controls concurrent document extraction for multi-file workflows
+#
+# User Override Options:
+# - USER_PICKS_MAX_WORKER_COUNT: If True, use USER_DEFINED_MAX_WORKER_COUNT
+#   instead of auto-detection. Default: False (auto-detect based on CPU)
+# - USER_DEFINED_MAX_WORKER_COUNT: Manual worker count when override enabled.
+#   Range: 1-8. Default: 2 (conservative for most systems)
+#
+# Auto-detection (when USER_PICKS_MAX_WORKER_COUNT=False):
+# - Uses min(cpu_count, 4) - caps at 4 for memory safety
+# - Memory profile: Each document can use 200-500MB during processing
+# - With 4 workers: ~2.1GB peak memory usage (safe for 8GB systems)
+
+# User override settings (change these to customize)
+USER_PICKS_MAX_WORKER_COUNT = False  # Set to True to use manual worker count
+USER_DEFINED_MAX_WORKER_COUNT = 2    # Manual count when override enabled (1-8)
+
+# Enforce bounds on user-defined count (1 minimum, 8 maximum)
+_user_workers = max(1, min(8, USER_DEFINED_MAX_WORKER_COUNT))
+
+# Compute actual max workers based on settings
+if USER_PICKS_MAX_WORKER_COUNT:
+    PARALLEL_MAX_WORKERS = _user_workers
+else:
+    # Auto-detect: min(cpu_count, 4) for memory safety
+    PARALLEL_MAX_WORKERS = min(os.cpu_count() or 4, 4)
 
 # AI Prompt Templates
 PROMPTS_DIR = Path(__file__).parent.parent / "config" / "prompts"

@@ -9,54 +9,18 @@ This module implements intelligent text chunking for long documents using:
 """
 
 import re
-import logging
 import time
-from datetime import datetime
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
-import yaml
+from pathlib import Path
 
+import yaml
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
 
-from src.config import DEBUG_MODE
-
-logger = logging.getLogger(__name__)
-
-
-def debug(msg: str):
-    """Log debug message if DEBUG_MODE is enabled (with timestamp)."""
-    if DEBUG_MODE:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        logger.debug(f"[DEBUG {timestamp}] {msg}")
-
-
-def debug_timing(operation: str, elapsed_seconds: float):
-    """Log operation timing information."""
-    if DEBUG_MODE:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        # Format timing in human-readable units
-        if elapsed_seconds < 1:
-            time_str = f"{elapsed_seconds*1000:.0f} ms"
-        elif elapsed_seconds < 60:
-            time_str = f"{elapsed_seconds:.2f}s"
-        else:
-            time_str = f"{elapsed_seconds/60:.1f}m"
-        logger.debug(f"[DEBUG {timestamp}] {operation} took {time_str}")
-
-
-def info(msg: str):
-    """Log info message."""
-    logger.info(msg)
-
-
-def error(msg: str):
-    """Log error message."""
-    logger.error(msg)
+from src.logging_config import debug_log, debug_timing, error, info
 
 
 @dataclass
@@ -65,7 +29,7 @@ class Chunk:
     chunk_num: int
     text: str
     word_count: int
-    section_name: Optional[str] = None
+    section_name: str | None = None
 
     def __post_init__(self):
         """Validate chunk data."""
@@ -101,7 +65,7 @@ class ChunkingEngine:
         self.compiled_patterns = self._compile_patterns()
 
         # Initialize LangChain components
-        debug("Initializing LangChain components for semantic chunking...")
+        debug_log("Initializing LangChain components for semantic chunking...")
         init_start = time.time()
         try:
             self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -117,37 +81,37 @@ class ChunkingEngine:
             self.semantic_chunker = None
 
 
-    def _load_config(self, config_path: Path) -> Dict:
+    def _load_config(self, config_path: Path) -> dict:
         """Load configuration from YAML file."""
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path) as f:
                 config = yaml.safe_load(f)
-            debug(f"Loaded chunking config from {config_path}")
+            debug_log(f"Loaded chunking config from {config_path}")
             return config
         except Exception as e:
             error(f"Failed to load config from {config_path}: {e}")
             raise
 
-    def _load_patterns(self) -> List[str]:
+    def _load_patterns(self) -> list[str]:
         """Load regex patterns from patterns file."""
         patterns_file = Path(__file__).parent.parent / self.config['chunking']['patterns_file']
 
         patterns = []
         try:
-            with open(patterns_file, 'r') as f:
+            with open(patterns_file) as f:
                 for line in f:
                     line = line.strip()
                     # Skip empty lines and comments
                     if line and not line.startswith('#'):
                         patterns.append(line)
 
-            debug(f"Loaded {len(patterns)} chunking patterns from {patterns_file}")
+            debug_log(f"Loaded {len(patterns)} chunking patterns from {patterns_file}")
             return patterns
         except Exception as e:
             error(f"Failed to load patterns from {patterns_file}: {e}")
             return []
 
-    def _compile_patterns(self) -> List[re.Pattern]:
+    def _compile_patterns(self) -> list[re.Pattern]:
         """Compile all regex patterns."""
         compiled = []
         for pattern in self.patterns:
@@ -157,7 +121,7 @@ class ChunkingEngine:
                 error(f"Invalid regex pattern '{pattern}': {e}")
         return compiled
 
-    def chunk_pdf(self, file_path: Path, max_tokens: int) -> List[Chunk]:
+    def chunk_pdf(self, file_path: Path, max_tokens: int) -> list[Chunk]:
         """
         Load and chunk a PDF using semantic chunking with a "safety split".
 
@@ -178,16 +142,16 @@ class ChunkingEngine:
         try:
             loader = PyPDFLoader(str(file_path))
             documents = loader.load()
-            debug(f"Loaded {len(documents)} pages from PDF.")
+            debug_log(f"Loaded {len(documents)} pages from PDF.")
 
             semantic_docs = self.semantic_chunker.split_documents(documents)
-            debug(f"Split PDF into {len(semantic_docs)} initial semantic chunks.")
+            debug_log(f"Split PDF into {len(semantic_docs)} initial semantic chunks.")
 
             # --- Safety Split Logic ---
             final_docs = []
             # A simple rule of thumb: 1 token ~ 4 characters
             max_chars = max_tokens * 4
-            
+
             secondary_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=max_chars,
                 chunk_overlap=int(max_chars * 0.1), # 10% overlap
@@ -196,17 +160,17 @@ class ChunkingEngine:
 
             for doc in semantic_docs:
                 if len(doc.page_content) > max_chars:
-                    debug(f"Semantic chunk is too large ({len(doc.page_content)} chars > {max_chars} chars). Applying safety split.")
+                    debug_log(f"Semantic chunk is too large ({len(doc.page_content)} chars > {max_chars} chars). Applying safety split.")
                     sub_texts = secondary_splitter.split_text(doc.page_content)
-                    
+
                     for sub_text in sub_texts:
                         final_docs.append(Document(page_content=sub_text, metadata=doc.metadata))
-                    debug(f"  - Split oversized chunk into {len(sub_texts)} sub-chunks.")
+                    debug_log(f"  - Split oversized chunk into {len(sub_texts)} sub-chunks.")
                 else:
                     final_docs.append(doc)
-            
+
             if len(final_docs) > len(semantic_docs):
-                debug(f"Safety split increased chunk count from {len(semantic_docs)} to {len(final_docs)}.")
+                debug_log(f"Safety split increased chunk count from {len(semantic_docs)} to {len(final_docs)}.")
 
             # Convert final Document objects to the project's Chunk dataclass
             chunks = []
@@ -229,7 +193,7 @@ class ChunkingEngine:
             error(f"Failed to chunk PDF {file_path}: {e}")
             return []
 
-    def _split_into_paragraphs(self, text: str) -> List[Tuple[str, int]]:
+    def _split_into_paragraphs(self, text: str) -> list[tuple[str, int]]:
         """
         Split text into paragraphs while preserving word counts.
 
@@ -247,10 +211,10 @@ class ChunkingEngine:
                 word_count = len(para.split())
                 paragraphs.append((para, word_count))
 
-        debug(f"Split text into {len(paragraphs)} paragraphs")
+        debug_log(f"Split text into {len(paragraphs)} paragraphs")
         return paragraphs
 
-    def _detect_section(self, text: str) -> Optional[str]:
+    def _detect_section(self, text: str) -> str | None:
         """
         Detect section name from paragraph text using regex patterns.
 
@@ -266,7 +230,7 @@ class ChunkingEngine:
                 return section_name
         return None
 
-    def _build_chunks(self, paragraphs: List[Tuple[str, int]]) -> List[Chunk]:
+    def _build_chunks(self, paragraphs: list[tuple[str, int]]) -> list[Chunk]:
         """
         Build chunks from paragraphs respecting size and boundary constraints.
 
@@ -278,8 +242,9 @@ class ChunkingEngine:
         """
         config_chunking = self.config['chunking']
         max_words = config_chunking['max_chunk_words']
-        min_words = config_chunking['min_chunk_words']
-        hard_limit = config_chunking['max_chunk_words_hard_limit']
+        # min_words and hard_limit loaded for potential future use
+        _min_words = config_chunking['min_chunk_words']
+        _hard_limit = config_chunking['max_chunk_words_hard_limit']
 
         chunks = []
         current_chunk_text = []
@@ -297,12 +262,10 @@ class ChunkingEngine:
             # Reason 1: Section boundary and we have content
             if detected_section and current_chunk_text:
                 should_start_new = True
-                reason = "section_boundary"
 
             # Reason 2: Size limit reached
             elif current_chunk_words + para_words > max_words and current_chunk_text:
                 should_start_new = True
-                reason = "size_limit"
 
             if should_start_new:
                 # Save current chunk
@@ -314,7 +277,7 @@ class ChunkingEngine:
                     section_name=current_section
                 )
                 chunks.append(chunk)
-                debug(f"Created chunk {chunk_num}: {current_chunk_words} words, section='{current_section}'")
+                debug_log(f"Created chunk {chunk_num}: {current_chunk_words} words, section='{current_section}'")
 
                 # Start new chunk
                 current_chunk_text = [para_text]
@@ -340,12 +303,12 @@ class ChunkingEngine:
                 section_name=current_section
             )
             chunks.append(chunk)
-            debug(f"Created chunk {chunk_num}: {current_chunk_words} words, section='{current_section}'")
+            debug_log(f"Created chunk {chunk_num}: {current_chunk_words} words, section='{current_section}'")
 
         info(f"Created {len(chunks)} total chunks from document")
         return chunks
 
-    def chunk_text(self, text: str) -> List[Chunk]:
+    def chunk_text(self, text: str) -> list[Chunk]:
         """
         Split document text into intelligent chunks.
 
@@ -356,7 +319,7 @@ class ChunkingEngine:
             List of Chunk objects with metadata
         """
         start_time = time.time()
-        debug("Starting ChunkingEngine.chunk_text()...")
+        debug_log("Starting ChunkingEngine.chunk_text()...")
 
         # Validate input
         if not text or not text.strip():
@@ -364,11 +327,11 @@ class ChunkingEngine:
             return []
 
         original_words = len(text.split())
-        debug(f"Input document: {original_words} words")
+        debug_log(f"Input document: {original_words} words")
 
         # Step 1: Split into paragraphs
         step_start = time.time()
-        debug("Step 1: Splitting text into paragraphs...")
+        debug_log("Step 1: Splitting text into paragraphs...")
         paragraphs = self._split_into_paragraphs(text)
         step_time = time.time() - step_start
         debug_timing("Paragraph splitting", step_time)
@@ -377,23 +340,23 @@ class ChunkingEngine:
             error("No paragraphs extracted from text")
             return []
 
-        debug(f"Extracted {len(paragraphs)} paragraphs")
+        debug_log(f"Extracted {len(paragraphs)} paragraphs")
 
         # Step 2: Build chunks
         step_start = time.time()
-        debug("Step 2: Building chunks from paragraphs...")
+        debug_log("Step 2: Building chunks from paragraphs...")
         chunks = self._build_chunks(paragraphs)
         step_time = time.time() - step_start
         debug_timing("Chunk building", step_time)
 
-        debug(f"Created {len(chunks)} chunks")
+        debug_log(f"Created {len(chunks)} chunks")
 
         # Step 3: Validate chunks
         total_words = sum(chunk.word_count for chunk in chunks)
 
         if total_words != original_words:
             # This can happen due to whitespace differences; log but don't fail
-            debug(f"Word count mismatch: original={original_words}, chunked={total_words}")
+            debug_log(f"Word count mismatch: original={original_words}, chunked={total_words}")
 
         total_time = time.time() - start_time
         debug_timing("ChunkingEngine.chunk_text() complete", total_time)

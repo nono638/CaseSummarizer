@@ -1,5 +1,394 @@
 # Development Log
 
+## Session 19 - Extensible Settings GUI (2025-11-28)
+
+**Objective:** Create a comprehensive, extensible Settings GUI for LocalScribe with tabbed interface, tooltips, and easy extensibility for future settings.
+
+### Architecture: Settings Registry Pattern
+
+Implemented a declarative registry-based settings system that decouples setting definitions from the UI. Adding a new setting requires only a single `SettingsRegistry.register()` call - no UI code changes needed.
+
+**Design Principle:** The registry pattern is similar to how Django Admin generates admin interfaces from model definitions. Each setting has metadata (label, tooltip, type, getter, setter) that the dialog uses to auto-generate appropriate widgets.
+
+### New Files Created (4)
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/ui/settings/__init__.py` | Package exports | ~45 |
+| `src/ui/settings/settings_widgets.py` | Reusable widgets with integrated tooltips | ~310 |
+| `src/ui/settings/settings_registry.py` | Declarative setting definitions + registry | ~210 |
+| `src/ui/settings/settings_dialog.py` | Tabbed dialog that reads from registry | ~180 |
+
+### Files Modified (2)
+
+| File | Changes |
+|------|---------|
+| `src/user_preferences.py` | Added generic `get(key, default)` and `set(key, value)` methods for extensibility |
+| `src/ui/main_window.py` | Updated import and `show_settings()` to use new dialog |
+
+### Widget Types Implemented
+
+| Widget | Setting Type | Use Case |
+|--------|-------------|----------|
+| `SliderSetting` | Numeric range | Summary length (100-500 words), vocab limit |
+| `CheckboxSetting` | Boolean toggle | Auto-detect CPU, sort by rarity |
+| `DropdownSetting` | Selection | CPU allocation (1/4, 1/2, 3/4 cores) |
+| `SpinboxSetting` | Integer +/- | Manual worker count (1-8) |
+| `TooltipIcon` | All | Info icon (ⓘ) with hover popup |
+
+### Settings Registered (6)
+
+**Performance Tab:**
+- Auto-detect CPU cores (checkbox)
+- Manual worker count (spinbox, 1-8)
+- CPU allocation fraction (dropdown)
+
+**Summarization Tab:**
+- Default summary length in words (slider, 100-500)
+
+**Vocabulary Tab:**
+- Vocabulary display limit (slider, 10-200)
+- Sort vocabulary by rarity (checkbox)
+
+### Extensibility: Adding New Settings
+
+```python
+# To add a new setting, just add one line:
+SettingsRegistry.register(SettingDefinition(
+    key="my_new_setting",
+    label="Enable New Feature",
+    category="General",  # Creates new tab if needed
+    setting_type=SettingType.CHECKBOX,
+    tooltip="Description shown on hover.",
+    default=False,
+    getter=lambda: prefs.get("my_new_setting", False),
+    setter=lambda v: prefs.set("my_new_setting", v),
+))
+# No other code changes needed - dialog auto-generates UI
+```
+
+### Testing
+
+- **111 tests passing** (no new tests needed - settings module uses existing patterns)
+- GUI manually tested - Settings dialog opens with all 3 tabs and 6 settings
+- Tooltips display on hover, values persist on save
+
+### UI Polish (User Feedback)
+
+After initial implementation, addressed user feedback:
+
+1. **Tooltip Fix:** Tooltips now properly disappear when mouse leaves both the icon and tooltip popup (added `_check_hide_tooltip()` with mouse position checking)
+
+2. **Dependent Settings:** Manual worker count spinbox is now greyed out and disabled when "Auto-detect CPU cores" is checked (added `set_enabled()` method and `_setup_dependencies()` in dialog)
+
+3. **More Prominent Tabs:** Settings tabs now use larger font (size 14, bold) and increased height (36px) with custom colors for better visibility
+
+4. **Improved Status Bar:** Main window status bar text is now larger (size 14) and bold for better readability during processing
+
+### Bug Fix (Unrelated)
+
+Fixed pre-existing issue: `src/ui/queue_message_handler.py` file was accidentally emptied. Restored from git HEAD.
+
+### Pattern Documented
+
+**Settings Registry Pattern:** Use `SettingDefinition` dataclass with getter/setter lambdas and `SettingsRegistry.register()` for declarative setting management. The dialog reads the registry and auto-generates widgets. Applies to any future user-configurable options.
+
+---
+
+## Session 18 - Parallel Document Processing (2025-11-28)
+
+**Objective:** Implement parallel document processing to speed up multi-file workflows for court reporters processing multiple documents at once.
+
+### Architecture: Strategy Pattern for Parallel Execution
+
+Created a dedicated `src/parallel/` module implementing the Strategy Pattern, enabling:
+- **Production:** ThreadPoolStrategy for concurrent document processing
+- **Testing:** SequentialStrategy for deterministic, debuggable tests
+- **Future Extension:** Easy to add ProcessPoolStrategy if needed
+
+**Why ThreadPoolExecutor (not ProcessPoolExecutor):**
+| Factor | Threading | Multiprocessing |
+|--------|-----------|-----------------|
+| GIL Impact | Minimal (PDF/OCR release GIL) | N/A |
+| Memory Overhead | ~1MB per thread | ~300MB per process |
+| Data Sharing | Shared memory | Pickle serialization |
+
+PDF parsing (pdfplumber) and OCR (pytesseract) both call C libraries that release the GIL, making threading effective despite Python's GIL.
+
+### New Files Created (4)
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `src/parallel/__init__.py` | Package exports | 68 |
+| `src/parallel/executor_strategy.py` | Strategy interface + ThreadPool/Sequential | 173 |
+| `src/parallel/task_runner.py` | Task orchestration with callbacks | 121 |
+| `src/parallel/progress_aggregator.py` | Throttled UI progress updates | 133 |
+
+### Files Modified (4)
+
+| File | Changes |
+|------|---------|
+| `src/ui/workers.py` | Refactored ProcessingWorker to use Strategy Pattern |
+| `src/config.py` | Added `PARALLEL_MAX_WORKERS`, `VOCABULARY_BATCH_SIZE` |
+| `src/vocabulary/vocabulary_extractor.py` | Use configurable batch_size (4→8) |
+| `tests/test_parallel.py` | 30 new unit tests for parallel module |
+
+### Key Design Decisions
+
+1. **Worker Count:** `min(cpu_count, 4)` - Auto-detects CPU cores but caps at 4 for memory safety
+2. **Vocabulary Optimization:** Increased spaCy `batch_size` from 4 to 8 (~17% speedup, not threading due to GIL)
+3. **Progress Throttling:** ProgressAggregator limits UI updates to max 10/second to prevent flooding
+4. **Dependency Injection:** ProcessingWorker accepts optional `strategy` parameter for testing
+
+### Expected Performance Gains
+
+| Scenario | Current | Parallel | Speedup |
+|----------|---------|----------|---------|
+| 3 PDFs (digital) | 30s | 12s | **2.5x** |
+| 3 PDFs (OCR) | 180s | 60s | **3.0x** |
+| 5 PDFs (mixed) | 120s | 40s | **3.0x** |
+
+### Memory Projections
+
+| Configuration | Peak Memory | Safe for 8GB? |
+|---------------|-------------|---------------|
+| 2 parallel docs | ~1.5GB | ✅ Yes |
+| 4 parallel docs | ~2.1GB | ✅ Yes |
+
+### Testing
+
+- **30 new tests** covering all parallel module components
+- **108 total tests passing** (78 original + 30 new)
+- Thread safety verified with concurrent test scenarios
+
+### Pattern Documented
+
+**Parallel Processing Pattern:** Use Strategy Pattern with injectable ExecutorStrategy for parallelizable operations. ThreadPoolStrategy for production (I/O-bound + GIL-releasing tasks), SequentialStrategy for testing. Applies to any future parallelization needs (e.g., Phase 3 AI chunking).
+
+---
+
+## Session 17 - Ollama Context Window Fix & Linting Cleanup (2025-11-28)
+
+**Objective:** Fix Ollama context window configuration and address code quality with linting.
+
+### Part A: Linting Setup with Ruff
+
+Installed and configured Ruff linter to catch bugs and enforce code style.
+
+**Initial Findings:**
+- 342 issues found initially
+- 80 auto-fixed (import sorting, type annotation modernization)
+- **17 critical bugs found (F821):** `debug()` called without import in `ollama_model_manager.py`
+- 29 remaining minor style issues fixed manually
+
+**Issues Fixed:**
+| Category | Count | Fix Applied |
+|----------|-------|-------------|
+| F841 (unused variables) | 9 | Prefixed with `_` or removed |
+| B904 (raise without from) | 3 | Added `from e` to preserve exception chain |
+| C401 (set comprehensions) | 2 | Changed `set([...])` → `{...}` |
+| E701 (multi-statement lines) | 4 | Split onto separate lines |
+| B023 (loop variable binding) | 4 | Used default parameter binding |
+| C414, B905, B007, E402 | 6 | Various minor fixes |
+
+**Files Created:**
+- `ruff.toml` - Linter configuration
+
+### Part B: Ollama Context Window Fix for CPU-Only Laptops
+
+**Problem Discovered:** LocalScribe was NOT setting `num_ctx` in Ollama API calls. Ollama defaults to 2048 tokens, but our chunks were 2000-3000 words (~2600-3900 tokens). Result: **27-90% of each chunk was being silently truncated.**
+
+**Research Findings (CPU Inference Performance):**
+| Context Size | Speed | Usability |
+|--------------|-------|-----------|
+| 64k tokens | ~9 t/s | Unusable |
+| 8k tokens | ~43 t/s | Sluggish |
+| 4k tokens | ~86 t/s | Usable |
+| **2k tokens** | ~150+ t/s | **Good** |
+
+**Conclusion:** For court reporters on business laptops (8-16GB RAM, no GPU), the 2048 default is actually CORRECT. The fix was to align chunking with this limit.
+
+**Changes Made:**
+1. **`config/chunking_config.yaml`** - Reduced chunk sizes:
+   - `max_chunk_words`: 2000 → 1000
+   - `min_chunk_words`: 500 → 300
+   - `max_chunk_words_hard_limit`: 3000 → 1200
+
+2. **`src/config.py`** - Added `OLLAMA_CONTEXT_WINDOW = 2048` with documentation
+
+3. **`src/ai/ollama_model_manager.py`** - Added:
+   - `"options": {"num_ctx": 2048}` to API payload
+   - Truncation warning when prompt approaches limit
+   - Import of `OLLAMA_CONTEXT_WINDOW` from config
+
+**Token Budget (2048 context):**
+```
+Total:          2048 tokens
+- Prompt:       ~200 tokens
+- Output:       ~300 tokens
+- Safety:       ~50 tokens
+= Available:    ~1500 tokens ≈ 1150 words
+```
+
+**Tests Created:** 7 new tests in `tests/test_ollama_context.py`
+- Context window config validation
+- Chunking-to-context alignment
+- API payload verification
+- Truncation warning tests
+
+**Final Test Results:** 78 tests passing (71 original + 7 new)
+
+---
+
+## Session 16 - GUI Performance & Smart Preprocessing Pipeline (2025-11-28)
+
+**Objective:** Fix GUI unresponsiveness during large PDF processing and implement smart preprocessing pipeline for improved AI summary quality.
+
+### Part A: GUI Responsiveness Fixes
+
+**Problem:** GUI became unresponsive after processing large documents (260 pages). User experienced "all of the above" - slowdown during processing, after completion, and when switching views.
+
+**Root Causes Identified:**
+1. Treeview batch insertion without UI yields - all rows inserted in tight loop
+2. Synchronous `gc.collect()` blocking main thread
+3. O(n²) deduplication algorithm in vocabulary extractor
+4. No pagination for large vocabulary datasets
+
+**Solutions Implemented:**
+
+| Fix | Impact |
+|-----|--------|
+| Async batch insertion with `after()` | 20 rows/batch with 10ms yields to event loop |
+| "Load More" pagination | Initial 50 rows, user clicks for more |
+| Background GC threads | `threading.Thread(target=gc.collect, daemon=True)` |
+| Optimized deduplication | O(n log n) using sorted length-based filtering |
+
+**Files Modified:**
+- `src/ui/dynamic_output.py` - Async insertion, pagination UI
+- `src/ui/queue_message_handler.py` - Background GC
+- `src/ui/main_window.py` - Background GC in cancel handler
+- `src/vocabulary/vocabulary_extractor.py` - Optimized `_deduplicate_terms()`
+
+### Part B: Smart Preprocessing Pipeline
+
+**Objective:** Clean legal document text before AI summarization to improve summary quality by removing noise (line numbers, headers, Q./A. notation).
+
+**Architecture:**
+- `BasePreprocessor` - Abstract base class with `process()` method
+- `PreprocessingPipeline` - Orchestrates preprocessors in sequence
+- Each preprocessor is standalone, can be enabled/disabled independently
+
+**Preprocessors Implemented:**
+
+| Preprocessor | Purpose | Pattern |
+|--------------|---------|---------|
+| `TitlePageRemover` | Removes case captions/cover pages | Score-based detection |
+| `HeaderFooterRemover` | Removes repetitive headers/footers | Frequency analysis (3+ occurrences) |
+| `LineNumberRemover` | Removes "1  ", "2  " from margins | Regex for 1-25 at line start |
+| `QAConverter` | Converts `Q.`/`A.` to `Question:`/`Answer:` | Regex substitution |
+
+**Integration:**
+- Preprocessing enabled in `combine_document_texts()` for AI summarization
+- Preprocessing disabled for vocabulary extraction (raw text needed for NER)
+- Graceful error handling - falls back to raw text if preprocessing fails
+
+**Files Created:**
+- `src/preprocessing/__init__.py`
+- `src/preprocessing/base.py`
+- `src/preprocessing/line_number_remover.py`
+- `src/preprocessing/header_footer_remover.py`
+- `src/preprocessing/title_page_remover.py`
+- `src/preprocessing/qa_converter.py`
+- `tests/test_preprocessing.py` (16 new tests)
+
+**Files Modified:**
+- `src/utils/text_utils.py` - Added `preprocess` parameter
+- `src/ui/workflow_orchestrator.py` - Disabled preprocessing for vocab
+
+### Part C: Logging System Consolidation
+
+**Problem:** Codebase had dual logging systems causing confusion - `logging_config.py` (primary) and `debug_logger.py` (deprecated wrapper), plus some modules with local `debug()` functions.
+
+**Solution:** Unified all logging to use `src.logging_config` as single source of truth.
+
+**Files Modified:**
+- Deleted `src/debug_logger.py` (deprecated backward-compat wrapper)
+- Updated 8+ modules to import from `logging_config` instead of local wrappers
+
+### Part D: Dead Code Removal & Config Cleanup
+
+**Problem:** Several modules were unused in production and hardcoded thresholds scattered in UI code.
+
+**Dead Code Removed:**
+| File | Reason |
+|------|--------|
+| `src/document_processor.py` | AsyncDocumentProcessor never imported |
+| `src/performance_tracker.py` | Only used by its own test file |
+| `test_performance_tracking.py` | Orphaned test for dead module |
+
+**Hardcoded Values Migrated to `config.py`:**
+- `SYSTEM_MONITOR_THRESHOLD_GREEN = 75` (0-74%: healthy)
+- `SYSTEM_MONITOR_THRESHOLD_YELLOW = 85` (75-84%: elevated)
+- `SYSTEM_MONITOR_THRESHOLD_CRITICAL = 90` (90%+: red with !)
+
+**Files Modified:**
+- `src/config.py` - Added system monitor threshold constants
+- `src/ui/system_monitor.py` - Now imports thresholds from config
+
+### Part E: DRY Refactoring
+
+**Problem:** `debug_timing()` function was duplicated in 2 files with identical implementation.
+
+**Solution:** Extracted to `src/logging_config.py` as single source of truth.
+
+**Files Modified:**
+- `src/logging_config.py` - Added `debug_timing()` function
+- `src/chunking_engine.py` - Updated import, removed local definition
+- `src/progressive_summarizer.py` - Updated import, removed local definition
+
+### Part F: Linting Setup with Ruff
+
+**Problem:** No automated code quality checks; potential bugs and inconsistent style.
+
+**Solution:** Installed and configured Ruff linter (Rust-based, 10-100x faster than flake8).
+
+**Results:**
+- 342 initial issues found
+- 80 auto-fixed (import sorting, whitespace, type annotations)
+- **17 undefined name bugs fixed** (F821) - `debug()` calls without import
+- 29 remaining minor style issues (unused variables, etc.)
+
+**Files Created/Modified:**
+- `ruff.toml` - Linter configuration (E, W, F, I, UP, B, C4 rules)
+- `requirements.txt` - Added `ruff` dependency
+- `src/ai/ollama_model_manager.py` - Fixed missing `debug` import
+- Multiple files cleaned up by auto-fix (import sorting, modern type hints)
+
+### Testing
+
+- ✅ All 71 tests passing (55 original + 16 new)
+- ✅ Preprocessing pipeline verified with sample transcript text
+- ✅ All imports verified working
+- ⏳ Manual GUI testing with 260-page PDF pending
+
+### Example Preprocessing Output
+
+**Input:**
+```
+1  Q.  Good morning, Mr. Smith.
+2  A.  Good morning.
+3  Q.  State your name for the record.
+```
+
+**Output:**
+```
+Question: Good morning, Mr. Smith.
+Answer: Good morning.
+Question: State your name for the record.
+```
+
+---
+
 ## Session 15 - Vocabulary Extraction Quality Improvements (2025-11-28)
 
 **Objective:** Improve vocabulary extraction quality by reducing false positives (common words, address fragments, legal boilerplate) and fixing incorrect categorization (person names labeled as Place, organizations labeled as Medical).

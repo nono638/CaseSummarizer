@@ -9,51 +9,16 @@ It processes document chunks sequentially, maintaining:
 4. Batch boundaries for progressive summary updates
 """
 
-import logging
 import time
-from pathlib import Path
-from typing import List, Dict, Optional, Callable, Tuple
 from dataclasses import dataclass, field
-import pandas as pd
 from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
 import yaml
-from collections import Counter
 
 from src.chunking_engine import Chunk, ChunkingEngine
-from src.config import DEBUG_MODE
-
-logger = logging.getLogger(__name__)
-
-
-def debug(msg: str):
-    """Log debug message if DEBUG_MODE is enabled (with timestamp)."""
-    if DEBUG_MODE:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        logger.debug(f"[DEBUG {timestamp}] {msg}")
-
-
-def debug_timing(operation: str, elapsed_seconds: float):
-    """Log operation timing information."""
-    if DEBUG_MODE:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        # Format timing in human-readable units
-        if elapsed_seconds < 1:
-            time_str = f"{elapsed_seconds*1000:.0f} ms"
-        elif elapsed_seconds < 60:
-            time_str = f"{elapsed_seconds:.2f}s"
-        else:
-            time_str = f"{elapsed_seconds/60:.1f}m"
-        logger.debug(f"[DEBUG {timestamp}] {operation} took {time_str}")
-
-
-def info(msg: str):
-    """Log info message."""
-    logger.info(msg)
-
-
-def error(msg: str):
-    """Log error message."""
-    logger.error(msg)
+from src.logging_config import debug_log, debug_timing, error, info
 
 
 @dataclass
@@ -64,7 +29,7 @@ class SummarizationContext:
     chunk_text: str      # Current chunk text
     chunk_num: int       # Current chunk number
     total_chunks: int    # Total number of chunks
-    section_name: Optional[str] = None  # Detected section name
+    section_name: str | None = None  # Detected section name
 
 
 @dataclass
@@ -74,7 +39,7 @@ class SummarizationResult:
     chunk_summary: str  # Summary of this chunk
     progressive_summary: str  # Updated document summary up to this point
     processing_time_sec: float
-    context_used: Dict[str, str] = field(default_factory=dict)
+    context_used: dict[str, str] = field(default_factory=dict)
 
 
 class ProgressiveSummarizer:
@@ -118,18 +83,18 @@ class ProgressiveSummarizer:
         self.current_progressive_summary = ""
         self.last_progressive_update_chunk = 0
 
-    def _load_config(self, config_path: Path) -> Dict:
+    def _load_config(self, config_path: Path) -> dict:
         """Load configuration from YAML file."""
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path) as f:
                 config = yaml.safe_load(f)
-            debug(f"Loaded config from {config_path}")
+            debug_log(f"Loaded config from {config_path}")
             return config
         except Exception as e:
             error(f"Failed to load config: {e}")
             raise
 
-    def _get_batch_boundaries(self, total_chunks: int) -> List[int]:
+    def _get_batch_boundaries(self, total_chunks: int) -> list[int]:
         """
         Calculate at which chunk numbers to update the progressive summary.
 
@@ -143,23 +108,21 @@ class ProgressiveSummarizer:
             # Deep mode: update after every chunk
             return list(range(1, total_chunks + 1))
 
-        boundaries = []
-
         if fast_mode.get('section_aware_batching', True):
             # Section-aware batching (preferred)
-            debug("Using section-aware batching for progressive updates")
+            debug_log("Using section-aware batching for progressive updates")
             return self._calculate_section_aware_boundaries()
         elif fast_mode.get('adaptive_batching', True):
             # Adaptive batching (fallback)
-            debug("Using adaptive batching for progressive updates")
+            debug_log("Using adaptive batching for progressive updates")
             return self._calculate_adaptive_boundaries(total_chunks)
         else:
             # Fixed batching
             base_freq = fast_mode.get('base_batch_frequency', 5)
-            debug(f"Using fixed batching (every {base_freq} chunks)")
+            debug_log(f"Using fixed batching (every {base_freq} chunks)")
             return list(range(base_freq, total_chunks + 1, base_freq)) + [total_chunks]
 
-    def _calculate_section_aware_boundaries(self) -> List[int]:
+    def _calculate_section_aware_boundaries(self) -> list[int]:
         """
         Calculate batch boundaries based on detected sections in DataFrame.
 
@@ -170,13 +133,13 @@ class ProgressiveSummarizer:
 
         config = self.config.get('fast_mode', {})
         min_chunks = config.get('section_batch_min_chunks', 3)
-        max_chunks = config.get('section_batch_max_chunks', 15)
+        _max_chunks = config.get('section_batch_max_chunks', 15)  # Reserved for future use
 
         boundaries = []
         current_section = None
         section_start = 0
 
-        for idx, row in self.df.iterrows():
+        for _idx, row in self.df.iterrows():
             section = row['section_detected']
             chunk_num = row['chunk_num']
 
@@ -195,11 +158,11 @@ class ProgressiveSummarizer:
         if len(self.df) > 0:
             boundaries.append(len(self.df))
 
-        boundaries = sorted(list(set(boundaries)))
-        debug(f"Section-aware boundaries: {boundaries}")
+        boundaries = sorted(set(boundaries))
+        debug_log(f"Section-aware boundaries: {boundaries}")
         return boundaries
 
-    def _calculate_adaptive_boundaries(self, total_chunks: int) -> List[int]:
+    def _calculate_adaptive_boundaries(self, total_chunks: int) -> list[int]:
         """
         Calculate batch boundaries with adaptive frequency.
 
@@ -241,11 +204,11 @@ class ProgressiveSummarizer:
         if total_chunks not in boundaries:
             boundaries.append(total_chunks)
 
-        boundaries = sorted(list(set(boundaries)))
-        debug(f"Adaptive boundaries: {boundaries}")
+        boundaries = sorted(set(boundaries))
+        debug_log(f"Adaptive boundaries: {boundaries}")
         return boundaries
 
-    def chunk_document(self, text: str) -> List[Chunk]:
+    def chunk_document(self, text: str) -> list[Chunk]:
         """
         Chunk a document using the chunking engine.
 
@@ -256,14 +219,14 @@ class ProgressiveSummarizer:
             List of Chunk objects
         """
         start_time = time.time()
-        debug("Starting document chunking...")
+        debug_log("Starting document chunking...")
         chunks = self.chunking_engine.chunk_text(text)
         elapsed = time.time() - start_time
         debug_timing(f"Document chunking ({len(chunks)} chunks)", elapsed)
         info(f"Document chunked into {len(chunks)} chunks")
         return chunks
 
-    def prepare_chunks_dataframe(self, chunks: List[Chunk]) -> pd.DataFrame:
+    def prepare_chunks_dataframe(self, chunks: list[Chunk]) -> pd.DataFrame:
         """
         Prepare DataFrame with chunk information.
 
@@ -291,7 +254,7 @@ class ProgressiveSummarizer:
         info(f"Prepared DataFrame with {len(self.df)} chunks")
         return self.df
 
-    def get_context_for_chunk(self, chunk_num: int) -> Tuple[str, str]:
+    def get_context_for_chunk(self, chunk_num: int) -> tuple[str, str]:
         """
         Get context information for a specific chunk.
 
@@ -302,7 +265,8 @@ class ProgressiveSummarizer:
             (global_context, local_context) tuple of strings
         """
         config = self.config.get('summarization', {})
-        global_max_sentences = config.get('progressive_summary_max_sentences', 2)
+        # global_max_sentences reserved for future progressive summary truncation
+        _global_max_sentences = config.get('progressive_summary_max_sentences', 2)
         local_max_sentences = config.get('local_context_max_sentences', 2)
 
         # Get global context (progressive summary from previous chunk)
@@ -353,19 +317,19 @@ class ProgressiveSummarizer:
         template_path = Path(__file__).parent.parent / "config" / "chunked_prompt_template.txt"
 
         try:
-            with open(template_path, 'r') as f:
+            with open(template_path) as f:
                 template = f.read()
         except Exception as e:
             error(f"Failed to load chunked prompt template: {e}")
             # Fallback to inline template
-            template = f"""You are a legal document analyst. Below is a chunk from a longer document.
+            template = """You are a legal document analyst. Below is a chunk from a longer document.
 
-{{global_context}}
-{{local_context}}
+{global_context}
+{local_context}
 
 Now analyze and summarize the following section, focusing on key facts, decisions, or developments:
 
-{{chunk_text}}
+{chunk_text}
 
 Summary:"""
 
@@ -426,7 +390,7 @@ Summary:"""
             for old_file in csv_files[:-keep_count]:
                 try:
                     old_file.unlink()
-                    debug(f"Cleaned up old debug file: {old_file}")
+                    debug_log(f"Cleaned up old debug file: {old_file}")
                 except Exception as e:
                     error(f"Failed to remove old debug file {old_file}: {e}")
 
@@ -454,7 +418,7 @@ Summary:"""
 
         return f"Processing chunk {chunk_num}/{total_chunks} ({percentage}%){section_str}"
 
-    def generate_summary_metadata(self, summary_data: List[Dict]) -> Dict:
+    def generate_summary_metadata(self, summary_data: list[dict]) -> dict:
         """
         Analyzes summary data to extract overall metadata.
 
@@ -486,7 +450,7 @@ Summary:"""
         average_summary_length = total_summary_length // document_count if document_count > 0 else 0
 
         # Key Themes (unique keywords)
-        key_themes = sorted(list(set(all_keywords)))
+        key_themes = sorted(set(all_keywords))
 
         # Most Frequent Keyword
         most_frequent_keyword = None

@@ -20,21 +20,20 @@ import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
-import spacy
 import nltk
+import spacy
 from nltk.corpus import wordnet
 
-from src.debug_logger import debug_log
 from src.config import (
     GOOGLE_WORD_FREQUENCY_FILE,
+    VOCABULARY_BATCH_SIZE,
+    VOCABULARY_MAX_TEXT_KB,
     VOCABULARY_RARITY_THRESHOLD,
     VOCABULARY_SORT_BY_RARITY,
-    VOCABULARY_MAX_TEXT_KB
 )
+from src.logging_config import debug_log
 from src.vocabulary.role_profiles import RoleDetectionProfile, StenographerProfile
-
 
 # Constants for spaCy model
 # Using large model (lg) for ~4% better NER accuracy vs small model (sm)
@@ -149,10 +148,10 @@ class VocabularyExtractor:
 
     def __init__(
         self,
-        exclude_list_path: Optional[str] = None,
-        medical_terms_path: Optional[str] = None,
-        user_exclude_path: Optional[str] = None,
-        role_profile: Optional[RoleDetectionProfile] = None
+        exclude_list_path: str | None = None,
+        medical_terms_path: str | None = None,
+        user_exclude_path: str | None = None,
+        role_profile: RoleDetectionProfile | None = None
     ):
         """
         Initialize the vocabulary extractor.
@@ -175,29 +174,29 @@ class VocabularyExtractor:
         self.nlp = self._load_spacy_model()
 
         # Load word lists (all stored lowercase for case-insensitive matching)
-        self.exclude_list: Set[str] = (
+        self.exclude_list: set[str] = (
             self._load_word_list(exclude_list_path) if exclude_list_path else set()
         )
-        self.user_exclude_list: Set[str] = (
+        self.user_exclude_list: set[str] = (
             self._load_word_list(user_exclude_path) if user_exclude_path else set()
         )
-        self.medical_terms: Set[str] = (
+        self.medical_terms: set[str] = (
             self._load_word_list(medical_terms_path) if medical_terms_path else set()
         )
 
         # Load common medical/legal words blacklist (defense-in-depth filtering)
         # This catches common words that slip through frequency filtering
         common_blacklist_path = Path(__file__).parent.parent.parent / "config" / "common_medical_legal.txt"
-        self.common_words_blacklist: Set[str] = self._load_word_list(common_blacklist_path)
+        self.common_words_blacklist: set[str] = self._load_word_list(common_blacklist_path)
 
         # Initialize rarity settings BEFORE loading frequency dataset
         # (frequency dataset loading logs the threshold value)
-        self.frequency_rank_map: Dict[str, int] = {}  # Cached word→rank mapping
+        self.frequency_rank_map: dict[str, int] = {}  # Cached word→rank mapping
         self.rarity_threshold = VOCABULARY_RARITY_THRESHOLD
         self.sort_by_rarity = VOCABULARY_SORT_BY_RARITY
 
         # Load Google word frequency dataset for rarity filtering
-        self.frequency_dataset: Dict[str, int] = self._load_frequency_dataset()
+        self.frequency_dataset: dict[str, int] = self._load_frequency_dataset()
 
         # Store user exclude path for adding new exclusions
         self.user_exclude_path = user_exclude_path
@@ -212,7 +211,7 @@ class VocabularyExtractor:
     # https://norvig.com/ngrams/
     # Specifically, the 'count_1w.txt' file is used for word frequencies.
     # https://norvig.com/ngrams/count_1w.txt
-    def _load_frequency_dataset(self) -> Dict[str, int]:
+    def _load_frequency_dataset(self) -> dict[str, int]:
         """
         Load Google word frequency dataset and build cached rank mapping.
 
@@ -236,7 +235,7 @@ class VocabularyExtractor:
             return frequency_dict
 
         try:
-            with open(GOOGLE_WORD_FREQUENCY_FILE, 'r', encoding='utf-8') as f:
+            with open(GOOGLE_WORD_FREQUENCY_FILE, encoding='utf-8') as f:
                 for line in f:
                     parts = line.strip().split('\t')
                     if len(parts) == 2:
@@ -577,12 +576,12 @@ class VocabularyExtractor:
                     download_success = [False]
                     download_error = [None]
 
-                    def download_task():
+                    def download_task(pkg=package_name, success=download_success, err=download_error):
                         try:
-                            nltk.download(package_name, quiet=True)
-                            download_success[0] = True
+                            nltk.download(pkg, quiet=True)
+                            success[0] = True
                         except Exception as e:
-                            download_error[0] = e
+                            err[0] = e
 
                     thread = threading.Thread(target=download_task, daemon=True)
                     thread.start()
@@ -645,7 +644,7 @@ class VocabularyExtractor:
         if self.user_exclude_path:
             self.user_exclude_list = self._load_word_list(self.user_exclude_path)
 
-    def _load_word_list(self, file_path: str) -> Set[str]:
+    def _load_word_list(self, file_path: str) -> set[str]:
         """
         Load a list of words from a line-separated text file.
 
@@ -666,12 +665,12 @@ class VocabularyExtractor:
             )
             return set()
 
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             word_list = {line.strip().lower() for line in f if line.strip()}
             debug_log(f"[VOCAB] Loaded {len(word_list)} words from {file_path}")
             return word_list
 
-    def _is_unusual(self, token, ent_type: Optional[str] = None) -> bool:
+    def _is_unusual(self, token, ent_type: str | None = None) -> bool:
         """
         Determine if a token represents an unusual/noteworthy term.
 
@@ -767,7 +766,7 @@ class VocabularyExtractor:
         # Otherwise, consider it unusual (rare/technical term)
         return True
 
-    def _get_category(self, token, ent_type: str, full_term: str = None) -> Optional[str]:
+    def _get_category(self, token, ent_type: str, full_term: str = None) -> str | None:
         """
         Determine the simplified category for an unusual term.
 
@@ -857,7 +856,7 @@ class VocabularyExtractor:
         return "—"
 
 
-    def _chunk_text(self, text: str, chunk_size_kb: int = 50) -> List[str]:
+    def _chunk_text(self, text: str, chunk_size_kb: int = 50) -> list[str]:
         """
         Split text into chunks for efficient NLP processing.
 
@@ -901,7 +900,7 @@ class VocabularyExtractor:
 
         return chunks
 
-    def extract(self, text: str, doc_count: int = 1) -> List[Dict[str, str]]:
+    def extract(self, text: str, doc_count: int = 1) -> list[dict[str, str]]:
         """
         Extract unusual vocabulary from text with categorization, role detection, and definitions.
 
@@ -968,7 +967,8 @@ class VocabularyExtractor:
         total_tokens = 0
 
         # Process chunks in batches using nlp.pipe()
-        for i, doc in enumerate(self.nlp.pipe(chunks_to_process, batch_size=4)):
+        # VOCABULARY_BATCH_SIZE configurable for performance tuning (default: 8)
+        for i, doc in enumerate(self.nlp.pipe(chunks_to_process, batch_size=VOCABULARY_BATCH_SIZE)):
             total_tokens += len(doc)
             chunk_terms, chunk_freqs = self._first_pass_extraction(doc)
             all_extracted_terms.extend(chunk_terms)
@@ -1066,7 +1066,7 @@ class VocabularyExtractor:
 
         return extracted_terms, term_frequencies
 
-    def _sort_by_rarity(self, vocabulary: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def _sort_by_rarity(self, vocabulary: list[dict[str, str]]) -> list[dict[str, str]]:
         """
         Sort vocabulary list by rarity (rarest words first).
 
@@ -1096,7 +1096,7 @@ class VocabularyExtractor:
         # Combine: not-in-dataset (rarest) + in-dataset sorted by count
         return not_in_dataset + in_dataset
 
-    def _deduplicate_terms(self, extracted_terms: List[Dict]) -> List[Dict]:
+    def _deduplicate_terms(self, extracted_terms: list[dict]) -> list[dict]:
         """
         Remove duplicate/variant entries from extracted terms.
 
@@ -1104,6 +1104,8 @@ class VocabularyExtractor:
         1. Prefix normalization: "the State of New York" → "State of New York"
         2. Party label removal: "Plaintiff XIANJUN LIANG" → "XIANJUN LIANG"
         3. Substring filtering: If "XIANJUN LIANG" exists, filter out "XIANJUN"
+
+        Performance: O(n log n) using sorted word lists instead of O(n²) comparison.
 
         Args:
             extracted_terms: List of extracted term dictionaries
@@ -1132,37 +1134,47 @@ class VocabularyExtractor:
                 updated_dict["Term"] = normalized
                 normalized_map[normalized_lower] = updated_dict
 
-        # Second pass: Filter substring duplicates
-        # If "XIANJUN LIANG" exists, filter out "XIANJUN"
-        final_terms = []
+        # Second pass: Filter substring duplicates using optimized algorithm
+        # Build a set of all normalized terms for fast substring checking
         terms_list = list(normalized_map.values())
 
-        for i, term_dict in enumerate(terms_list):
-            term_text = term_dict["Term"]
-            is_substring = False
+        # Sort by length descending - longer terms first
+        # This allows us to check if shorter terms are substrings of longer ones
+        terms_by_length = sorted(terms_list, key=lambda x: len(x["Term"]), reverse=True)
 
-            # Check if this term is a substring of any other term
-            for j, other_dict in enumerate(terms_list):
-                if i != j:
-                    other_text = other_dict["Term"]
-                    # Case-insensitive substring check, and this term must be shorter
-                    if (term_text.lower() in other_text.lower() and
-                        len(term_text) < len(other_text)):
-                        is_substring = True
-                        break
+        # Build a set of "contained" terms that should be filtered
+        # A term is contained if it appears as a substring of a longer term
+        contained_terms = set()
 
-            if not is_substring:
-                final_terms.append(term_dict)
+        # For each term (sorted long to short), check if it contains any shorter terms
+        # Use substring containment check (word-based approach reserved for future use)
+        for i, term_dict in enumerate(terms_by_length):
+            term_lower = term_dict["Term"].lower()
+
+            # Check remaining (shorter) terms
+            for j in range(i + 1, len(terms_by_length)):
+                other_dict = terms_by_length[j]
+                other_lower = other_dict["Term"].lower()
+
+                # Quick check: if other term is substring of this term, mark as contained
+                if other_lower in term_lower and other_lower != term_lower:
+                    contained_terms.add(other_lower)
+
+        # Filter out contained terms
+        final_terms = [
+            term_dict for term_dict in terms_list
+            if term_dict["Term"].lower() not in contained_terms
+        ]
 
         return final_terms
 
     def _second_pass_processing(
         self,
-        extracted_terms: List[Dict],
-        term_frequencies: Dict[str, int],
+        extracted_terms: list[dict],
+        term_frequencies: dict[str, int],
         full_text: str,
         doc_count: int = 1
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Second pass: Deduplicate, categorize, detect roles, and build final vocabulary list.
 

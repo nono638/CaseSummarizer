@@ -5,7 +5,7 @@ Manages user-specific preferences like default prompts per model.
 
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class UserPreferencesManager:
@@ -25,7 +25,7 @@ class UserPreferencesManager:
         self.preferences_file = Path(preferences_file)
         self._preferences = self._load_preferences()
 
-    def _load_preferences(self) -> Dict[str, Any]:
+    def _load_preferences(self) -> dict[str, Any]:
         """
         Load preferences from JSON file.
 
@@ -42,7 +42,7 @@ class UserPreferencesManager:
 
         try:
             if self.preferences_file.exists():
-                with open(self.preferences_file, 'r', encoding='utf-8') as f:
+                with open(self.preferences_file, encoding='utf-8') as f:
                     prefs = json.load(f)
                     # Ensure structure exists
                     if "model_defaults" not in prefs:
@@ -68,7 +68,7 @@ class UserPreferencesManager:
             # Log error but don't crash
             print(f"Warning: Could not save user preferences: {e}")
 
-    def get_default_prompt(self, model_name: str) -> Optional[str]:
+    def get_default_prompt(self, model_name: str) -> str | None:
         """
         Get the user's preferred default prompt for a model.
 
@@ -94,7 +94,7 @@ class UserPreferencesManager:
         self._preferences["model_defaults"][model_name] = preset_id
         self._save_preferences()
 
-    def get_last_used_model(self) -> Optional[str]:
+    def get_last_used_model(self) -> str | None:
         """Get the last model the user loaded."""
         return self._preferences.get("last_used_model")
 
@@ -139,6 +139,40 @@ class UserPreferencesManager:
             self._preferences["processing"] = {}
 
         self._preferences["processing"]["cpu_fraction"] = cpu_fraction
+        self._save_preferences()
+
+    # =========================================================================
+    # Generic Get/Set Methods (for extensible settings system)
+    # =========================================================================
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """
+        Get any preference value by key.
+
+        This generic method supports the extensible settings system,
+        allowing new settings to be added without modifying this class.
+
+        Args:
+            key: The preference key to retrieve.
+            default: Value to return if key doesn't exist.
+
+        Returns:
+            The stored value, or default if not found.
+        """
+        return self._preferences.get(key, default)
+
+    def set(self, key: str, value: Any) -> None:
+        """
+        Set any preference value by key.
+
+        This generic method supports the extensible settings system,
+        allowing new settings to be added without modifying this class.
+
+        Args:
+            key: The preference key to set.
+            value: The value to store.
+        """
+        self._preferences[key] = value
         self._save_preferences()
 
 

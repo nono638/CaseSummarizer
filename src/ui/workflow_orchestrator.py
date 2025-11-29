@@ -20,11 +20,11 @@ The orchestrator decides WHAT to do next; the QueueMessageHandler decides
 HOW to update the UI in response.
 """
 
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from typing import Any
 
-from src.logging_config import debug_log
 from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH, USER_VOCAB_EXCLUDE_PATH
+from src.logging_config import debug_log
 from src.utils.text_utils import combine_document_texts
 
 
@@ -41,9 +41,9 @@ class WorkflowState:
         ai_complete: Whether AI generation has finished
         is_complete: Whether the entire workflow has finished
     """
-    extracted_documents: List[Dict] = None
-    pending_ai_params: Optional[Dict] = None
-    output_options: Optional[Dict] = None
+    extracted_documents: list[dict] = None
+    pending_ai_params: dict | None = None
+    output_options: dict | None = None
     vocab_complete: bool = False
     ai_complete: bool = False
     is_complete: bool = False
@@ -82,7 +82,7 @@ class WorkflowOrchestrator:
         self.state = WorkflowState()
         self.vocab_worker = None  # Track vocabulary worker for cancellation
 
-    def get_output_options(self) -> Dict[str, bool]:
+    def get_output_options(self) -> dict[str, bool]:
         """
         Read current output options from UI checkboxes.
 
@@ -97,9 +97,9 @@ class WorkflowOrchestrator:
 
     def on_extraction_complete(
         self,
-        extracted_documents: List[Dict],
-        ai_params: Optional[Dict]
-    ) -> Dict[str, Any]:
+        extracted_documents: list[dict],
+        ai_params: dict | None
+    ) -> dict[str, Any]:
         """
         Handle completion of document extraction phase.
 
@@ -166,11 +166,13 @@ class WorkflowOrchestrator:
 
         return actions_taken
 
-    def _get_combined_text(self, extracted_documents: List[Dict]) -> tuple:
+    def _get_combined_text(self, extracted_documents: list[dict]) -> tuple:
         """
         Get combined text from all documents for vocabulary extraction.
 
         Uses the shared utility function from src/utils/text_utils.
+        Preprocessing is disabled for vocabulary extraction to preserve
+        original terms (line numbers, Q/A markers, etc. don't affect NER).
 
         Args:
             extracted_documents: List of document result dictionaries
@@ -178,7 +180,8 @@ class WorkflowOrchestrator:
         Returns:
             Tuple of (combined_text, doc_count)
         """
-        combined = combine_document_texts(extracted_documents, include_headers=False)
+        # Disable preprocessing for vocabulary - we want raw text for NER
+        combined = combine_document_texts(extracted_documents, include_headers=False, preprocess=False)
         doc_count = sum(1 for d in extracted_documents if d.get('extracted_text'))
         debug_log(f"[ORCHESTRATOR] Combined {doc_count} documents "
                   f"({len(combined)} characters total).")
@@ -206,7 +209,7 @@ class WorkflowOrchestrator:
         self.vocab_worker.start()
         debug_log(f"[ORCHESTRATOR] VocabularyWorker thread started (doc_count={doc_count}).")
 
-    def _start_ai_generation(self, extracted_documents: List[Dict], ai_params: Dict):
+    def _start_ai_generation(self, extracted_documents: list[dict], ai_params: dict):
         """
         Start AI summary generation via main window.
 

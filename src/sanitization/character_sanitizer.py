@@ -17,11 +17,11 @@ Uses ftfy for encoding recovery + unicodedata for character classification.
 Optionally uses unidecode for transliteration (ASCII-safe output).
 """
 
-import unicodedata
-import ftfy
 import re
 import time
-from typing import Tuple, Dict, List
+import unicodedata
+
+import ftfy
 
 try:
     from unidecode import unidecode
@@ -57,7 +57,7 @@ class CharacterSanitizer:
         self.transliterate = transliterate and HAS_UNIDECODE
         self.sanitization_log = []
 
-    def sanitize(self, text: str) -> Tuple[str, Dict]:
+    def sanitize(self, text: str) -> tuple[str, dict]:
         """
         Sanitize text and return cleaned text + statistics.
 
@@ -187,7 +187,7 @@ class CharacterSanitizer:
 
         return text, stats
 
-    def _fix_mojibake(self, text: str) -> Tuple[str, int]:
+    def _fix_mojibake(self, text: str) -> tuple[str, int]:
         """
         Fix mojibake (encoding corruption) using ftfy.
 
@@ -201,7 +201,8 @@ class CharacterSanitizer:
 
         # Count changes by comparing character counts
         # Note: ftfy might also add/remove chars, so count actual mojibake fixes
-        fixes = sum(1 for a, b in zip(original, text) if a != b)
+        # strict=False: strings may have different lengths after ftfy processing
+        fixes = sum(1 for a, b in zip(original, text, strict=False) if a != b)
 
         if fixes > 0:
             self._log(f"Fixed {fixes} mojibake/encoding corruption characters")
@@ -225,7 +226,7 @@ class CharacterSanitizer:
 
         return text
 
-    def _transliterate_text(self, text: str) -> Tuple[str, int]:
+    def _transliterate_text(self, text: str) -> tuple[str, int]:
         """
         Transliterate accented characters to ASCII equivalents.
 
@@ -243,15 +244,15 @@ class CharacterSanitizer:
         original = text
         text = unidecode(text)
 
-        # Count changes
-        transliterations = sum(1 for a, b in zip(original, text) if a != b)
+        # Count changes (strict=False: unidecode may change string length)
+        transliterations = sum(1 for a, b in zip(original, text, strict=False) if a != b)
 
         if transliterations > 0:
             self._log(f"Transliterated {transliterations} accented characters to ASCII")
 
         return text, transliterations
 
-    def _handle_redactions(self, text: str) -> Tuple[str, int]:
+    def _handle_redactions(self, text: str) -> tuple[str, int]:
         """
         Replace redacted characters (██) with [REDACTED] marker.
 
@@ -274,7 +275,7 @@ class CharacterSanitizer:
 
         return text, redactions
 
-    def _clean_problematic_chars(self, text: str) -> Tuple[str, int, int, int]:
+    def _clean_problematic_chars(self, text: str) -> tuple[str, int, int, int]:
         """
         Remove or replace problematic characters.
 
@@ -364,7 +365,7 @@ class CharacterSanitizer:
         """Log sanitization actions for debugging."""
         self.sanitization_log.append(message)
 
-    def get_log(self) -> List[str]:
+    def get_log(self) -> list[str]:
         """Return the sanitization log."""
         return self.sanitization_log.copy()
 

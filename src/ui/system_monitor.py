@@ -4,22 +4,30 @@ System Monitor Widget for LocalScribe
 Real-time CPU and RAM monitoring with color-coded status indicators.
 """
 
-import customtkinter as ctk
-import psutil
 import platform
 import threading
-from typing import Optional, Callable
+
+import customtkinter as ctk
+import psutil
+
+from src.config import (
+    SYSTEM_MONITOR_THRESHOLD_CRITICAL,
+    SYSTEM_MONITOR_THRESHOLD_GREEN,
+    SYSTEM_MONITOR_THRESHOLD_YELLOW,
+)
 
 
 class SystemMonitor(ctk.CTkFrame):
     """
     Real-time system resource monitor with independent color-coded indicators for CPU and RAM.
 
-    Color scheme (user thresholds) - applied independently to CPU and RAM:
-    - 0-74%: Green (healthy)
-    - 75-84%: Yellow (elevated)
-    - 85-89%: Orange (high)
-    - 90%+: Red (critical) with exclamation mark indicator
+    Color scheme - applied independently to CPU and RAM using thresholds from config.py:
+    - 0 to SYSTEM_MONITOR_THRESHOLD_GREEN: Green (healthy)
+    - GREEN to YELLOW threshold: Yellow (elevated)
+    - YELLOW to CRITICAL threshold: Orange (high)
+    - CRITICAL+: Red with exclamation mark indicator
+
+    Thresholds can be customized in src/config.py.
     """
 
     def __init__(self, parent=None, update_interval_ms=2000):
@@ -110,7 +118,7 @@ class SystemMonitor(ctk.CTkFrame):
                 self._collect_metrics()
                 # Sleep for update interval (metrics collection is now non-blocking)
                 time.sleep(self.update_interval_ms / 1000.0)
-            except Exception as e:
+            except Exception:
                 pass  # Silently ignore errors to avoid console spam
 
     def _collect_metrics(self):
@@ -160,12 +168,12 @@ class SystemMonitor(ctk.CTkFrame):
             cpu_percent = self.current_cpu
             ram_percent = self.current_ram_percent
 
-            # Format CPU display text with indicator at 90%+
-            cpu_indicator = "!" if cpu_percent >= 90 else ""
+            # Format CPU display text with indicator at critical threshold
+            cpu_indicator = "!" if cpu_percent >= SYSTEM_MONITOR_THRESHOLD_CRITICAL else ""
             cpu_text = f"CPU: {round(cpu_percent)}%{cpu_indicator}"
 
-            # Format RAM display text with indicator at 90%+
-            ram_indicator = "!" if ram_percent >= 90 else ""
+            # Format RAM display text with indicator at critical threshold
+            ram_indicator = "!" if ram_percent >= SYSTEM_MONITOR_THRESHOLD_CRITICAL else ""
             ram_text = f"RAM: {round(ram_percent)}%{ram_indicator}"
 
             # Get colors independently for CPU and RAM
@@ -187,11 +195,11 @@ class SystemMonitor(ctk.CTkFrame):
         """
         Get background and foreground colors based on usage percentage.
 
-        Used for both CPU and RAM with identical thresholds:
-        - 0-74%: Green (healthy)
-        - 75-84%: Yellow (elevated)
-        - 85-89%: Orange (high)
-        - 90%+: Red (critical)
+        Uses thresholds from config.py (SYSTEM_MONITOR_THRESHOLD_*):
+        - 0 to GREEN threshold: Green (healthy)
+        - GREEN to YELLOW threshold: Yellow (elevated)
+        - YELLOW to CRITICAL threshold: Orange (high)
+        - CRITICAL+: Red (critical)
 
         Args:
             percent: Current usage percentage (CPU or RAM)
@@ -199,17 +207,17 @@ class SystemMonitor(ctk.CTkFrame):
         Returns:
             tuple: (bg_color, fg_color)
         """
-        if percent < 75:
+        if percent < SYSTEM_MONITOR_THRESHOLD_GREEN:
             # Green: healthy
             return ("#1a3a1a", "#90EE90")  # Dark green bg, light green text
-        elif percent < 85:
+        elif percent < SYSTEM_MONITOR_THRESHOLD_YELLOW:
             # Yellow: elevated
             return ("#3a3a1a", "#FFEB3B")  # Dark yellow bg, bright yellow text
-        elif percent < 90:
+        elif percent < SYSTEM_MONITOR_THRESHOLD_CRITICAL:
             # Orange: high
             return ("#3a2a1a", "#FFA500")  # Dark orange bg, bright orange text
         else:
-            # Red: critical (90%+)
+            # Red: critical
             return ("#3a1a1a", "#FF4444")  # Dark red bg, bright red text
 
     def _on_enter(self, event):

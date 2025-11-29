@@ -5,31 +5,31 @@ Phase 2.1: CustomTkinter UI
 This module initializes the CustomTkinter application and launches the main window.
 """
 
-import sys
 import multiprocessing
 import os
+import sys
 from datetime import datetime
 
 # Add project root to Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import customtkinter as ctk
-from src.config import LOGS_DIR
 
 # CRITICAL: Import src.ai BEFORE UI framework to avoid DirectML DLL conflicts on Windows
 # This pre-loads onnxruntime_genai before UI framework initializes
 import src.ai  # noqa: F401
-
+from src.config import LOGS_DIR
 from src.ui.main_window import MainWindow
+
 
 def setup_file_logging():
     """Redirects stdout and stderr to a log file."""
     if not os.path.exists(LOGS_DIR):
         os.makedirs(LOGS_DIR)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_filename = LOGS_DIR / f"main_log_{timestamp}.txt"
-    
+
     class Logger:
         def __init__(self, filepath):
             self.terminal = sys.stdout

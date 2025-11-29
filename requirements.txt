@@ -16,3 +16,4 @@ ftfy
 unidecode
 striprtf
 pytest
+ruff

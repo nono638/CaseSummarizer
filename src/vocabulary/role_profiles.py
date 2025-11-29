@@ -22,7 +22,6 @@ To add a new profile:
 """
 
 import re
-from typing import List, Tuple
 
 
 class RoleDetectionProfile:
@@ -40,8 +39,8 @@ class RoleDetectionProfile:
 
     def __init__(self):
         """Initialize with empty pattern lists (override in subclass)."""
-        self.person_patterns: List[Tuple[str, str]] = []
-        self.place_patterns: List[Tuple[str, str]] = []
+        self.person_patterns: list[tuple[str, str]] = []
+        self.place_patterns: list[tuple[str, str]] = []
 
     def detect_person_role(self, person_name: str, text: str) -> str:
         """
@@ -85,7 +84,7 @@ class RoleDetectionProfile:
 # Person role patterns for stenographers (ordered by specificity)
 # Format: (regex_pattern, role_description)
 # UPDATED: Changed [a-z]+ to [a-zA-Z]+ to match ALL CAPS names like "ANDY CHOY"
-STENOGRAPHER_PERSON_PATTERNS: List[Tuple[str, str]] = [
+STENOGRAPHER_PERSON_PATTERNS: list[tuple[str, str]] = [
     # Party roles (most specific first)
     (r'plaintiff[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Plaintiff attorney'),
     (r'defendant[\'s]?\s+(?:attorney|counsel|lawyer)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)', 'Defendant attorney'),
@@ -106,7 +105,7 @@ STENOGRAPHER_PERSON_PATTERNS: List[Tuple[str, str]] = [
 # Place/organization relevance patterns for stenographers
 # Format: (regex_pattern, relevance_description)
 # UPDATED: Stricter patterns to prevent false positives (e.g., "CHOY" matching "CHOY Medical Center")
-STENOGRAPHER_PLACE_PATTERNS: List[Tuple[str, str]] = [
+STENOGRAPHER_PLACE_PATTERNS: list[tuple[str, str]] = [
     # Accident/incident locations (unchanged - already have context)
     (r'accident\s+(?:at|on|near)\s+([A-Z][a-zA-Z\s]+)', 'Accident location'),
     (r'incident\s+(?:occurred|happened)\s+(?:at|on|near)\s+([A-Z][a-zA-Z\s]+)', 'Incident location'),

@@ -8,8 +8,6 @@ Supports dual-directory system:
 """
 
 from pathlib import Path
-from typing import List, Dict, Optional
-import re
 
 # Skeleton template filename (underscore prefix = excluded from dropdown)
 SKELETON_FILENAME = "_template.txt"
@@ -177,7 +175,7 @@ class PromptTemplateManager:
         self.user_prompts_dir = Path(user_prompts_dir) if user_prompts_dir else None
         self._cache = {}  # Template cache to avoid repeated file reads
 
-    def get_available_models(self) -> List[str]:
+    def get_available_models(self) -> list[str]:
         """
         Get list of models that have prompt templates.
 
@@ -192,7 +190,7 @@ class PromptTemplateManager:
             if d.is_dir() and not d.name.startswith('.')
         ]
 
-    def get_available_presets(self, model_name: str) -> List[Dict[str, str]]:
+    def get_available_presets(self, model_name: str) -> list[dict[str, str]]:
         """
         Get available prompt presets for a specific model from both directories.
 
@@ -298,7 +296,7 @@ class PromptTemplateManager:
                 f"{self.user_prompts_dir / model_name if self.user_prompts_dir else 'N/A'}"
             )
 
-        with open(template_path, 'r', encoding='utf-8') as f:
+        with open(template_path, encoding='utf-8') as f:
             template = f.read()
 
         # Validate template
@@ -376,7 +374,7 @@ class PromptTemplateManager:
             case_text=case_text
         )
 
-    def get_default_preset_id(self, model_name: str) -> Optional[str]:
+    def get_default_preset_id(self, model_name: str) -> str | None:
         """
         Get the default preset for a model (first alphabetically).
 
@@ -424,7 +422,7 @@ class PromptTemplateManager:
     def get_best_default_preset(
         self,
         model_name: str,
-        user_preference: Optional[str] = None
+        user_preference: str | None = None
     ) -> str:
         """
         Get the best default preset to use for a model.
@@ -459,7 +457,7 @@ class PromptTemplateManager:
         # Fall back to first preset alphabetically
         return presets[0]['id']
 
-    def ensure_user_skeleton(self, model_name: str) -> Optional[Path]:
+    def ensure_user_skeleton(self, model_name: str) -> Path | None:
         """
         Ensure skeleton template and README exist in the user prompts directory.
 
@@ -495,7 +493,7 @@ class PromptTemplateManager:
 
         return user_model_dir
 
-    def get_user_prompts_path(self, model_name: str) -> Optional[Path]:
+    def get_user_prompts_path(self, model_name: str) -> Path | None:
         """
         Get the path to the user prompts directory for a model.
 

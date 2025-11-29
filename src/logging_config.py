@@ -27,10 +27,8 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
-from src.config import DEBUG_MODE, LOG_FILE, LOG_FORMAT, LOG_DATE_FORMAT
-
+from src.config import DEBUG_MODE, LOG_DATE_FORMAT, LOG_FILE, LOG_FORMAT
 
 # =============================================================================
 # File Logger Setup (debug_flow.txt for debugging sessions)
@@ -163,9 +161,9 @@ class Timer:
         """
         self.operation_name = operation_name
         self.auto_log = auto_log
-        self.start_time: Optional[float] = None
-        self.end_time: Optional[float] = None
-        self.duration_ms: Optional[float] = None
+        self.start_time: float | None = None
+        self.end_time: float | None = None
+        self.duration_ms: float | None = None
 
     def __enter__(self):
         if self.auto_log:
@@ -307,6 +305,32 @@ def critical(message: str, exc_info: bool = True):
     _logger.critical(message, exc_info=exc_info and DEBUG_MODE)
 
 
+def debug_timing(operation: str, elapsed_seconds: float):
+    """
+    Log operation timing information in human-readable format.
+
+    This is a convenience function for logging elapsed time from manual timing.
+    For automatic timing with start/end logging, use the Timer context manager.
+
+    Args:
+        operation: Description of the operation that was timed
+        elapsed_seconds: Elapsed time in seconds (float)
+
+    Example:
+        start = time.time()
+        # ... do work ...
+        debug_timing("PDF chunking", time.time() - start)
+        # Output: "[14:32:01] PDF chunking took 2.34s"
+    """
+    if elapsed_seconds < 1:
+        time_str = f"{elapsed_seconds*1000:.0f} ms"
+    elif elapsed_seconds < 60:
+        time_str = f"{elapsed_seconds:.2f}s"
+    else:
+        time_str = f"{elapsed_seconds/60:.1f}m"
+    debug_log(f"{operation} took {time_str}")
+
+
 def close_debug_log():
     """
     Close the debug log file gracefully.
@@ -324,6 +348,7 @@ def close_debug_log():
 __all__ = [
     'debug_log',
     'debug',
+    'debug_timing',
     'info',
     'warning',
     'error',

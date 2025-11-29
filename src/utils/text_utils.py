@@ -2,18 +2,24 @@
 Text Utility Functions
 
 Common text processing functions used across the application.
+
+Includes preprocessing integration for AI summary preparation.
 """
 
-from typing import Dict, List, Optional
+
+from src.logging_config import debug_log
 
 
 def combine_document_texts(
-    documents: List[Dict],
+    documents: list[dict],
     include_headers: bool = False,
-    separator: str = "\n\n"
+    separator: str = "\n\n",
+    preprocess: bool = True
 ) -> str:
     """
     Combine extracted text from multiple documents into a single string.
+
+    Optionally applies smart preprocessing to clean text before AI summarization.
 
     Args:
         documents: List of document result dictionaries. Each dict should have
@@ -21,6 +27,8 @@ def combine_document_texts(
         include_headers: If True, prefix each document's text with its filename
                         formatted as "--- filename ---"
         separator: String to use between documents (default: double newline)
+        preprocess: If True, apply preprocessing pipeline (line number removal,
+                   header/footer removal, Q/A conversion). Default True.
 
     Returns:
         Combined text from all documents. Documents without 'extracted_text'
@@ -49,4 +57,18 @@ def combine_document_texts(
         else:
             combined_parts.append(text)
 
-    return separator.join(combined_parts)
+    combined_text = separator.join(combined_parts)
+
+    # Apply preprocessing if enabled
+    if preprocess and combined_text:
+        try:
+            from src.preprocessing import create_default_pipeline
+            pipeline = create_default_pipeline()
+            combined_text = pipeline.process(combined_text)
+            debug_log(f"[TEXT UTILS] Preprocessing applied: {pipeline.total_changes} changes")
+        except ImportError as e:
+            debug_log(f"[TEXT UTILS] Preprocessing not available: {e}")
+        except Exception as e:
+            debug_log(f"[TEXT UTILS] Preprocessing error (using raw text): {e}")
+
+    return combined_text

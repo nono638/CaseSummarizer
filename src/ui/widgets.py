@@ -8,8 +8,10 @@ This module contains reusable CustomTkinter widget components for the main appli
 
 Note: System monitoring is handled by src/ui/system_monitor.py (not in this module).
 """
-import customtkinter as ctk
 from tkinter import ttk
+
+import customtkinter as ctk
+
 
 class FileReviewTable(ctk.CTkFrame):
     """
@@ -19,7 +21,7 @@ class FileReviewTable(ctk.CTkFrame):
 
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        
+
         self.column_map = {
             "include": ("Include", 50),
             "filename": ("Filename", 300),
@@ -29,7 +31,7 @@ class FileReviewTable(ctk.CTkFrame):
             "pages": ("Pages", 50),
             "size": ("Size", 80)
         }
-        
+
         self._create_treeview()
         self.file_item_map = {} # To map filename to treeview item ID
 
@@ -37,25 +39,25 @@ class FileReviewTable(ctk.CTkFrame):
         """Create the Treeview widget."""
         style = ttk.Style()
         style.theme_use("default")
-        
+
         # Configure Treeview colors to match CustomTkinter theme
-        style.configure("Treeview", 
-                        background="#2b2b2b", 
-                        foreground="white", 
-                        fieldbackground="#2b2b2b", 
+        style.configure("Treeview",
+                        background="#2b2b2b",
+                        foreground="white",
+                        fieldbackground="#2b2b2b",
                         borderwidth=0)
         style.map('Treeview', background=[('selected', '#3470b6')])
-        
-        style.configure("Treeview.Heading", 
-                        background="#565b5e", 
-                        foreground="white", 
+
+        style.configure("Treeview.Heading",
+                        background="#565b5e",
+                        foreground="white",
                         relief="flat")
         style.map("Treeview.Heading", background=[('active', '#6c757d')])
 
-        self.tree = ttk.Treeview(self, 
-                                 columns=list(self.column_map.keys()), 
+        self.tree = ttk.Treeview(self,
+                                 columns=list(self.column_map.keys()),
                                  show="headings")
-        
+
         for col_id, (text, width) in self.column_map.items():
             self.tree.heading(col_id, text=text, anchor='w')
             self.tree.column(col_id, width=width, anchor='w')
@@ -65,7 +67,7 @@ class FileReviewTable(ctk.CTkFrame):
     def add_result(self, result):
         """Add or update a processing result in the table."""
         filename = result.get('filename', 'Unknown')
-        
+
         values, status_color_tag = self._prepare_result_for_display(result)
 
         if filename in self.file_item_map:
@@ -88,7 +90,7 @@ class FileReviewTable(ctk.CTkFrame):
         """Prepares result data for display in the treeview."""
         status = result.get('status', 'error')
         confidence = result.get('confidence', 0)
-        
+
         status_text, status_color_tag = self._get_status_display(status, confidence)
         method_display = self._get_method_display(result.get('method', 'unknown'))
         confidence_display = f"{confidence}%" if status != 'error' and confidence > 0 else "—"
@@ -97,7 +99,7 @@ class FileReviewTable(ctk.CTkFrame):
 
         # Using a placeholder for the "Include" checkbox for now
         include_display = "✓" if status == 'success' and confidence >= 70 else " "
-        
+
         values = (
             include_display,
             result.get('filename', 'Unknown'),
@@ -110,23 +112,27 @@ class FileReviewTable(ctk.CTkFrame):
         return values, status_color_tag
 
     def _get_status_display(self, status, confidence):
-        if status == 'error': return ("✗ Failed", "red")
-        if status == 'pending': return ("... Pending", "pending")
-        if status == 'success' and confidence >= 70: return ("✓ Ready", "green")
+        if status == 'error':
+            return ("✗ Failed", "red")
+        if status == 'pending':
+            return ("... Pending", "pending")
+        if status == 'success' and confidence >= 70:
+            return ("✓ Ready", "green")
         return ("⚠ Low Quality", "yellow")
 
     def _get_method_display(self, method):
         return method.replace('_', ' ').title()
 
     def _format_file_size(self, size_bytes):
-        if size_bytes == 0: return "0 B"
+        if size_bytes == 0:
+            return "0 B"
         units = ['B', 'KB', 'MB', 'GB']
         size = float(size_bytes)
         unit_index = 0
         while size >= 1024 and unit_index < len(units) - 1:
             size /= 1024
             unit_index += 1
-        
+
         # Round to nearest integer for all units
         return f"{round(size)} {units[unit_index]}"
 
@@ -198,7 +204,7 @@ class ModelSelectionWidget(ctk.CTkFrame):
                     self.model_selector.set(available_model_names[0])
             else:
                 self.model_selector.set("No models found")
-        except Exception as e:
+        except Exception:
             self.model_selector.configure(values=["Ollama not found"])
             self.model_selector.set("Ollama not found")
 

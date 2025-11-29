@@ -6,9 +6,10 @@ Separates UI layout construction from window orchestration.
 """
 
 import customtkinter as ctk
-from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
+
 from src.ui.dynamic_output import DynamicOutputWidget
 from src.ui.tooltip_helper import create_tooltip
+from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
 
 
 def build_document_selection_quadrant(parent_frame):

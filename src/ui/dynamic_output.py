@@ -11,17 +11,30 @@ Performance Optimizations (Session 14):
 - Batch insertion with reduced batch size for responsiveness
 - Garbage collection after large operations
 - Deferred Treeview creation until first use
+
+Performance Optimizations (Session 16):
+- Asynchronous batch insertion with after() to yield to event loop
+- Background garbage collection to avoid blocking main thread
+- Pagination with "Load More" button for large datasets
+- Optimized single update_idletasks() call after each batch
 """
 
-import customtkinter as ctk
-from tkinter import ttk, messagebox, filedialog, Menu
-import io
 import csv
-import os
 import gc
+import io
+import os
+import threading
+from tkinter import Menu, filedialog, messagebox, ttk
 
-from src.config import USER_VOCAB_EXCLUDE_PATH, VOCABULARY_DISPLAY_LIMIT, VOCABULARY_DISPLAY_MAX
+import customtkinter as ctk
+
+from src.config import USER_VOCAB_EXCLUDE_PATH
 from src.logging_config import debug_log
+
+# Pagination settings
+ROWS_PER_PAGE = 50  # Number of rows to display initially and per "Load More" click
+BATCH_INSERT_SIZE = 20  # Rows to insert per batch during async loading
+BATCH_INSERT_DELAY_MS = 10  # Milliseconds between batches (allows UI to breathe)
 
 
 # Column width configuration (in pixels) - controls text truncation
@@ -105,6 +118,12 @@ class DynamicOutputWidget(ctk.CTkFrame):
             "Rare Word List (CSV)": []
         }
         self._document_summaries = {}  # {filename: summary_text}
+
+        # Pagination state for vocabulary display
+        self._vocab_display_offset = 0  # Current offset into vocabulary data
+        self._vocab_total_items = 0  # Total items in vocabulary data
+        self._load_more_btn = None  # "Load More" button reference
+        self._is_loading = False  # Prevents duplicate load operations
 
     def _on_output_selection(self, choice):
         """Handle selection change in the output_selector dropdown."""
@@ -245,6 +264,9 @@ class DynamicOutputWidget(ctk.CTkFrame):
         """
         Displays vocabulary data in an Excel-like Treeview with frozen headers.
 
+        Uses async batch insertion with pagination for GUI responsiveness.
+        Initial load shows ROWS_PER_PAGE items, "Load More" button adds more.
+
         Args:
             data: List of dicts with keys: Term, Type, Role/Relevance, Definition
         """
@@ -255,6 +277,11 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self.summary_text_display.delete("0.0", "end")
             self.summary_text_display.insert("0.0", "Rare Word List (CSV) not yet generated or is empty.")
             return
+
+        # Reset pagination state
+        self._vocab_display_offset = 0
+        self._vocab_total_items = len(data)
+        self._is_loading = False
 
         # Create style if not already done
         self._create_treeview_style()
@@ -325,66 +352,151 @@ class DynamicOutputWidget(ctk.CTkFrame):
         # Clear existing data
         self.csv_treeview.delete(*self.csv_treeview.get_children())
 
-        # PERFORMANCE FIX: Only display limited items to keep GUI responsive
-        # Large vocabulary lists (260-page PDFs) can have 500+ terms which freezes the GUI
-        # Enforce ceiling to prevent user config from causing freezing
-        MAX_DISPLAY_ROWS = min(VOCABULARY_DISPLAY_LIMIT, VOCABULARY_DISPLAY_MAX)
-        total_items = len(data)
-        display_items = data[:MAX_DISPLAY_ROWS]
+        # Calculate how many items to load initially
+        initial_load = min(ROWS_PER_PAGE, self._vocab_total_items)
 
-        debug_log(f"[VOCAB DISPLAY] Showing {min(total_items, MAX_DISPLAY_ROWS)} of {total_items} terms "
-                  f"(limit: {VOCABULARY_DISPLAY_LIMIT}, ceiling: {VOCABULARY_DISPLAY_MAX})")
+        debug_log(f"[VOCAB DISPLAY] Showing {initial_load} of {self._vocab_total_items} terms "
+                  f"(pagination: {ROWS_PER_PAGE} per page)")
 
-        # Populate data - insert all at once for speed, no intermediate updates
-        # This reduces flickering caused by excessive update_idletasks() calls
-        for item in display_items:
-            if isinstance(item, dict):
-                # Apply text truncation to prevent row overflow
-                values = (
-                    truncate_text(item.get("Term", ""), COLUMN_CONFIG["Term"]["max_chars"]),
-                    truncate_text(item.get("Type", ""), COLUMN_CONFIG["Type"]["max_chars"]),
-                    truncate_text(item.get("Role/Relevance", ""), COLUMN_CONFIG["Role/Relevance"]["max_chars"]),
-                    truncate_text(item.get("Definition", ""), COLUMN_CONFIG["Definition"]["max_chars"])
-                )
+        # Start async batch insertion for initial load
+        self._async_insert_rows(data, 0, initial_load)
+
+    def _async_insert_rows(self, data: list, start_idx: int, end_idx: int):
+        """
+        Asynchronously insert rows into the Treeview in small batches.
+
+        Uses after() to yield to the event loop between batches,
+        keeping the GUI responsive during large data loads.
+
+        Args:
+            data: Full vocabulary data list
+            start_idx: Starting index in data
+            end_idx: Ending index (exclusive)
+        """
+        if self._is_loading:
+            return
+        self._is_loading = True
+
+        current_idx = start_idx
+
+        def insert_batch():
+            nonlocal current_idx
+
+            # Insert a batch of rows
+            batch_end = min(current_idx + BATCH_INSERT_SIZE, end_idx)
+
+            for i in range(current_idx, batch_end):
+                item = data[i]
+                if isinstance(item, dict):
+                    # Apply text truncation to prevent row overflow
+                    values = (
+                        truncate_text(item.get("Term", ""), COLUMN_CONFIG["Term"]["max_chars"]),
+                        truncate_text(item.get("Type", ""), COLUMN_CONFIG["Type"]["max_chars"]),
+                        truncate_text(item.get("Role/Relevance", ""), COLUMN_CONFIG["Role/Relevance"]["max_chars"]),
+                        truncate_text(item.get("Definition", ""), COLUMN_CONFIG["Definition"]["max_chars"])
+                    )
+                else:
+                    # Handle list format (legacy) - apply truncation
+                    raw_values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
+                    cols = ["Term", "Type", "Role/Relevance", "Definition"]
+                    values = tuple(
+                        truncate_text(str(v), COLUMN_CONFIG[cols[j]]["max_chars"])
+                        for j, v in enumerate(raw_values[:4])
+                    )
+
+                self.csv_treeview.insert("", "end", values=values)
+
+            current_idx = batch_end
+
+            # Check if we need to insert more
+            if current_idx < end_idx:
+                # Schedule next batch with a small delay to allow UI to breathe
+                self.after(BATCH_INSERT_DELAY_MS, insert_batch)
             else:
-                # Handle list format (legacy) - apply truncation
-                raw_values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
-                columns = ["Term", "Type", "Role/Relevance", "Definition"]
-                values = tuple(
-                    truncate_text(str(v), COLUMN_CONFIG[columns[i]]["max_chars"])
-                    for i, v in enumerate(raw_values[:4])
+                # All rows inserted for this page
+                self._vocab_display_offset = end_idx
+                self._is_loading = False
+                self._update_pagination_ui(data)
+
+        # Start the first batch
+        insert_batch()
+
+    def _update_pagination_ui(self, data: list):
+        """
+        Update pagination UI after rows are loaded.
+
+        Shows "Load More" button if more data is available,
+        or info label if all data is shown.
+
+        Args:
+            data: Full vocabulary data list
+        """
+        total_items = len(data)
+        displayed_items = self._vocab_display_offset
+
+        # Create or update "Load More" button
+        if displayed_items < total_items:
+            remaining = total_items - displayed_items
+
+            if self._load_more_btn is None:
+                self._load_more_btn = ctk.CTkButton(
+                    self.treeview_frame,
+                    text="",
+                    command=lambda: self._load_more_rows(data),
+                    fg_color="#2d5a87",
+                    hover_color="#3d6a97",
+                    height=28
                 )
 
-            self.csv_treeview.insert("", "end", values=values)
+            self._load_more_btn.configure(
+                text=f"Load More ({remaining} remaining)"
+            )
+            self._load_more_btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
 
-        self.csv_treeview.grid(row=0, column=0, sticky="nsew")
-
-        # Single UI update after all insertions complete (reduces flickering)
-        self.update_idletasks()
-
-        # Force garbage collection after large display operation
-        gc.collect()
-
-        # Add info label if we're showing a subset
-        if total_items > MAX_DISPLAY_ROWS:
+            # Update info label
             if not hasattr(self, 'vocab_info_label'):
                 self.vocab_info_label = ctk.CTkLabel(
                     self.treeview_frame,
                     text="",
-                    font=ctk.CTkFont(size=11, weight="bold"),
-                    text_color="#ffc107"  # Warning yellow
+                    font=ctk.CTkFont(size=11),
+                    text_color="#aaaaaa"
+                )
+            self.vocab_info_label.configure(
+                text=f"Showing {displayed_items} of {total_items} terms • Full list available via 'Save to File'"
+            )
+            self.vocab_info_label.grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 5))
+
+        else:
+            # All items displayed
+            if self._load_more_btn is not None:
+                self._load_more_btn.grid_remove()
+
+            if hasattr(self, 'vocab_info_label'):
+                self.vocab_info_label.configure(
+                    text=f"Showing all {total_items} terms"
                 )
                 self.vocab_info_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
 
-            remaining = total_items - MAX_DISPLAY_ROWS
-            self.vocab_info_label.configure(
-                text=f"⚠ Displaying {MAX_DISPLAY_ROWS} of {total_items} terms. "
-                     f"{remaining} more available via 'Save to File' button."
-            )
-            self.vocab_info_label.grid(row=2, column=0, columnspan=2, sticky="w", padx=10, pady=5)
-        elif hasattr(self, 'vocab_info_label'):
-            # Hide label if showing all items
-            self.vocab_info_label.grid_remove()
+        # Run garbage collection in background thread (non-blocking)
+        threading.Thread(target=gc.collect, daemon=True).start()
+
+    def _load_more_rows(self, data: list):
+        """
+        Load more rows when "Load More" button is clicked.
+
+        Args:
+            data: Full vocabulary data list
+        """
+        if self._is_loading:
+            return
+
+        start_idx = self._vocab_display_offset
+        end_idx = min(start_idx + ROWS_PER_PAGE, len(data))
+
+        debug_log(f"[VOCAB DISPLAY] Loading more: rows {start_idx} to {end_idx}")
+
+        # Start async insertion
+        self._async_insert_rows(data, start_idx, end_idx)
 
     def _create_context_menu(self):
         """Create right-click context menu for vocabulary table."""

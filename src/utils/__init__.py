@@ -10,14 +10,14 @@ Note: Logging functionality is now centralized in src/logging_config.py.
 """
 
 from .logger import (
+    DEBUG_MODE,
+    Timer,
+    critical,
     debug,
     debug_log,
+    error,
     info,
     warning,
-    error,
-    critical,
-    Timer,
-    DEBUG_MODE,
 )
 
 __all__ = [

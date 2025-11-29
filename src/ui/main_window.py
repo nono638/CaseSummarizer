@@ -20,25 +20,26 @@ Performance Optimizations (Session 14):
 - Worker reference cleanup to prevent memory leaks
 - Improved queue processing to prevent duplicate AI message handling
 """
-import customtkinter as ctk
-from tkinter import filedialog, messagebox
-import os
 import gc
-from queue import Queue, Empty
+import os
+from queue import Empty, Queue
+from tkinter import filedialog, messagebox
 
-from src.ui.workers import ProcessingWorker, OllamaAIWorkerManager
-from src.ui.dialogs import SettingsDialog
-from src.ui.system_monitor import SystemMonitor
+import customtkinter as ctk
+
+from src.ai import ModelManager
+from src.config import PROMPTS_DIR, USER_PROMPTS_DIR
+from src.logging_config import debug_log
+from src.prompt_template_manager import PromptTemplateManager
+from src.ui.settings import SettingsDialog
 from src.ui.menu_handler import create_menus
 from src.ui.quadrant_builder import create_central_widget_layout
 from src.ui.queue_message_handler import QueueMessageHandler
+from src.ui.system_monitor import SystemMonitor
+from src.ui.workers import OllamaAIWorkerManager, ProcessingWorker
 from src.ui.workflow_orchestrator import WorkflowOrchestrator
-from src.ai import ModelManager
-from src.logging_config import debug_log
 from src.user_preferences import get_user_preferences
 from src.utils.text_utils import combine_document_texts
-from src.prompt_template_manager import PromptTemplateManager
-from src.config import PROMPTS_DIR, USER_PROMPTS_DIR
 
 
 class MainWindow(ctk.CTk):
@@ -118,15 +119,11 @@ class MainWindow(ctk.CTk):
 
     def show_settings(self):
         """Open the Settings dialog."""
-        prefs = get_user_preferences()
-        current_fraction = prefs.get_cpu_fraction()
-
-        def on_save(cpu_fraction):
+        def on_save():
             """Callback when user saves settings."""
-            prefs.set_cpu_fraction(cpu_fraction)
-            messagebox.showinfo("Settings Saved", f"CPU allocation set to {int(cpu_fraction * 100)}%")
+            self.status_label.configure(text="Settings saved.", text_color="green")
 
-        dialog = SettingsDialog(self, current_fraction, on_save_callback=on_save)
+        dialog = SettingsDialog(parent=self, on_save_callback=on_save)
         self.wait_window(dialog)  # Wait for dialog to close
 
     def _create_toolbar(self):
@@ -169,14 +166,20 @@ class MainWindow(ctk.CTk):
 
     def _create_status_bar(self):
         """Create status bar for messages and system monitoring."""
-        self.status_bar_frame = ctk.CTkFrame(self, height=25, corner_radius=0)
+        self.status_bar_frame = ctk.CTkFrame(self, height=32, corner_radius=0)
         self.status_bar_frame.grid(row=2, column=0, sticky="ew")
         self.status_bar_frame.grid_columnconfigure(0, weight=1)  # Status label expands
         self.status_bar_frame.grid_columnconfigure(1, weight=0)  # Progress bar fixed
         self.status_bar_frame.grid_columnconfigure(2, weight=0)  # Monitor fixed
 
-        self.status_label = ctk.CTkLabel(self.status_bar_frame, text="Ready", anchor="w")
-        self.status_label.grid(row=0, column=0, sticky="ew", padx=10)
+        # Status label - larger and bolder for visibility
+        self.status_label = ctk.CTkLabel(
+            self.status_bar_frame,
+            text="Ready",
+            anchor="w",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        self.status_label.grid(row=0, column=0, sticky="ew", padx=10, pady=4)
 
         self.progress_bar = ctk.CTkProgressBar(self.status_bar_frame, mode="determinate")
         self.progress_bar.set(0)
@@ -185,7 +188,7 @@ class MainWindow(ctk.CTk):
         # Add system monitor (CPU/RAM display with hover tooltip)
         self.system_monitor = SystemMonitor(self.status_bar_frame)
         self.system_monitor.grid(row=0, column=2, sticky="e", padx=(0, 5))
-        
+
     def select_files(self):
         """Open file dialog and update selected files."""
         filepaths = filedialog.askopenfilenames(
@@ -226,7 +229,7 @@ class MainWindow(ctk.CTk):
         if not self.selected_files:
             messagebox.showwarning("No Files Selected", "Please select documents to process first.")
             return
-        
+
         # Get selected model and summary length
         selected_model = self.model_selection.model_selector.get()
         if selected_model == "Loading..." or selected_model == "Ollama not found":
@@ -330,10 +333,11 @@ class MainWindow(ctk.CTk):
         self.worker = None
         self.workflow_orchestrator.vocab_worker = None
 
-        # Force garbage collection to free memory
-        gc.collect()
+        # Run garbage collection in background thread (non-blocking)
+        import threading
+        threading.Thread(target=gc.collect, daemon=True).start()
 
-        debug_log("[MAIN WINDOW] Cancellation complete. UI restored, memory cleaned.")
+        debug_log("[MAIN WINDOW] Cancellation complete. UI restored, background GC started.")
 
     def _start_ai_generation(self, extracted_documents, ai_params):
         """

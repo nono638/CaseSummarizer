@@ -9,23 +9,21 @@ This is the next-generation model manager optimized for commercial use:
 - Simple installation and deployment
 """
 
-import requests
-import json
 import time
-from typing import Optional
-from pathlib import Path
+
+import requests
 
 from ..config import (
     OLLAMA_API_BASE,
+    OLLAMA_CONTEXT_WINDOW,
     OLLAMA_MODEL_NAME,
     OLLAMA_TIMEOUT_SECONDS,
     PROMPTS_DIR,
-    USER_PROMPTS_DIR
+    USER_PROMPTS_DIR,
 )
+from ..logging_config import debug, debug_log, warning
 from ..prompt_config import get_prompt_config
 from ..prompt_template_manager import PromptTemplateManager
-from ..utils.logger import debug
-from ..debug_logger import debug_log
 from .prompt_formatter import wrap_prompt_for_model
 from .summary_post_processor import SummaryPostProcessor
 
@@ -173,7 +171,7 @@ class OllamaModelManager:
 
         if not self.is_connected:
             debug(f"Cannot load model: Ollama not running at {self.api_base}")
-            debug_log(f"[OLLAMA LOAD] Failed: Ollama not accessible")
+            debug_log("[OLLAMA LOAD] Failed: Ollama not accessible")
             return False
 
         try:
@@ -184,7 +182,7 @@ class OllamaModelManager:
             available_models = self.get_available_models()
             if model_name not in available_models:
                 debug(f"Model {model_name} not found. Attempting to pull...")
-                debug_log(f"[OLLAMA LOAD] Model not found, attempting pull...")
+                debug_log("[OLLAMA LOAD] Model not found, attempting pull...")
 
                 # Ollama doesn't have explicit "pull" via REST API in older versions
                 # So we attempt to use it and let it auto-pull
@@ -239,7 +237,7 @@ class OllamaModelManager:
             top_p = self.prompt_config.top_p
 
         debug(f"Generating text (max_tokens={max_tokens}, temp={temperature}, top_p={top_p})")
-        debug_log(f"\n[OLLAMA GENERATE] Starting text generation")
+        debug_log("\n[OLLAMA GENERATE] Starting text generation")
         debug_log(f"[OLLAMA GENERATE] Model: {self.model_name}")
         debug_log(f"[OLLAMA GENERATE] Max tokens: {max_tokens}")
         debug_log(f"[OLLAMA GENERATE] Prompt length: {len(prompt)} chars")
@@ -250,7 +248,17 @@ class OllamaModelManager:
             wrapped_prompt = wrap_prompt_for_model(self.model_name, prompt)
             debug_log(f"[OLLAMA GENERATE] Wrapped prompt length: {len(wrapped_prompt)} chars")
 
-            # Build request payload
+            # Check if prompt may exceed context window (1 token ≈ 4 chars)
+            estimated_tokens = len(wrapped_prompt) // 4
+            context_window = OLLAMA_CONTEXT_WINDOW
+            if estimated_tokens > context_window - 300:  # Leave room for output
+                warning(
+                    f"Prompt ({estimated_tokens} estimated tokens) may be truncated. "
+                    f"Context window is {context_window} tokens."
+                )
+                debug_log(f"[OLLAMA GENERATE] WARNING: Prompt may exceed context window!")
+
+            # Build request payload with explicit context window
             payload = {
                 "model": self.model_name,
                 "prompt": wrapped_prompt,
@@ -258,14 +266,17 @@ class OllamaModelManager:
                 "top_p": top_p,
                 "stream": False,  # Non-streaming to avoid UTF-8 issues
                 "num_predict": max_tokens,
+                "options": {
+                    "num_ctx": context_window,  # Explicit context window for CPU performance
+                },
             }
 
-            debug_log(f"[OLLAMA GENERATE] ===== ORIGINAL PROMPT START =====")
+            debug_log("[OLLAMA GENERATE] ===== ORIGINAL PROMPT START =====")
             debug_log(prompt)
-            debug_log(f"[OLLAMA GENERATE] ===== ORIGINAL PROMPT END =====")
-            debug_log(f"[OLLAMA GENERATE] ===== WRAPPED PROMPT START =====")
+            debug_log("[OLLAMA GENERATE] ===== ORIGINAL PROMPT END =====")
+            debug_log("[OLLAMA GENERATE] ===== WRAPPED PROMPT START =====")
             debug_log(wrapped_prompt)
-            debug_log(f"[OLLAMA GENERATE] ===== WRAPPED PROMPT END =====")
+            debug_log("[OLLAMA GENERATE] ===== WRAPPED PROMPT END =====")
 
             # Make request to Ollama
             start_time = time.time()
@@ -290,20 +301,20 @@ class OllamaModelManager:
 
             return generated_text.strip()
 
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             raise RuntimeError(
                 f"Generation timeout after {self.timeout} seconds. "
                 "Try reducing summary length or increasing OLLAMA_TIMEOUT_SECONDS in config."
-            )
-        except requests.exceptions.ConnectionError:
+            ) from e
+        except requests.exceptions.ConnectionError as e:
             raise RuntimeError(
                 f"Cannot connect to Ollama at {self.api_base}. "
                 "Is Ollama running? Start with: ollama serve"
-            )
+            ) from e
         except Exception as e:
             debug(f"Text generation failed: {str(e)}")
             debug_log(f"[OLLAMA GENERATE] Error: {str(e)}")
-            raise RuntimeError(f"Text generation failed: {str(e)}")
+            raise RuntimeError(f"Text generation failed: {str(e)}") from e
 
     def generate_summary(
         self,

@@ -10,9 +10,15 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** 🟢 **VOCABULARY EXTRACTION QUALITY IMPROVED | SESSION 15** - Session 15 (2025-11-28) dramatically improved vocabulary extraction quality. Upgraded to larger spaCy model (en_core_web_lg), added pattern-based entity filtering, implemented document frequency limits, and added "Unknown" category for uncertain classifications. All 55 tests passing.
+**Status:** 🟢 **SETTINGS GUI + UI POLISH | SESSION 19** - Session 19 (2025-11-28) added comprehensive Settings dialog with auto-generated UI from registry, plus UI polish fixes for tooltips, dependent settings, tab styling, and status bar visibility. All 111 tests passing.
 
-**Latest Session (2025-11-28 Session 15 - Vocabulary Extraction Quality Improvements):**
+**Latest Session (2025-11-28 Session 19 - Settings GUI + UI Polish):**
+**Part A - Settings Dialog:** Implemented complete settings infrastructure with auto-generated tabbed UI. SettingsRegistry defines settings with metadata (type, default, min/max, getter/setter). SettingsDialog dynamically creates tabs per category with appropriate widgets (slider, checkbox, dropdown, spinbox). Four initial settings: summary length range (50-2000 words), temperature (0-2.0), auto-detect CPU cores, manual worker count. **Part B - UI Polish (User Feedback):** Fixed 4 user-reported issues: (1) **Tooltips not disappearing** - Added mouse position checking to hide tooltip when mouse leaves both icon and popup, (2) **Worker count always editable** - Added `set_enabled()` to SpinboxSetting and `_setup_dependencies()` to link checkbox state, (3) **More prominent tabs** - Enlarged tab buttons (size 14 bold, height 36) with custom colors, (4) **Better status bar visibility** - Made status label larger (size 14) and bold for readability. All 111 tests passing.
+
+**Previous Session (2025-11-28 Session 16 - GUI Performance & Smart Preprocessing):**
+**Part A - GUI Responsiveness:** Fixed unresponsive GUI after processing large documents. Implemented async batch insertion (20 rows/10ms yield), "Load More" pagination (50 rows per page), background garbage collection (non-blocking), optimized O(n log n) deduplication. **Part B - Smart Preprocessing Pipeline:** New modular preprocessing system for AI summaries. Four preprocessors: TitlePageRemover (score-based cover page detection), HeaderFooterRemover (frequency analysis), LineNumberRemover (1-25 at margins), QAConverter (Q./A. → Question:/Answer:). Pipeline architecture supports easy addition/removal of preprocessors. All 71 tests passing.
+
+**Previous Session (2025-11-28 Session 15 - Vocabulary Extraction Quality Improvements):**
 Addressed poor vocabulary extraction quality after user review. Problems fixed: (1) **Common words in results** - "tests", "factors", "continued" now filtered via rarity checks on single-word entities. (2) **Wrong categorization** - ANDY CHOY no longer labeled as Place; added validation heuristics for person names vs organizations. (3) **Address fragments** - "NY 11354" filtered via ADDRESS_FRAGMENT_PATTERNS. (4) **Legal boilerplate** - "Answering Defendants" filtered via DOCUMENT_FRAGMENT_PATTERNS. (5) **Model upgrade** - Changed from en_core_web_sm (12MB) to en_core_web_lg (560MB) for ~4% better NER accuracy. (6) **Unknown category** - When classification is uncertain, shows "Unknown" instead of wrong category. (7) **UI fix** - Dropdown no longer shows "No outputs yet" placeholder after outputs generated. All 55 tests passing.
 
 **Previous Session (2025-11-28 Session 14 - Vocabulary Extraction Performance Optimization):**
@@ -212,15 +218,28 @@ All integration tests passing. **Complete workflow now functional:**
 - **src/ui/system_monitor.py** - Real-time CPU/RAM display widget with independent color indicators and hover tooltip
 - **src/ui/dynamic_output.py** - **UPDATED (Session 8)** Dynamic output display with Excel-like vocabulary Treeview and right-click exclusion menu
 - **src/ui/tooltip_helper.py** - **REWRITTEN (Session 8)** Mouse-relative tooltip positioning with boundary detection
+- **src/ui/settings/** - **NEW (Session 19)** Settings subsystem package
+  - **src/ui/settings/__init__.py** - Package init, exports SettingsDialog
+  - **src/ui/settings/settings_registry.py** - SettingsRegistry singleton with setting definitions (type, default, min/max, getter/setter)
+  - **src/ui/settings/settings_dialog.py** - Tabbed settings dialog with auto-generated UI from registry metadata
+  - **src/ui/settings/settings_widgets.py** - Custom widgets: TooltipIcon, SliderSetting, CheckboxSetting, DropdownSetting, SpinboxSetting
 - **src/ui/__init__.py** - UI package initialization
 - **src/utils/__init__.py** - Utils package initialization, re-exports logging functions
 - **src/utils/logger.py** - Backward compatibility wrapper - re-exports from logging_config.py
-- **src/utils/text_utils.py** - **NEW (Session 7)** Shared text utilities (55 lines) - combine_document_texts()
+- **src/utils/text_utils.py** - Shared text utilities - combine_document_texts() with optional preprocessing
+- **src/preprocessing/** - **NEW (Session 16)** Smart preprocessing pipeline for AI summaries
+  - **src/preprocessing/__init__.py** - Package init, exports all preprocessors and create_default_pipeline()
+  - **src/preprocessing/base.py** - BasePreprocessor abstract class and PreprocessingPipeline orchestrator
+  - **src/preprocessing/line_number_remover.py** - Removes transcript line numbers (1-25) from margins
+  - **src/preprocessing/header_footer_remover.py** - Removes repetitive headers/footers using frequency analysis
+  - **src/preprocessing/title_page_remover.py** - Removes cover pages using score-based detection
+  - **src/preprocessing/qa_converter.py** - Converts Q./A. notation to Question:/Answer: format
 - **src/performance_tracker.py** - Performance tracking for time estimates
 - **src/__init__.py** - Package initialization
 
 ### Tests
 - **tests/test_raw_text_extractor.py** (24 unit tests - ALL PASSING) - Comprehensive test coverage for RawTextExtractor (Steps 1-2)
+- **tests/test_preprocessing.py** - **NEW (Session 16)** 16 tests for preprocessing pipeline and all 4 preprocessors
 - **tests/sample_docs/test_complaint.txt** - Sample legal document for testing
 - **tests/sample_docs/test_motion.rtf** - Sample RTF legal document for testing
 - **tests/output/** - Test output directory (gitignored)

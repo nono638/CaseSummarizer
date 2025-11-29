@@ -5,7 +5,7 @@ Loads and manages user-configurable AI prompt settings.
 
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 # Path to the prompt parameters file
 PROMPT_PARAMS_FILE = Path(__file__).parent.parent / "config" / "prompt_parameters.json"
@@ -40,7 +40,7 @@ class PromptConfig:
         """Initialize and load prompt parameters."""
         self._params = self._load_params()
 
-    def _load_params(self) -> Dict[str, Any]:
+    def _load_params(self) -> dict[str, Any]:
         """
         Load parameters from JSON file.
 
@@ -49,7 +49,7 @@ class PromptConfig:
         """
         try:
             if PROMPT_PARAMS_FILE.exists():
-                with open(PROMPT_PARAMS_FILE, 'r', encoding='utf-8') as f:
+                with open(PROMPT_PARAMS_FILE, encoding='utf-8') as f:
                     params = json.load(f)
 
                     # Filter out comment keys (starting with _)

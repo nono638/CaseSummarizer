@@ -9,16 +9,17 @@ Tests cover:
 - Full extraction pipeline with deduplication and relevance scoring
 """
 
-import pytest
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.vocabulary import VocabularyExtractor
+from src.vocabulary import VocabularyExtractor  # noqa: E402
 
 # Define paths for test resources
 TEST_DIR = Path(__file__).parent
@@ -40,9 +41,9 @@ def setup_test_files():
         f.write("cardiomyopathy\n")
         f.write("nephrology\n")
         f.write("endoscopy\n")
-    
+
     yield
-    
+
     # Teardown: Remove dummy files
     os.remove(EXCLUDE_LIST_PATH)
     os.remove(MEDICAL_TERMS_PATH)

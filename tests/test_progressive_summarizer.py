@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from src.progressive_summarizer import ProgressiveSummarizer
-from pathlib import Path
+
 
 # Mock config for testing (if needed, otherwise ProgressiveSummarizer uses its own)
 @pytest.fixture

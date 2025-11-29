@@ -12,40 +12,38 @@ This module implements Steps 1-2 of the document processing pipeline:
 This module can be used standalone via command line or as part of the larger document processing pipeline.
 """
 
+import argparse
 import os
 import re
 import time
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
-import argparse
-
-# PDF processing
-import pdfplumber
-
-# OCR
-from pdf2image import convert_from_path
-import pytesseract
 
 # NLP
 import nltk
+
+# PDF processing
+import pdfplumber
+import pytesseract
 from nltk.corpus import words
 
-# Character sanitization
-from src.sanitization import CharacterSanitizer
+# OCR
+from pdf2image import convert_from_path
 
 # Local imports
 from src.config import (
+    DEBUG_DEFAULT_FILE,
     DEBUG_MODE,
-    MAX_FILE_SIZE_MB,
     LARGE_FILE_WARNING_MB,
-    MIN_LINE_LENGTH,
+    MAX_FILE_SIZE_MB,
     MIN_DICTIONARY_CONFIDENCE,
-    OCR_DPI,
+    MIN_LINE_LENGTH,
     OCR_CONFIDENCE_THRESHOLD,
-    LEGAL_KEYWORDS_NY,
-    DEBUG_DEFAULT_FILE
+    OCR_DPI,
 )
-from src.utils import debug, info, warning, error, Timer
+
+# Character sanitization
+from src.sanitization import CharacterSanitizer
+from src.utils import Timer, debug, error, info, warning
 
 
 class RawTextExtractor:
@@ -69,8 +67,8 @@ class RawTextExtractor:
             jurisdiction: Legal jurisdiction for keyword loading (ny, ca, federal)
         """
         self.jurisdiction = jurisdiction
-        self.legal_keywords: Set[str] = set()
-        self.english_words: Set[str] = set()
+        self.legal_keywords: set[str] = set()
+        self.english_words: set[str] = set()
         self.character_sanitizer = CharacterSanitizer()
 
         with Timer("RawTextExtractor initialization"):
@@ -98,16 +96,16 @@ class RawTextExtractor:
 
         try:
             # Try to load the words corpus
-            self.english_words = set(word.lower() for word in words.words())
+            self.english_words = {word.lower() for word in words.words()}
             debug(f"Loaded {len(self.english_words)} English words")
         except LookupError:
             # Download if not available
             warning("NLTK words corpus not found. Downloading...")
             nltk.download('words', quiet=not DEBUG_MODE)
-            self.english_words = set(word.lower() for word in words.words())
+            self.english_words = {word.lower() for word in words.words()}
             debug(f"Downloaded and loaded {len(self.english_words)} English words")
 
-    def process_document(self, file_path: str, progress_callback=None) -> Dict:
+    def process_document(self, file_path: str, progress_callback=None) -> dict:
         """
         Process a single document (extraction + basic normalization).
 
@@ -247,7 +245,7 @@ class RawTextExtractor:
 
         return result
 
-    def _process_text_file(self, file_path: Path) -> Dict:
+    def _process_text_file(self, file_path: Path) -> dict:
         """Process TXT or RTF file."""
         debug(f"Processing as text file: {file_path.name}")
 
@@ -257,7 +255,7 @@ class RawTextExtractor:
                 # RTF file - use striprtf to extract plain text
                 from striprtf.striprtf import rtf_to_text
 
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding='utf-8', errors='ignore') as f:
                     rtf_content = f.read()
 
                 text = rtf_to_text(rtf_content)
@@ -265,7 +263,7 @@ class RawTextExtractor:
                 debug(f"Extracted {len(text)} characters from RTF")
             else:
                 # Plain text file
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding='utf-8', errors='ignore') as f:
                     text = f.read()
                 method = 'direct_read'
 
@@ -281,7 +279,7 @@ class RawTextExtractor:
                 'error_message': f"Failed to read text file: {str(e)}"
             }
 
-    def _process_pdf(self, file_path: Path) -> Dict:
+    def _process_pdf(self, file_path: Path) -> dict:
         """Process PDF file (digital or scanned)."""
         debug(f"Processing as PDF: {file_path.name}")
 
@@ -318,7 +316,7 @@ class RawTextExtractor:
             with Timer("OCR Processing"):
                 return self._perform_ocr(file_path, page_count)
 
-    def _extract_pdf_text(self, file_path: Path) -> Tuple[Optional[str], int, Optional[str]]:
+    def _extract_pdf_text(self, file_path: Path) -> tuple[str | None, int, str | None]:
         """
         Extract text from PDF using pdfplumber.
 
@@ -390,7 +388,7 @@ class RawTextExtractor:
         confidence = (valid_words / len(tokens)) * 100
         return confidence
 
-    def _perform_ocr(self, file_path: Path, page_count: int) -> Dict:
+    def _perform_ocr(self, file_path: Path, page_count: int) -> dict:
         """
         Perform OCR on PDF using Tesseract.
 

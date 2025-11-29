@@ -3,8 +3,9 @@ import time
 import traceback
 
 from src.ai.ollama_model_manager import OllamaModelManager
-from src.debug_logger import debug_log
 from src.config import QUEUE_TIMEOUT_SECONDS
+from src.logging_config import debug_log
+
 
 def ollama_generation_worker_process(
     input_queue: multiprocessing.Queue,
@@ -28,26 +29,25 @@ def ollama_generation_worker_process(
                 if task == "TERMINATE":
                     debug_log("[OLLAMA WORKER] Termination signal received. Exiting.")
                     break
-                
+
                 # Unpack task
                 task_type, payload = task
-                
+
                 if task_type == "GENERATE_SUMMARY":
                     # Unpack payload for generate_summary
                     case_text = payload['case_text']
                     max_words = payload['max_words']
                     preset_id = payload['preset_id']
-                    
+
                     debug_log(f"[OLLAMA WORKER] Received GENERATE_SUMMARY task. Preset: {preset_id}, Max words: {max_words}")
 
                     start_time = time.time()
-                    last_progress_update = time.time()
-                    
+
                     # Instead of directly calling, we'll monitor for termination during the potentially long call
                     # We can't interrupt the requests.post directly, but we can monitor before/after.
                     # Send an initial progress message
                     output_queue.put(('progress', (0, "Starting AI generation (this may take a while)...")))
-                    
+
                     # The generate_summary itself is blocking, so we cannot send continuous updates from within it.
                     # However, we can track if a terminate signal comes *before* or *after* the call.
                     # The requests.post call does have a timeout, which is the primary control.
@@ -64,7 +64,7 @@ def ollama_generation_worker_process(
                         max_words=max_words,
                         preset_id=preset_id
                     )
-                    
+
                     # After generation, check again for termination (if user pressed Escape right after summary was generated)
                     if not input_queue.empty():
                         if input_queue.get_nowait() == "TERMINATE":
@@ -75,15 +75,15 @@ def ollama_generation_worker_process(
                     elapsed_time = time.time() - start_time
                     debug_log(f"[OLLAMA WORKER] Summary generated in {elapsed_time:.2f} seconds.")
                     output_queue.put(('summary_result', {'type': 'individual', 'filename': payload.get('filename'), 'summary': summary}))
-                
+
                 elif task_type == "LOAD_MODEL":
                     model_name = payload['model_name']
                     debug_log(f"[OLLAMA WORKER] Received LOAD_MODEL task for {model_name}.")
-                    
+
                     # Ensure the model manager's model is set for the worker process
                     # This will also trigger the model to be pulled if not available
                     output_queue.put(('progress', (0, f"Loading AI model: {model_name}...")))
-                    
+
                     # Monitor load progress by checking terminate signal
                     load_start_time = time.time()
                     model_loaded = False
@@ -95,7 +95,7 @@ def ollama_generation_worker_process(
                                 return # Exit process if terminated during critical load
                         except multiprocessing.queues.Empty:
                             pass # No termination signal, continue loading attempt
-                        
+
                         # Attempt to load model - this call blocks until model is ready
                         if model_manager.load_model(model_name):
                             model_loaded = True
@@ -110,7 +110,7 @@ def ollama_generation_worker_process(
                         output_queue.put(('model_loaded', model_name))
                     else:
                         output_queue.put(('model_load_failed', f"Failed to load {model_name} after multiple attempts."))
-                        
+
             except multiprocessing.queues.Empty:
                 # If no task, and model manager is loaded, send a heartbeat to keep UI updated
                 if model_manager and model_manager.is_connected:
