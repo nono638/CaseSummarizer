@@ -10,9 +10,15 @@
 **UI Bugs Fixed & Vocabulary Workflow Integrated** ✅ (2025-11-26) Session 6 fixed three user-reported GUI bugs: (1) file size rounding inconsistency (KB showing "1.5 KB" vs MB showing "2 MB" — now all units round to integers), (2) model dropdown selection not persisting (selecting second Ollama model would reset to first — now remembers user choice), (3) vocabulary extraction workflow completely missing (after documents processed, app would hang at "Processing complete" with no vocab extraction). Implemented async VocabularyWorker thread, fixed widget reference bug in queue_message_handler (was calling non-existent method on wrong widget), and added automatic spaCy model download. Resolved critical virtual environment PATH issue by using `sys.executable` instead of relying on `python` command resolution.
 
 **Current Branch:** `main`
-**Status:** 🟢 **UI IMPROVEMENTS & DOCUMENTATION | SESSION 22** - Processing timer, button feedback, human-readable durations, TODO consolidation.
+**Status:** 🟡 **Q&A SYSTEM INFRASTRUCTURE | SESSION 24** - Phase 1 complete (FAISS vector store), Phases 2-3 pending (UI & advanced features).
 
-**Latest Session (2025-11-29 Session 22 - UI Improvements & Documentation Consolidation):**
+**Latest Session (2025-11-30 Session 24 - Q&A System with FAISS Vector Search):**
+Implemented RAG-based Q&A infrastructure for legal documents. **Research:** Evaluated LlamaIndex (too heavy), ChromaDB (requires SQLite), selected **FAISS** for file-based persistence (no database needed for Windows installer). **Phase 1 Complete:** Created `src/vector_store/` package with VectorStoreBuilder, QARetriever, QuestionFlowManager. Vector store auto-creates after document extraction in background thread. Added branching question flow with 14 questions in `config/qa_questions.yaml` (court case → criminal/civil → specific questions). **Remaining:** Phase 2 (Q&A UI tab, QAWorker) and Phase 3 (auto-detect case type, smart suggestions, chat export). ~2 weeks remaining. All 51 tests passing.
+
+**Previous Session (2025-11-29 Session 23 - Vocabulary CSV + Code Quality):**
+Made vocabulary CSV usable (40-60% noise reduction): min occurrence filter, raised rarity threshold, OCR patterns, expanded blacklist. Added confidence columns (Quality Score, In-Case Freq, Freq Rank) hidden in GUI but configurable for CSV export. **Code Quality Quick Wins:** Cleaned up temp files + fixed `.gitignore`; replaced 9 print() with debug_log(); centralized 7 magic numbers to config.py (timeouts, pagination, chunk overlap); added settings input validation with user-friendly error messages. All 55 tests passing.
+
+**Previous Session (2025-11-29 Session 22 - UI Improvements & Documentation Consolidation):**
 Added user experience improvements: (1) "Generate X outputs" button now shows "Generating X outputs..." while processing, (2) Visible processing timer (⏱ 0:45 format) during operations, (3) Processing metrics logged to CSV for future ML duration prediction, (4) Status bar now 18pt bold bright cyan for better visibility, (5) Completion times now human-readable ("11m 20s" instead of "680.6s"). Consolidated documentation: merged scratchpad.md into TODO.md, updated CLAUDE.md Section 3.2 to reference TODO. Added high-priority brainstorming sections for vocabulary CSV quality and summary prompt quality improvements.
 
 **Previous Session (2025-11-29 Session 21 Continued - Architecture Documentation):**

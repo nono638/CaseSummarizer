@@ -1,11 +1,86 @@
 # LocalScribe TODO
 
 > **Purpose:** Backlog of future features, improvements, and ideas. Items here are not yet implemented.
-> Updated: 2025-11-29 (Session 21)
+> Updated: 2025-11-30 (Session 24)
 
 ---
 
 ## High Priority
+
+### 🔴 Q&A System Implementation (RAG with FAISS) - IN PROGRESS
+
+**Status:** Phase 1 COMPLETE (infrastructure), Phases 2-3 NOT STARTED (UI & advanced features)
+**Priority:** HIGH - Primary new feature for LocalScribe
+**Estimated Time:** 2-3 weeks total (Phase 1 done, ~2 weeks remaining)
+
+#### What's Done ✅ (Session 24)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| FAISS vector store | ✅ Complete | File-based, no database needed |
+| VectorStoreBuilder | ✅ Complete | Creates indexes from documents |
+| QARetriever | ✅ Complete | Retrieves context with source citations |
+| QuestionFlowManager | ✅ Complete | Branching question tree (14 questions) |
+| Workflow integration | ✅ Complete | Auto-creates vector store after extraction |
+| Config & dependencies | ✅ Complete | langchain, faiss-cpu installed |
+
+#### Phase 2: Q&A UI Component (NOT STARTED)
+
+**Estimated Time:** 1 week
+
+- [ ] Add "Q&A Session" tab to DynamicOutputWidget
+- [ ] Create chat-style interface (CTkTextbox with scrolling)
+- [ ] Question input field with "Ask" button
+- [ ] Display answers with source citations
+- [ ] Create `QAWorker` class (background thread for retrieval + generation)
+- [ ] Add typing indicator while generating
+- [ ] Handle `qa_result` message in queue handler
+- [ ] Enable/disable Q&A tab based on vector store status
+
+**UI Design:**
+```
+┌─────────────────────────────────────────────────┐
+│  Chat History (scrollable)                      │
+│  Q: Who are the plaintiffs?                     │
+│  A: The plaintiffs are John Doe and Jane Smith. │
+│     Sources: complaint.pdf (Section Parties)    │
+├─────────────────────────────────────────────────┤
+│  [Ask a question...        ] [Ask] ⏳           │
+└─────────────────────────────────────────────────┘
+```
+
+#### Phase 3: Smart Questions & Advanced Features (NOT STARTED)
+
+**Estimated Time:** 1 week
+
+- [ ] Auto-detect case type from document content (CaseClassifier)
+- [ ] Display suggested questions based on detected case type
+- [ ] Implement multi-turn conversation context (include last 3 Q&A pairs)
+- [ ] Add "Run All Questions" button (execute branching flow automatically)
+- [ ] Chat history export (TXT and Markdown formats)
+- [ ] Progress indicator for automated question flow
+- [ ] Allow users to edit/add questions in YAML config
+
+#### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/vector_store/vector_store_builder.py` | Creates FAISS indexes |
+| `src/vector_store/qa_retriever.py` | Retrieves relevant chunks |
+| `src/vector_store/question_flow.py` | Branching question logic |
+| `config/qa_questions.yaml` | Question definitions (editable) |
+| `src/ui/dynamic_output.py` | Will add Q&A tab here |
+| `src/ui/workers.py` | Will add QAWorker here |
+
+#### Architecture Notes
+
+- **Vector store** auto-created after document extraction (background thread)
+- **File-based persistence** - no database config needed for Windows installer
+- **FAISS indexes** stored in `%APPDATA%/LocalScribe/vector_stores/<case_id>/`
+- **Embeddings** use same model as ChunkingEngine (`all-MiniLM-L6-v2`)
+- **Chunking** for Q&A uses 500 char chunks with 50 char overlap (optimized for retrieval)
+
+---
 
 ### 🔴 Vocabulary CSV Quality - Needs Brainstorming
 

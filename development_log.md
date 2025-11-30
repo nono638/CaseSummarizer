@@ -1,5 +1,194 @@
 # Development Log
 
+## Session 24 - Q&A System Infrastructure with FAISS Vector Search (2025-11-30)
+
+**Objective:** Implement RAG-based Q&A system for legal documents, allowing users to ask questions that are answered from document content with source citations.
+
+### Research & Planning
+
+Evaluated vector search options for **standalone Windows installer** requirement (no database configuration):
+- **LlamaIndex** - Too heavy (300+ packages)
+- **ChromaDB** - Requires SQLite (rejected by user)
+- **FAISS** ✅ - File-based persistence, LangChain native, zero config
+
+**Key Decision:** FAISS stores indexes as simple files (`index.faiss` + `index.pkl`) - no database needed. Users only need Ollama installed.
+
+### Phase 1 Implementation: Vector Store Infrastructure
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/vector_store/__init__.py` | 38 | Package exports |
+| `src/vector_store/vector_store_builder.py` | 260 | Creates FAISS indexes from documents |
+| `src/vector_store/qa_retriever.py` | 182 | Retrieves relevant context for questions |
+| `src/vector_store/question_flow.py` | 310 | Branching question tree manager |
+| `config/qa_questions.yaml` | 145 | Question definitions with branching logic |
+| `src/config.py` | +22 | Q&A settings (QA_RETRIEVAL_K, VECTOR_STORE_DIR, etc.) |
+| `requirements.txt` | +4 | langchain, langchain-community, langchain-huggingface, faiss-cpu |
+
+### Workflow Integration
+
+Updated `WorkflowOrchestrator` to automatically create vector store after document extraction:
+1. Vector store creation runs in background thread (parallel with vocabulary/AI)
+2. Text chunked via `RecursiveCharacterTextSplitter` (500 chars, 50 overlap)
+3. Embeddings generated using `all-MiniLM-L6-v2` (same as ChunkingEngine)
+4. Index saved to `%APPDATA%/LocalScribe/vector_stores/<case_id>/`
+5. UI receives `vector_store_ready` message when complete
+
+### Branching Question Flow
+
+Implemented decision tree for document analysis:
+```
+is_court_case?
+├── YES → case_type?
+│   ├── CRIMINAL → charges → defendant → timeline...
+│   ├── CIVIL → civil_type → allegations → parties...
+│   └── ADMINISTRATIVE → agency → issue → parties...
+├── NO → document_type → summary (terminal)
+└── UNCLEAR → summary (terminal)
+```
+
+**14 questions** defined in YAML with classification (branching) and extraction (open-ended) types.
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/ui/workflow_orchestrator.py` | +65 lines - `_create_vector_store_async()`, `on_vector_store_complete()` |
+| `src/ui/queue_message_handler.py` | +55 lines - `handle_vector_store_ready()`, `handle_vector_store_error()` |
+
+### Tests
+
+- All 51 core tests passing
+- Integration verification successful (imports, config, case ID generation)
+
+### Remaining Work (Not Started)
+
+Phase 2 & 3 of Q&A implementation:
+- Q&A UI tab with chat interface
+- QAWorker for background retrieval + generation
+- Case-type auto-detection from document content
+- Smart question suggestions based on detected case type
+- Chat history export (TXT/Markdown)
+
+---
+
+## Session 23 - Vocabulary CSV Quality Improvements (2025-11-29)
+
+**Objective:** Make vocabulary CSV output actually usable by reducing noise, adding quality scoring columns, and implementing filterable export options.
+
+### Problem Statement
+
+Vocabulary CSV output was **unusable** due to:
+- Too many common words and OCR errors (single-occurrence typos)
+- Wrong categorization and definitions
+- No way to filter/sort by quality in Excel
+
+### Phase 1: Quick Wins (Filtering Improvements)
+
+| Change | Impact | File |
+|--------|--------|------|
+| **Min Occurrence Filter** | 30-40% noise reduction | `vocabulary_extractor.py` |
+| **Raised Rarity Threshold** | 10-15% noise reduction | `config.py` |
+| **OCR Error Patterns** | 5% noise reduction | `vocabulary_extractor.py` |
+| **Expanded Blacklist** | 5-10% noise reduction | `common_medical_legal.txt` |
+
+**Key Design Decision:** PERSON entities are **exempt** from min occurrence filter - party names may appear once but are critical for stenographers.
+
+### Phase 2: Confidence Columns (For Excel Filtering)
+
+Added 3 new columns to vocabulary output:
+
+| Column | Purpose | Range |
+|--------|---------|-------|
+| **Quality Score** | Composite confidence (0-100) | Higher = more useful |
+| **In-Case Freq** | Occurrences in documents | Higher = more important |
+| **Freq Rank** | Google word rank | 0 = rare, high = common |
+
+**Quality Score Formula:**
+```
+Base: 50 points
++ Multiple occurrences: up to +20 (5 per occurrence, capped)
++ Rare word bonus: +10-20 (based on frequency rank)
++ Category boost: Person/Place +10, Medical +8, Technical +5, Unknown +0
+```
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/config.py` | Added `VOCABULARY_MIN_OCCURRENCES=2`, updated `VOCABULARY_RARITY_THRESHOLD=180000` |
+| `src/vocabulary/vocabulary_extractor.py` | Added OCR patterns, min occurrence filter, `_calculate_quality_score()`, `_get_term_frequency_rank()`, new output columns |
+| `src/ui/dynamic_output.py` | Updated `COLUMN_CONFIG` with 7 columns |
+| `config/common_medical_legal.txt` | Added 35+ common terms (exam, report, notes, file, notice, etc.) |
+| `tests/test_vocabulary_extractor.py` | Updated tests for new behavior + verified new columns |
+
+### New Methods Added
+
+| Method | Purpose |
+|--------|---------|
+| `_get_term_frequency_rank()` | Returns Google frequency rank for O(1) lookup |
+| `_calculate_quality_score()` | Computes composite 0-100 quality score |
+
+### Pattern: Session 23 - Balanced Filtering
+
+Established pattern for vocabulary quality vs. recall tradeoff:
+- **Aggressive filtering** for non-PERSON categories (min 2 occurrences)
+- **Permissive filtering** for PERSON entities (keep single-occurrence names)
+- **Statistical signals** (quality score) let user apply additional filtering in Excel
+
+### Tests
+All 55 core tests passing.
+
+### Phase 3: GUI Column Hiding & Export Settings
+
+**User Request:** Confidence columns clutter the GUI but are useful for Excel filtering. Implemented separation of display vs. export columns.
+
+| Feature | Implementation |
+|---------|----------------|
+| **GUI Column Hiding** | Added `GUI_DISPLAY_COLUMNS` (Term, Type, Role, Definition) - confidence columns hidden |
+| **Export Format Setting** | New `vocab_export_format` setting in Vocabulary tab with 3 options |
+| **Settings Persistence** | Export preference saved in user preferences JSON |
+
+**Export Format Options:**
+- **All columns**: Includes Quality Score, In-Case Freq, Freq Rank for Excel power users
+- **Basic**: Term, Type, Role/Relevance, Definition (default)
+- **Terms only**: Just vocabulary terms for simple lists
+
+**Files Modified:**
+- `src/ui/dynamic_output.py`: Added `GUI_DISPLAY_COLUMNS`, `ALL_EXPORT_COLUMNS`, updated `get_current_content_for_export()`
+- `src/ui/settings/settings_registry.py`: Added `vocab_export_format` dropdown setting
+
+### Phase 4: Code Quality Quick Wins
+
+Four low-risk improvements completed in final ~30 minutes of session:
+
+| Quick Win | Description | Files |
+|-----------|-------------|-------|
+| **Temp File Cleanup** | Deleted orphaned `.tmp.*` files, fixed corrupted `.gitignore`, added `*.tmp.*` pattern | `.gitignore` |
+| **Print → Logging** | Replaced 9 `print()` statements with `debug_log()` to respect DEBUG_MODE toggle | `config.py`, `user_preferences.py`, `prompt_config.py` |
+| **Centralized Constants** | Moved magic numbers to config.py for single source of truth | `config.py`, `dynamic_output.py`, `vocabulary_extractor.py`, `chunking_engine.py` |
+| **Settings Validation** | Added input validation with user-friendly error messages | `user_preferences.py`, `settings_dialog.py` |
+
+**New Constants in config.py:**
+```python
+VOCABULARY_ROWS_PER_PAGE = 50
+VOCABULARY_BATCH_INSERT_SIZE = 20
+VOCABULARY_BATCH_INSERT_DELAY_MS = 10
+SPACY_DOWNLOAD_TIMEOUT_SEC = 600
+SPACY_SOCKET_TIMEOUT_SEC = 10
+SPACY_THREAD_TIMEOUT_SEC = 15
+CHUNK_OVERLAP_FRACTION = 0.1
+```
+
+**Validation Rules Added:**
+- `cpu_fraction`: Must be 0.25, 0.5, or 0.75
+- `vocab_display_limit`: Must be 1-500
+- `user_defined_max_workers`: Must be 1-8
+- `default_model_id`: Cannot be empty
+- `summary_words`: Must be 50-2000
+
+---
+
 ## Session 22 - UI Improvements & Documentation Consolidation (2025-11-29)
 
 **Objective:** Improve user experience with better processing feedback and consolidate documentation structure.

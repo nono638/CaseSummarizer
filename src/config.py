@@ -63,13 +63,16 @@ def load_model_configs():
             data = yaml.safe_load(f)
             MODEL_CONFIGS = data.get('models', {})
         if DEBUG_MODE and MODEL_CONFIGS:
-            print(f"[Config] Loaded {len(MODEL_CONFIGS)} model configurations from {MODEL_CONFIG_FILE}")
+            from src.logging_config import debug_log
+            debug_log(f"[Config] Loaded {len(MODEL_CONFIGS)} model configurations from {MODEL_CONFIG_FILE}")
     except FileNotFoundError:
         if DEBUG_MODE:
-            print(f"[Config] WARNING: Model config file not found at {MODEL_CONFIG_FILE}. Using fallback values.")
+            from src.logging_config import debug_log
+            debug_log(f"[Config] WARNING: Model config file not found at {MODEL_CONFIG_FILE}. Using fallback values.")
         MODEL_CONFIGS = {}
     except Exception as e:
-        print(f"[Config] ERROR: Failed to load or parse model config file: {e}")
+        from src.logging_config import debug_log
+        debug_log(f"[Config] ERROR: Failed to load or parse model config file: {e}")
         MODEL_CONFIGS = {}
 
 def get_model_config(model_name: str) -> dict:
@@ -94,18 +97,21 @@ def get_model_config(model_name: str) -> dict:
     for name, config in MODEL_CONFIGS.items():
         if name.startswith(base_name):
             if DEBUG_MODE:
-                print(f"[Config] Found partial match for '{model_name}': using config for '{name}'.")
+                from src.logging_config import debug_log
+                debug_log(f"[Config] Found partial match for '{model_name}': using config for '{name}'.")
             return config
 
     # 3. Fallback to the default model name if no match found
     if OLLAMA_MODEL_NAME in MODEL_CONFIGS:
         if DEBUG_MODE:
-            print(f"[Config] WARNING: Model '{model_name}' not found. Falling back to default model '{OLLAMA_MODEL_NAME}'.")
+            from src.logging_config import debug_log
+            debug_log(f"[Config] WARNING: Model '{model_name}' not found. Falling back to default model '{OLLAMA_MODEL_NAME}'.")
         return MODEL_CONFIGS[OLLAMA_MODEL_NAME]
 
     # 4. Absolute fallback if config is empty or default is missing
     if DEBUG_MODE:
-        print("[Config] WARNING: No model configurations found. Using hard-coded fallback values.")
+        from src.logging_config import debug_log
+        debug_log("[Config] WARNING: No model configurations found. Using hard-coded fallback values.")
     return {
         'context_window': 4096,
         'max_input_tokens': 2048,
@@ -140,13 +146,23 @@ USER_VOCAB_EXCLUDE_PATH = CONFIG_DIR / "user_vocab_exclude.txt"
 # Vocabulary Extraction Rarity Settings
 # Path to Google word frequency dataset (word\tfrequency_count format)
 GOOGLE_WORD_FREQUENCY_FILE = Path(__file__).parent.parent / "Word_rarity-count_1w.txt"
-# Words with rank >= 150,000 are considered rare (bottom 55% of 333K word vocabulary)
-# This threshold filters common medical/legal words while preserving technical terms
-# Examples: "medical" (rank 501) FILTERED, "adenocarcinoma" (rank >150K) EXTRACTED
+# Words with rank >= threshold are considered rare
+# Higher threshold = more aggressive filtering (fewer terms extracted)
+# 150000 = bottom 55% of vocabulary (original, too permissive)
+# 180000 = bottom 46% of vocabulary (balanced)
+# 200000 = bottom 40% of vocabulary (aggressive)
+# Examples: "medical" (rank 501) FILTERED, "adenocarcinoma" (rank >180K) EXTRACTED
 # Set to -1 to disable frequency-based filtering (use WordNet only)
-VOCABULARY_RARITY_THRESHOLD = 150000
+VOCABULARY_RARITY_THRESHOLD = 180000
 # When enabled, sort CSV results by rarity (words not in dataset first, then lowest frequency count)
 VOCABULARY_SORT_BY_RARITY = True
+
+# Minimum occurrences for term extraction (filters single-occurrence OCR errors/typos)
+# Set to 1 to disable (extract all terms regardless of frequency)
+# Set to 2 to require terms appear at least twice (recommended - filters OCR errors)
+# Set to 3+ for very conservative filtering
+# Note: PERSON entities are exempt (party names may appear once but are important)
+VOCABULARY_MIN_OCCURRENCES = 2
 
 # GUI Display Limits for Vocabulary Table
 # Based on tkinter Treeview performance testing:
@@ -157,6 +173,22 @@ VOCABULARY_SORT_BY_RARITY = True
 # Maximum ceiling: 200 rows (hard limit to prevent GUI freezing)
 VOCABULARY_DISPLAY_LIMIT = 50   # User-configurable default (conservative)
 VOCABULARY_DISPLAY_MAX = 200    # Hard ceiling - cannot exceed this
+
+# Vocabulary Display Pagination (Session 16 - GUI responsiveness)
+# Controls async batch insertion to prevent GUI freezing during large loads
+VOCABULARY_ROWS_PER_PAGE = 50     # Initial rows shown; "Load More" adds more
+VOCABULARY_BATCH_INSERT_SIZE = 20  # Rows inserted per async batch
+VOCABULARY_BATCH_INSERT_DELAY_MS = 10  # Delay between batches (ms)
+
+# spaCy Model Download Timeouts (Session 15)
+# Controls timeout behavior during automatic spaCy model downloads
+SPACY_DOWNLOAD_TIMEOUT_SEC = 600   # Overall timeout: 10 minutes
+SPACY_SOCKET_TIMEOUT_SEC = 10      # Socket timeout per request
+SPACY_THREAD_TIMEOUT_SEC = 15      # Thread termination timeout
+
+# Document Chunking (Session 20 - hierarchical summarization)
+# Overlap fraction prevents context loss at chunk boundaries
+CHUNK_OVERLAP_FRACTION = 0.1  # 10% overlap between chunks
 
 # System Monitor Color Thresholds (CPU and RAM)
 # Used for color-coded status indicators in the system monitor widget
@@ -224,3 +256,26 @@ LOG_DATE_FORMAT = "%H:%M:%S"
 
 # Debug Mode Default File (for streamlined testing)
 DEBUG_DEFAULT_FILE = Path(__file__).parent.parent / "tests" / "sample_docs" / "test_complaint.pdf"
+
+# ============================================================================
+# Q&A / Vector Search Configuration (Session 24 - RAG-based Q&A)
+# ============================================================================
+
+# Vector Store Settings
+# Stores FAISS indexes as files in user's AppData directory
+VECTOR_STORE_DIR = APPDATA_DIR / "vector_stores"
+VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Q&A Retrieval Settings
+QA_RETRIEVAL_K = 4              # Number of chunks to retrieve per question
+QA_MAX_TOKENS = 300             # Maximum tokens for generated answer
+QA_TEMPERATURE = 0.1            # Low temperature for factual, consistent answers
+QA_SIMILARITY_THRESHOLD = 0.5   # Minimum relevance score for chunks
+
+# Q&A Context Window
+# Higher than summarization because we need question + context + answer
+# Adjust based on model capability (most Ollama models support 4096)
+QA_CONTEXT_WINDOW = 4096        # Tokens for RAG context
+
+# Chat History Settings
+QA_CONVERSATION_CONTEXT_PAIRS = 3  # Include last N Q&A pairs in follow-up questions

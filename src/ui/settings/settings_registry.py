@@ -291,6 +291,28 @@ def _register_all_settings():
         setter=lambda v: prefs.set("vocab_sort_by_rarity", v),
     ))
 
+    # Session 23: CSV export column format setting
+    SettingsRegistry.register(SettingDefinition(
+        key="vocab_export_format",
+        label="CSV export columns",
+        category="Vocabulary",
+        setting_type=SettingType.DROPDOWN,
+        tooltip=(
+            "Controls which columns are included when saving vocabulary to CSV. "
+            "'All columns' includes Quality Score, Frequency, and Rank for "
+            "Excel filtering. 'Basic' exports Term, Type, Role, and Definition. "
+            "'Terms only' exports just the vocabulary terms."
+        ),
+        default="basic",
+        options=[
+            ("All columns (with quality metrics)", "all"),
+            ("Basic (Term, Type, Role, Definition)", "basic"),
+            ("Terms only", "terms_only"),
+        ],
+        getter=lambda: prefs.get("vocab_export_format", "basic"),
+        setter=lambda v: prefs.set("vocab_export_format", v),
+    ))
+
 
 # Register all settings when this module is imported
 _register_all_settings()

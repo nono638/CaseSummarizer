@@ -274,6 +274,60 @@ class QueueMessageHandler:
         self.main_window.update_idletasks()
         debug_log("[QUEUE HANDLER] UI reset complete.")
 
+    # =========================================================================
+    # Vector Store Q&A Handlers (Session 24)
+    # =========================================================================
+
+    def handle_vector_store_ready(self, data: dict):
+        """
+        Handle 'vector_store_ready' message - vector store is ready for Q&A.
+
+        Notifies the orchestrator and updates UI to enable Q&A tab.
+
+        Args:
+            data: Dictionary with 'path', 'case_id', 'chunk_count', 'creation_time_ms'
+        """
+        debug_log(f"[QUEUE HANDLER] Vector store ready: {data.get('case_id')} "
+                 f"({data.get('chunk_count')} chunks)")
+
+        # Update orchestrator state
+        if self.orchestrator:
+            self.orchestrator.on_vector_store_complete(data)
+
+        # Update status to indicate Q&A is available
+        chunk_count = data.get('chunk_count', 0)
+        creation_time = data.get('creation_time_ms', 0)
+        self.main_window.status_label.configure(
+            text=f"Q&A Ready ({chunk_count} chunks indexed in {creation_time:.0f}ms)"
+        )
+
+        # Store vector store info on main window for Q&A access
+        self.main_window.vector_store_path = data.get('path')
+        self.main_window.vector_store_case_id = data.get('case_id')
+
+        debug_log("[QUEUE HANDLER] Vector store handler complete - Q&A available")
+
+    def handle_vector_store_error(self, data: dict):
+        """
+        Handle 'vector_store_error' message - vector store creation failed.
+
+        Logs the error but doesn't show a modal (Q&A is optional).
+
+        Args:
+            data: Dictionary with 'error' message
+        """
+        error_msg = data.get('error', 'Unknown error')
+        debug_log(f"[QUEUE HANDLER] Vector store error: {error_msg}")
+
+        # Update status to indicate Q&A is not available
+        self.main_window.status_label.configure(
+            text="Q&A unavailable (indexing failed)"
+        )
+
+        # Mark as not available
+        self.main_window.vector_store_path = None
+        self.main_window.vector_store_case_id = None
+
     def process_message(self, message_type: str, data) -> bool:
         """
         Route a message to the appropriate handler.
@@ -294,6 +348,9 @@ class QueueMessageHandler:
             'summary_result': self.handle_summary_result,
             'multi_doc_result': self.handle_multi_doc_result,
             'error': self.handle_error,
+            # Vector Store Q&A handlers (Session 24)
+            'vector_store_ready': self.handle_vector_store_ready,
+            'vector_store_error': self.handle_vector_store_error,
         }
 
         handler = handlers.get(message_type)

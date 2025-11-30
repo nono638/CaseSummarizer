@@ -27,8 +27,12 @@ from nltk.corpus import wordnet
 
 from src.config import (
     GOOGLE_WORD_FREQUENCY_FILE,
+    SPACY_DOWNLOAD_TIMEOUT_SEC,
+    SPACY_SOCKET_TIMEOUT_SEC,
+    SPACY_THREAD_TIMEOUT_SEC,
     VOCABULARY_BATCH_SIZE,
     VOCABULARY_MAX_TEXT_KB,
+    VOCABULARY_MIN_OCCURRENCES,
     VOCABULARY_RARITY_THRESHOLD,
     VOCABULARY_SORT_BY_RARITY,
 )
@@ -41,7 +45,7 @@ from src.vocabulary.role_profiles import RoleDetectionProfile, StenographerProfi
 # Speed: ~10,014 words/sec on CPU (vs ~684 for transformer model)
 SPACY_MODEL_NAME = "en_core_web_lg"
 SPACY_MODEL_VERSION = "3.8.0"
-SPACY_DOWNLOAD_TIMEOUT = 600  # 10 minutes (larger download)
+# Timeout imported from config.py: SPACY_DOWNLOAD_TIMEOUT_SEC
 
 # Regex patterns for filtering out word variations
 # These match common patterns that shouldn't be included as "rare" vocabulary
@@ -51,6 +55,13 @@ VARIATION_FILTERS = [
     r'^[a-z]+\([a-z]+\)$',     # Matches any parenthetical variation like "word(variant)"
     r'^[a-z]+\'s$',            # Matches possessives like "plaintiff's"
     r'^[a-z]+-[a-z]+$',        # Matches hyphenated words (often just variations)
+]
+
+# OCR error patterns - common scanner/PDF artifacts
+# Conservative patterns to avoid false negatives on valid terms
+OCR_ERROR_PATTERNS = [
+    r'^[A-Za-z]+-[A-Z][a-z]',     # Line-break artifacts: "Hos-pital", "medi-cal"
+    r'.*[0-9][A-Za-z]{2,}[0-9]',  # Digit-letter-digit sequences: "3ohn5mith"
 ]
 
 # Common title abbreviations to exclude (not rare technical acronyms)
@@ -530,7 +541,7 @@ class VocabularyExtractor:
                 [sys.executable, '-m', 'pip', 'install', f'{SPACY_MODEL_NAME}=={SPACY_MODEL_VERSION}'],
                 check=True,
                 capture_output=True,
-                timeout=SPACY_DOWNLOAD_TIMEOUT
+                timeout=SPACY_DOWNLOAD_TIMEOUT_SEC
             )
             debug_log(f"[VOCAB] Successfully downloaded spaCy model '{SPACY_MODEL_NAME}'")
             if disabled_components:
@@ -563,7 +574,7 @@ class VocabularyExtractor:
 
         # Set a short timeout for network operations
         original_timeout = socket.getdefaulttimeout()
-        socket.setdefaulttimeout(10)  # 10 second timeout
+        socket.setdefaulttimeout(SPACY_SOCKET_TIMEOUT_SEC)
 
         for data_path, package_name in nltk_packages:
             try:
@@ -585,7 +596,7 @@ class VocabularyExtractor:
 
                     thread = threading.Thread(target=download_task, daemon=True)
                     thread.start()
-                    thread.join(timeout=15)  # 15 second total timeout
+                    thread.join(timeout=SPACY_THREAD_TIMEOUT_SEC)
 
                     if thread.is_alive():
                         debug_log(f"[VOCAB] NLTK {package_name} download timed out. Continuing without it.")
@@ -730,6 +741,11 @@ class VocabularyExtractor:
 
         # Skip geographic codes (ZIP codes, etc.)
         for pattern in GEOGRAPHIC_CODE_PATTERNS:
+            if re.match(pattern, token.text):
+                return False
+
+        # Skip likely OCR errors (line-break artifacts, digit-letter mixups)
+        for pattern in OCR_ERROR_PATTERNS:
             if re.match(pattern, token.text):
                 return False
 
@@ -1168,6 +1184,70 @@ class VocabularyExtractor:
 
         return final_terms
 
+    def _get_term_frequency_rank(self, term: str) -> int:
+        """
+        Get Google frequency rank for a term (lower rank = more common).
+
+        Args:
+            term: The term to look up (case-insensitive)
+
+        Returns:
+            Rank (0-333000) if found in dataset, 0 if not found (extremely rare)
+        """
+        return self.frequency_rank_map.get(term.lower(), 0)
+
+    def _calculate_quality_score(
+        self, category: str, term_count: int, frequency_rank: int
+    ) -> float:
+        """
+        Calculate a composite quality score (0-100) for a vocabulary term.
+
+        Higher score = more likely to be a useful, high-quality term.
+
+        Scoring factors:
+        - Multiple occurrences boost score (recurring = important)
+        - Rarer words (high rank) get boost
+        - Reliable categories (Person/Place/Medical) get boost
+        - Unknown category gets no boost (needs review)
+
+        Args:
+            category: Term category (Person/Place/Medical/Technical/Unknown)
+            term_count: Number of occurrences in the documents
+            frequency_rank: Google frequency rank (0 = not found/very rare)
+
+        Returns:
+            Quality score between 0.0 and 100.0
+        """
+        score = 50.0  # Base score
+
+        # Boost for multiple occurrences (max +20)
+        # Each occurrence adds 5 points, capped at 20
+        occurrence_boost = min(term_count * 5, 20)
+        score += occurrence_boost
+
+        # Boost for rare words (max +20)
+        # 0 = not in dataset = extremely rare = +20
+        # >200K = rare = +15
+        # >180K = somewhat rare = +10
+        if frequency_rank == 0:
+            score += 20  # Not in Google dataset - very rare
+        elif frequency_rank > 200000:
+            score += 15
+        elif frequency_rank > 180000:
+            score += 10
+
+        # Boost for reliable categories (max +10)
+        category_boost = {
+            'Person': 10,
+            'Place': 10,
+            'Medical': 8,
+            'Technical': 5,
+            'Unknown': 0
+        }
+        score += category_boost.get(category, 0)
+
+        return min(100.0, max(0.0, round(score, 1)))
+
     def _second_pass_processing(
         self,
         extracted_terms: list[dict],
@@ -1219,6 +1299,12 @@ class VocabularyExtractor:
             if category != "Person" and term_count > frequency_threshold:
                 continue
 
+            # Minimum occurrence filtering (Session 23)
+            # Skip non-PERSON terms that appear only once (likely OCR errors/typos)
+            # PERSON entities are exempt - party names may appear once but are important
+            if category != "Person" and term_count < VOCABULARY_MIN_OCCURRENCES:
+                continue
+
             # Detect role/relevance using profession-specific profile
             if category == "Person":
                 role_relevance = self.role_profile.detect_person_role(term, full_text)
@@ -1231,10 +1317,17 @@ class VocabularyExtractor:
             else:  # Technical
                 role_relevance = "Technical term"
 
+            # Calculate confidence metrics (Session 23)
+            frequency_rank = self._get_term_frequency_rank(term)
+            quality_score = self._calculate_quality_score(category, term_count, frequency_rank)
+
             vocabulary.append({
                 "Term": term,
                 "Type": category,  # Simplified: Person/Place/Medical/Technical/Unknown
                 "Role/Relevance": role_relevance,  # Context-specific relevance
+                "Quality Score": quality_score,  # Composite 0-100 (higher = better)
+                "In-Case Freq": term_count,  # How many times term appears
+                "Freq Rank": frequency_rank,  # Google rank (0=rare, high=common)
                 "Definition": self._get_definition(term, category)  # Only for Medical/Technical
             })
             seen_terms.add(lower_term)

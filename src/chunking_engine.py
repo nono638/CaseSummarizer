@@ -20,6 +20,7 @@ from langchain_core.documents import Document
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from src.config import CHUNK_OVERLAP_FRACTION
 from src.logging_config import debug_log, debug_timing, error, info
 
 
@@ -154,7 +155,7 @@ class ChunkingEngine:
 
             secondary_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=max_chars,
-                chunk_overlap=int(max_chars * 0.1), # 10% overlap
+                chunk_overlap=int(max_chars * CHUNK_OVERLAP_FRACTION),
                 length_function=len,
             )
 

@@ -20,7 +20,9 @@ The orchestrator decides WHAT to do next; the QueueMessageHandler decides
 HOW to update the UI in response.
 """
 
+import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH, USER_VOCAB_EXCLUDE_PATH
@@ -40,6 +42,8 @@ class WorkflowState:
         vocab_complete: Whether vocabulary extraction has finished
         ai_complete: Whether AI generation has finished
         is_complete: Whether the entire workflow has finished
+        vector_store_path: Path to the created vector store (for Q&A)
+        vector_store_ready: Whether vector store is ready for Q&A
     """
     extracted_documents: list[dict] = None
     pending_ai_params: dict | None = None
@@ -47,6 +51,8 @@ class WorkflowState:
     vocab_complete: bool = False
     ai_complete: bool = False
     is_complete: bool = False
+    vector_store_path: Path | None = None
+    vector_store_ready: bool = False
 
     def __post_init__(self):
         if self.extracted_documents is None:
@@ -132,15 +138,26 @@ class WorkflowOrchestrator:
         self.state.output_options = self.get_output_options()
         self.state.vocab_complete = False
         self.state.ai_complete = False
+        self.state.vector_store_ready = False
+        self.state.vector_store_path = None
 
         actions_taken = {
             'vocab_extraction_started': False,
             'ai_generation_started': False,
+            'vector_store_started': False,
             'workflow_complete': False,
             'combined_text': None
         }
 
+        # Always start vector store creation in background (for Q&A feature)
+        # This runs in parallel with vocabulary extraction and AI generation
+        if extracted_documents:
+            self._create_vector_store_async(extracted_documents)
+            actions_taken['vector_store_started'] = True
+            debug_log("[ORCHESTRATOR] Started vector store creation (background).")
+
         # If no AI generation requested and no vocab requested, workflow is done
+        # Note: Vector store creation continues in background even if workflow is "complete"
         if not ai_params and not self.state.output_options.get('vocab_csv', False):
             debug_log("[ORCHESTRATOR] No outputs requested. Workflow complete.")
             self.state.is_complete = True
@@ -303,3 +320,67 @@ class WorkflowOrchestrator:
         """Reset the orchestrator state for a new workflow."""
         self.state = WorkflowState()
         debug_log("[ORCHESTRATOR] State reset for new workflow.")
+
+    # =========================================================================
+    # Vector Store Methods (Session 24 - Q&A Feature)
+    # =========================================================================
+
+    def _create_vector_store_async(self, extracted_documents: list[dict]):
+        """
+        Create vector store in background thread.
+
+        Builds a FAISS index from extracted documents for Q&A retrieval.
+        Runs in parallel with vocabulary extraction and AI generation.
+
+        Args:
+            extracted_documents: List of document dicts with 'extracted_text'
+        """
+        def build_store():
+            try:
+                from langchain_huggingface import HuggingFaceEmbeddings
+                from src.vector_store import VectorStoreBuilder
+
+                debug_log("[ORCHESTRATOR] Vector store thread started.")
+
+                # Initialize embeddings (reusing the same model as ChunkingEngine)
+                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+                # Build vector store
+                builder = VectorStoreBuilder()
+                result = builder.create_from_documents(
+                    documents=extracted_documents,
+                    embeddings=embeddings
+                )
+
+                # Notify UI that vector store is ready
+                self.main_window.ui_queue.put(('vector_store_ready', {
+                    'path': result.persist_dir,
+                    'case_id': result.case_id,
+                    'chunk_count': result.chunk_count,
+                    'creation_time_ms': result.creation_time_ms
+                }))
+
+                debug_log(f"[ORCHESTRATOR] Vector store ready: {result.case_id} "
+                         f"({result.chunk_count} chunks, {result.creation_time_ms:.0f}ms)")
+
+            except Exception as e:
+                debug_log(f"[ORCHESTRATOR] Vector store creation failed: {e}")
+                self.main_window.ui_queue.put(('vector_store_error', {
+                    'error': str(e)
+                }))
+
+        thread = threading.Thread(target=build_store, daemon=True, name="VectorStoreBuilder")
+        thread.start()
+
+    def on_vector_store_complete(self, result: dict):
+        """
+        Handle completion of vector store creation.
+
+        Updates workflow state with vector store path for Q&A retrieval.
+
+        Args:
+            result: Dictionary with 'path', 'case_id', 'chunk_count'
+        """
+        self.state.vector_store_path = result.get('path')
+        self.state.vector_store_ready = True
+        debug_log(f"[ORCHESTRATOR] Vector store complete: {result.get('case_id')}")

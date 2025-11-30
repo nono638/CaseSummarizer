@@ -28,23 +28,40 @@ from tkinter import Menu, filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
-from src.config import USER_VOCAB_EXCLUDE_PATH
+from src.config import (
+    USER_VOCAB_EXCLUDE_PATH,
+    VOCABULARY_ROWS_PER_PAGE,
+    VOCABULARY_BATCH_INSERT_SIZE,
+    VOCABULARY_BATCH_INSERT_DELAY_MS,
+)
 from src.logging_config import debug_log
+from src.user_preferences import get_user_preferences
 
-# Pagination settings
-ROWS_PER_PAGE = 50  # Number of rows to display initially and per "Load More" click
-BATCH_INSERT_SIZE = 20  # Rows to insert per batch during async loading
-BATCH_INSERT_DELAY_MS = 10  # Milliseconds between batches (allows UI to breathe)
+# Pagination settings (imported from config.py for centralized tuning)
+ROWS_PER_PAGE = VOCABULARY_ROWS_PER_PAGE
+BATCH_INSERT_SIZE = VOCABULARY_BATCH_INSERT_SIZE
+BATCH_INSERT_DELAY_MS = VOCABULARY_BATCH_INSERT_DELAY_MS
 
 
 # Column width configuration (in pixels) - controls text truncation
 # Approximate character limits based on font size 10 Segoe UI
+# Session 23: Added Quality Score, In-Case Freq, Freq Rank columns for filtering
 COLUMN_CONFIG = {
-    "Term": {"width": 180, "max_chars": 30},
-    "Type": {"width": 100, "max_chars": 15},
-    "Role/Relevance": {"width": 180, "max_chars": 28},
-    "Definition": {"width": 400, "max_chars": 60}
+    "Term": {"width": 150, "max_chars": 25},
+    "Type": {"width": 80, "max_chars": 12},
+    "Role/Relevance": {"width": 130, "max_chars": 20},
+    "Quality Score": {"width": 85, "max_chars": 8},
+    "In-Case Freq": {"width": 80, "max_chars": 8},
+    "Freq Rank": {"width": 80, "max_chars": 10},
+    "Definition": {"width": 280, "max_chars": 45}
 }
+
+# Columns visible in the GUI Treeview (confidence columns hidden for cleaner display)
+# Session 23: Users can export all columns via CSV, but GUI shows only essential info
+GUI_DISPLAY_COLUMNS = ("Term", "Type", "Role/Relevance", "Definition")
+
+# All columns available for export (includes confidence/filtering columns)
+ALL_EXPORT_COLUMNS = ("Term", "Type", "Role/Relevance", "Quality Score", "In-Case Freq", "Freq Rank", "Definition")
 
 
 def truncate_text(text: str, max_chars: int) -> str:
@@ -294,8 +311,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
         self.treeview_frame.grid_columnconfigure(0, weight=1)
         self.treeview_frame.grid_rowconfigure(0, weight=1)
 
-        # Define columns - Term is the first column now
-        columns = ("Term", "Type", "Role/Relevance", "Definition")
+        # Define columns for GUI display (confidence columns hidden)
+        columns = GUI_DISPLAY_COLUMNS
 
         # Create or reconfigure treeview
         if self.csv_treeview is None:
@@ -389,19 +406,17 @@ class DynamicOutputWidget(ctk.CTkFrame):
                 item = data[i]
                 if isinstance(item, dict):
                     # Apply text truncation to prevent row overflow
-                    values = (
-                        truncate_text(item.get("Term", ""), COLUMN_CONFIG["Term"]["max_chars"]),
-                        truncate_text(item.get("Type", ""), COLUMN_CONFIG["Type"]["max_chars"]),
-                        truncate_text(item.get("Role/Relevance", ""), COLUMN_CONFIG["Role/Relevance"]["max_chars"]),
-                        truncate_text(item.get("Definition", ""), COLUMN_CONFIG["Definition"]["max_chars"])
+                    # Only extract GUI_DISPLAY_COLUMNS (hides confidence columns)
+                    values = tuple(
+                        truncate_text(item.get(col, ""), COLUMN_CONFIG[col]["max_chars"])
+                        for col in GUI_DISPLAY_COLUMNS
                     )
                 else:
                     # Handle list format (legacy) - apply truncation
                     raw_values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
-                    cols = ["Term", "Type", "Role/Relevance", "Definition"]
                     values = tuple(
-                        truncate_text(str(v), COLUMN_CONFIG[cols[j]]["max_chars"])
-                        for j, v in enumerate(raw_values[:4])
+                        truncate_text(str(v), COLUMN_CONFIG[GUI_DISPLAY_COLUMNS[j]]["max_chars"])
+                        for j, v in enumerate(raw_values[:len(GUI_DISPLAY_COLUMNS)])
                     )
 
                 self.csv_treeview.insert("", "end", values=values)
@@ -606,30 +621,46 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self.clipboard_append(self._selected_term)
 
     def get_current_content_for_export(self):
-        """Returns the currently displayed content for copy/save operations."""
+        """
+        Returns the currently displayed content for copy/save operations.
+
+        For vocabulary CSV, respects the vocab_export_format setting:
+        - "all": All columns including Quality Score, In-Case Freq, Freq Rank
+        - "basic": Term, Type, Role/Relevance, Definition
+        - "terms_only": Just the Term column
+        """
         current_choice = self.output_selector.get()
         if current_choice == "Meta-Summary":
             return self._outputs.get("Meta-Summary", "")
         elif current_choice == "Rare Word List (CSV)":
-            # Convert list of dicts to CSV string with Term column
+            # Convert list of dicts to CSV string
             data = self._outputs.get("Rare Word List (CSV)", [])
             if not data:
                 return ""
+
+            # Get export format from user preferences
+            prefs = get_user_preferences()
+            export_format = prefs.get("vocab_export_format", "basic")
+
+            # Determine which columns to export based on setting
+            if export_format == "all":
+                columns = list(ALL_EXPORT_COLUMNS)
+            elif export_format == "terms_only":
+                columns = ["Term"]
+            else:  # "basic" (default)
+                columns = list(GUI_DISPLAY_COLUMNS)
+
             output = io.StringIO()
             writer = csv.writer(output)
             # Write header
-            writer.writerow(["Term", "Type", "Role/Relevance", "Definition"])
+            writer.writerow(columns)
             # Write data
             for item in data:
                 if isinstance(item, dict):
-                    writer.writerow([
-                        item.get("Term", ""),
-                        item.get("Type", ""),
-                        item.get("Role/Relevance", ""),
-                        item.get("Definition", "")
-                    ])
+                    writer.writerow([item.get(col, "") for col in columns])
                 else:
-                    writer.writerow(item)
+                    # Legacy list format - map by position
+                    writer.writerow(item[:len(columns)])
             return output.getvalue()
         elif current_choice.startswith("Summary for "):
             doc_name = current_choice.replace("Summary for ", "")

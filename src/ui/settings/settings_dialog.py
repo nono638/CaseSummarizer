@@ -266,23 +266,43 @@ class SettingsDialog(ctk.CTkToplevel):
                     widget.set_value(setting.default)
 
     def _save(self):
-        """Apply all settings immediately and close dialog."""
+        """
+        Apply all settings immediately and close dialog.
+
+        If validation fails for any setting, shows an error message
+        and does NOT close the dialog, allowing user to correct the value.
+        """
+        from tkinter import messagebox
+        from src.logging_config import debug_log
+
+        errors = []
+
         for setting in SettingsRegistry.get_all_settings():
             widget = self.widgets.get(setting.key)
             if widget and setting.setter:
                 try:
                     value = widget.get_value()
                     setting.setter(value)
+                except ValueError as ve:
+                    # Validation error - collect for user display
+                    errors.append(f"• {setting.label}: {ve}")
+                    debug_log(f"[Settings] Validation error for {setting.key}: {ve}")
                 except Exception as e:
-                    # Log error but continue saving other settings
-                    print(f"[Settings] Error saving {setting.key}: {e}")
+                    # Other errors - log but continue
+                    debug_log(f"[Settings] Error saving {setting.key}: {e}")
+
+        # If there were validation errors, show them and stay open
+        if errors:
+            error_msg = "Please correct the following:\n\n" + "\n".join(errors)
+            messagebox.showerror("Invalid Settings", error_msg)
+            return  # Don't close dialog
 
         # Call the callback if provided
         if self.on_save_callback:
             try:
                 self.on_save_callback()
             except Exception as e:
-                print(f"[Settings] Error in save callback: {e}")
+                debug_log(f"[Settings] Error in save callback: {e}")
 
         self.destroy()
 

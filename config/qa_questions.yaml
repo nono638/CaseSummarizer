@@ -1,0 +1,172 @@
+# LocalScribe Q&A Question Flow Configuration
+# ===========================================
+#
+# This file defines the branching question tree for document analysis.
+# Questions are asked sequentially based on previous answers.
+#
+# Structure:
+#   - id: Unique identifier for the question
+#   - text: The question to ask the LLM about the documents
+#   - category: Grouping for display purposes
+#   - type: "classification" (fixed options) or "extraction" (open-ended)
+#   - options: For classification questions, possible answers
+#   - next: Question ID to ask next (or conditional based on answer)
+#   - terminal: If true, this is a leaf node (no follow-ups)
+#
+# Flow: initial -> (branching based on answers) -> terminal questions
+
+# Version for tracking changes
+version: "1.0"
+
+# Starting question ID
+entry_point: "is_court_case"
+
+# Question Definitions
+questions:
+  # =========================================================================
+  # INITIAL CLASSIFICATION
+  # =========================================================================
+
+  - id: "is_court_case"
+    text: "Is this document related to a court case or legal proceeding?"
+    category: "Document Type"
+    type: "classification"
+    options:
+      - value: "yes"
+        label: "Yes - Court Case"
+        next: "case_type"
+      - value: "no"
+        label: "No - Other Document"
+        next: "document_type"
+      - value: "unclear"
+        label: "Unclear"
+        next: "document_summary"
+
+  # =========================================================================
+  # NON-COURT CASE BRANCH
+  # =========================================================================
+
+  - id: "document_type"
+    text: "What type of document is this? (e.g., contract, correspondence, medical records, financial records)"
+    category: "Document Type"
+    type: "extraction"
+    next: "document_summary"
+
+  - id: "document_summary"
+    text: "Provide a brief summary of what this document is about."
+    category: "Summary"
+    type: "extraction"
+    terminal: true
+
+  # =========================================================================
+  # COURT CASE BRANCH - Type Classification
+  # =========================================================================
+
+  - id: "case_type"
+    text: "Is this a criminal case or a civil case?"
+    category: "Case Classification"
+    type: "classification"
+    options:
+      - value: "criminal"
+        label: "Criminal Case"
+        next: "criminal_charges"
+      - value: "civil"
+        label: "Civil Case"
+        next: "civil_case_type"
+      - value: "administrative"
+        label: "Administrative/Regulatory"
+        next: "admin_agency"
+      - value: "unclear"
+        label: "Unclear"
+        next: "parties_involved"
+
+  # =========================================================================
+  # CRIMINAL CASE BRANCH
+  # =========================================================================
+
+  - id: "criminal_charges"
+    text: "What are the criminal charges or allegations against the defendant?"
+    category: "Criminal"
+    type: "extraction"
+    next: "defendant_name"
+
+  - id: "defendant_name"
+    text: "Who is the defendant in this case?"
+    category: "Criminal"
+    type: "extraction"
+    next: "incident_date"
+
+  # =========================================================================
+  # CIVIL CASE BRANCH
+  # =========================================================================
+
+  - id: "civil_case_type"
+    text: "What type of civil case is this? (e.g., personal injury, medical malpractice, contract dispute, employment, family law)"
+    category: "Civil Classification"
+    type: "extraction"
+    next: "plaintiff_allegations"
+
+  - id: "plaintiff_allegations"
+    text: "What are the allegations and/or complaints of the plaintiff?"
+    category: "Civil"
+    type: "extraction"
+    next: "parties_involved"
+
+  # =========================================================================
+  # ADMINISTRATIVE BRANCH
+  # =========================================================================
+
+  - id: "admin_agency"
+    text: "Which government agency or regulatory body is involved?"
+    category: "Administrative"
+    type: "extraction"
+    next: "admin_issue"
+
+  - id: "admin_issue"
+    text: "What is the administrative issue or violation being addressed?"
+    category: "Administrative"
+    type: "extraction"
+    next: "parties_involved"
+
+  # =========================================================================
+  # COMMON QUESTIONS (Shared across branches)
+  # =========================================================================
+
+  - id: "parties_involved"
+    text: "Who are the main parties involved in this matter? List plaintiffs, defendants, or other key parties."
+    category: "Parties"
+    type: "extraction"
+    next: "incident_date"
+
+  - id: "incident_date"
+    text: "When did the incident or events in question occur? Provide dates if mentioned."
+    category: "Timeline"
+    type: "extraction"
+    next: "key_facts"
+
+  - id: "key_facts"
+    text: "What are the key facts or allegations described in the documents?"
+    category: "Facts"
+    type: "extraction"
+    next: "damages_sought"
+
+  - id: "damages_sought"
+    text: "What damages, relief, or remedies are being sought?"
+    category: "Relief"
+    type: "extraction"
+    terminal: true
+
+# =========================================================================
+# Category Display Order (for UI organization)
+# =========================================================================
+category_order:
+  - "Document Type"
+  - "Case Classification"
+  - "Civil Classification"
+  - "Criminal"
+  - "Administrative"
+  - "Parties"
+  - "Timeline"
+  - "Facts"
+  - "Relief"
+  - "Summary"

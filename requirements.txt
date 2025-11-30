@@ -6,6 +6,10 @@ spacy
 nltk
 langchain-text-splitters
 langchain-experimental
+langchain>=0.1.0
+langchain-community>=0.1.0
+langchain-huggingface>=0.0.3
+faiss-cpu>=1.7.4
 pdfplumber
 pdf2image
 pytesseract

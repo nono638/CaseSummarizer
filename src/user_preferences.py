@@ -66,7 +66,8 @@ class UserPreferencesManager:
 
         except Exception as e:
             # Log error but don't crash
-            print(f"Warning: Could not save user preferences: {e}")
+            from src.logging_config import debug_log
+            debug_log(f"[PREFS] Could not save user preferences: {e}")
 
     def get_default_prompt(self, model_name: str) -> str | None:
         """
@@ -134,7 +135,16 @@ class UserPreferencesManager:
 
         Args:
             cpu_fraction: CPU fraction (0.25, 0.5, or 0.75)
+
+        Raises:
+            ValueError: If cpu_fraction is not 0.25, 0.5, or 0.75
         """
+        valid_fractions = [0.25, 0.5, 0.75]
+        if cpu_fraction not in valid_fractions:
+            raise ValueError(
+                f"CPU fraction must be one of {valid_fractions}, got {cpu_fraction}"
+            )
+
         if "processing" not in self._preferences:
             self._preferences["processing"] = {}
 
@@ -163,7 +173,7 @@ class UserPreferencesManager:
 
     def set(self, key: str, value: Any) -> None:
         """
-        Set any preference value by key.
+        Set any preference value by key with validation.
 
         This generic method supports the extensible settings system,
         allowing new settings to be added without modifying this class.
@@ -171,7 +181,30 @@ class UserPreferencesManager:
         Args:
             key: The preference key to set.
             value: The value to store.
+
+        Raises:
+            ValueError: If value fails validation for the given key.
         """
+        # Validate known keys to prevent invalid configurations
+        if key == "vocab_display_limit":
+            if not isinstance(value, int) or value < 1 or value > 500:
+                raise ValueError(
+                    f"vocab_display_limit must be 1-500, got {value}"
+                )
+        elif key == "user_defined_max_workers":
+            if not isinstance(value, int) or value < 1 or value > 8:
+                raise ValueError(
+                    f"user_defined_max_workers must be 1-8, got {value}"
+                )
+        elif key == "default_model_id":
+            if not value or not isinstance(value, str):
+                raise ValueError("default_model_id cannot be empty")
+        elif key == "summary_words":
+            if not isinstance(value, int) or value < 50 or value > 2000:
+                raise ValueError(
+                    f"summary_words must be 50-2000, got {value}"
+                )
+
         self._preferences[key] = value
         self._save_preferences()
 

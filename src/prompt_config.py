@@ -55,17 +55,20 @@ class PromptConfig:
                     # Filter out comment keys (starting with _)
                     return self._filter_comments(params)
             else:
-                print(f"Warning: Prompt parameters file not found at {PROMPT_PARAMS_FILE}")
-                print("Using default values.")
+                from src.logging_config import debug_log
+                debug_log(f"[PROMPT CONFIG] Prompt parameters file not found at {PROMPT_PARAMS_FILE}")
+                debug_log("[PROMPT CONFIG] Using default values.")
                 return self.DEFAULTS.copy()
 
         except json.JSONDecodeError as e:
-            print(f"Error parsing prompt parameters file: {e}")
-            print("Using default values.")
+            from src.logging_config import debug_log
+            debug_log(f"[PROMPT CONFIG] Error parsing prompt parameters file: {e}")
+            debug_log("[PROMPT CONFIG] Using default values.")
             return self.DEFAULTS.copy()
         except Exception as e:
-            print(f"Error loading prompt parameters: {e}")
-            print("Using default values.")
+            from src.logging_config import debug_log
+            debug_log(f"[PROMPT CONFIG] Error loading prompt parameters: {e}")
+            debug_log("[PROMPT CONFIG] Using default values.")
             return self.DEFAULTS.copy()
 
     def _filter_comments(self, data: Any) -> Any:
