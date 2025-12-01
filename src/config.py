@@ -304,3 +304,33 @@ QA_CONTEXT_WINDOW = 4096        # Tokens for RAG context
 
 # Chat History Settings
 QA_CONVERSATION_CONTEXT_PAIRS = 3  # Include last N Q&A pairs in follow-up questions
+
+# ============================================================================
+# Hybrid Retrieval Configuration (Session 31 - BM25+ Integration)
+# ============================================================================
+# Multi-algorithm retrieval for Q&A - mirrors vocabulary extraction architecture
+
+# Algorithm weights for result merging
+# Higher weight = more influence on final relevance score
+# BM25+ is primary (lexical/keyword matching - reliable for legal terminology)
+# FAISS is secondary (semantic/embedding matching - can find related concepts)
+RETRIEVAL_ALGORITHM_WEIGHTS = {
+    "BM25+": 1.0,   # Primary - exact term matching, reliable for legal docs
+    "FAISS": 0.5,   # Secondary - semantic search, complements BM25+
+}
+
+# Algorithm enable/disable flags
+RETRIEVAL_ENABLE_BM25 = True    # BM25+ lexical search (recommended: always on)
+RETRIEVAL_ENABLE_FAISS = True   # FAISS semantic search (can disable for speed)
+
+# Chunking settings for retrieval (smaller chunks = more precise retrieval)
+RETRIEVAL_CHUNK_SIZE = 500      # Characters per chunk
+RETRIEVAL_CHUNK_OVERLAP = 50    # Overlap between chunks
+
+# Minimum relevance score threshold for merged results
+# Lower than before since BM25+ scores are more reliable
+RETRIEVAL_MIN_SCORE = 0.1       # Minimum combined score to include chunk
+
+# Multi-algorithm bonus: extra score when multiple algorithms find the same chunk
+# This reflects higher confidence when both BM25+ and FAISS agree
+RETRIEVAL_MULTI_ALGO_BONUS = 0.1

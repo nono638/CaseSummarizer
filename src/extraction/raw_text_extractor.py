@@ -43,7 +43,9 @@ from src.config import (
 
 # Character sanitization
 from src.sanitization import CharacterSanitizer
-from src.utils import Timer, debug, error, info, warning
+
+# Logging (use canonical location for new code)
+from src.logging_config import Timer, debug, error, info, warning
 
 
 class RawTextExtractor:

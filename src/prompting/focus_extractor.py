@@ -10,8 +10,10 @@ Design Principles:
 3. Graceful fallback if AI extraction fails
 4. Abstract base class for future implementations (keyword-based, hybrid, etc.)
 
+Moved from src/prompt_focus_extractor.py to src/prompting/focus_extractor.py in Session 33.
+
 Usage:
-    from src.prompt_focus_extractor import AIFocusExtractor
+    from src.prompting import AIFocusExtractor
 
     extractor = AIFocusExtractor(model_manager)
     focus = extractor.extract_focus(template_content, "my-template")

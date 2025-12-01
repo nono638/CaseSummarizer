@@ -268,7 +268,7 @@ flowchart TB
     Template["User's Template Selection<br/>e.g., 'injuries-focus.txt'"]
 
     subgraph Stage0["STAGE 0: FOCUS EXTRACTION"]
-        FocusExtract["AIFocusExtractor<br/>src/prompt_focus_extractor.py"]
+        FocusExtract["AIFocusExtractor<br/>src/prompting/focus_extractor.py"]
         FocusResult["Focus = {<br/>  emphasis: 'injuries, timeline...',<br/>  instructions: '1. Identify injuries...'<br/>}"]
         FocusExtract --> FocusResult
     end
@@ -362,7 +362,7 @@ flowchart TB
         Pull["/api/pull - download model"]
     end
 
-    subgraph TemplateManager["PromptTemplateManager<br/>src/prompt_template_manager.py"]
+    subgraph TemplateManager["PromptTemplateManager<br/>src/prompting/template_manager.py"]
         BuiltIn["Built-in Prompts<br/>config/prompts/"]
         UserPrompts["User Prompts<br/>%APPDATA%/LocalScribe/prompts/"]
     end
@@ -387,7 +387,16 @@ flowchart TB
 
 ### Overview
 
-The Q&A system enables users to ask questions about processed documents using FAISS vector search for context retrieval.
+The Q&A system enables users to ask questions about processed documents using **hybrid retrieval** (BM25+ lexical + FAISS semantic search).
+
+**Unified API (Session 32):** All Q&A functionality is accessible from `src.qa`:
+```python
+from src.qa import (
+    QAOrchestrator, QAResult, AnswerGenerator, AnswerMode,  # Orchestration
+    VectorStoreBuilder, QARetriever, QuestionFlowManager,   # Storage
+    HybridRetriever, ChunkMerger,                           # Retrieval
+)
+```
 
 ```mermaid
 flowchart TB
@@ -404,6 +413,18 @@ flowchart TB
         Builder --> Chunker
         Chunker --> Embedder
         Embedder --> FAISSIndex
+    end
+
+    subgraph HybridRetrieval["HYBRID RETRIEVAL (Session 31)"]
+        HybridRetriever["HybridRetriever<br/>src/retrieval/hybrid_retriever.py"]
+        BM25Plus["BM25+ Algorithm<br/>Weight: 1.0 (primary)"]
+        FAISSAlgo["FAISS Algorithm<br/>Weight: 0.5 (secondary)"]
+        ChunkMerger["ChunkMerger<br/>Weighted result combination"]
+
+        HybridRetriever --> BM25Plus
+        HybridRetriever --> FAISSAlgo
+        BM25Plus --> ChunkMerger
+        FAISSAlgo --> ChunkMerger
     end
 
     subgraph QAFlow["Q&A FLOW"]
@@ -425,8 +446,9 @@ flowchart TB
 
     CleanText --> VectorBuild
     FAISSIndex --> Retriever
+    Retriever --> HybridRetrieval
+    ChunkMerger --> Orchestrator
     Questions --> Orchestrator
-    Retriever --> Orchestrator
     Orchestrator --> Generator
     Generator --> AnswerModes
     AnswerModes --> QAResult
@@ -438,13 +460,50 @@ flowchart TB
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `VectorStoreBuilder` | `src/vector_store/vector_store_builder.py` | Creates FAISS indexes from document text |
-| `QARetriever` | `src/vector_store/qa_retriever.py` | Retrieves relevant context for questions |
+| `QARetriever` | `src/vector_store/qa_retriever.py` | Retrieves context using hybrid search |
+| `HybridRetriever` | `src/retrieval/hybrid_retriever.py` | Coordinates BM25+ and FAISS algorithms |
+| `BM25PlusRetriever` | `src/retrieval/algorithms/bm25_plus.py` | Lexical/keyword-based search |
+| `FAISSRetriever` | `src/retrieval/algorithms/faiss_semantic.py` | Semantic/embedding-based search |
+| `ChunkMerger` | `src/retrieval/chunk_merger.py` | Weighted result combination |
 | `QAOrchestrator` | `src/qa/qa_orchestrator.py` | Coordinates question loading, retrieval, answer generation |
 | `AnswerGenerator` | `src/qa/answer_generator.py` | Generates answers (extraction or Ollama mode) |
 | `QAResult` | `src/qa/__init__.py` | Dataclass for question/answer/confidence/sources |
 | `QAPanel` | `src/ui/qa_panel.py` | UI panel with toggle list and follow-up input |
 | `QAQuestionEditor` | `src/ui/qa_question_editor.py` | Modal dialog for editing default questions |
 | `QAWorker` | `src/ui/workers.py` | Background thread for Q&A processing |
+
+### Hybrid Retrieval Architecture (Session 31)
+
+Why hybrid? The FAISS semantic search alone was returning "no information found" because the embedding model (`all-MiniLM-L6-v2`) isn't trained on legal terminology. BM25+ provides exact keyword matching as a complement.
+
+```mermaid
+flowchart LR
+    Query["User Question"]
+
+    subgraph Algorithms["PARALLEL RETRIEVAL"]
+        BM25["BM25+ (Weight: 1.0)<br/>Exact term matching"]
+        FAISS["FAISS (Weight: 0.5)<br/>Semantic similarity"]
+    end
+
+    subgraph Merge["RESULT MERGING"]
+        Merger["ChunkMerger<br/>Weighted scores"]
+        Bonus["Multi-algo bonus: +0.1<br/>if same chunk found by both"]
+    end
+
+    Query --> BM25
+    Query --> FAISS
+    BM25 --> Merger
+    FAISS --> Merger
+    Merger --> Bonus
+    Bonus --> Results["Ranked chunks<br/>min_score: 0.1"]
+```
+
+**Configuration (`src/config.py`):**
+```python
+RETRIEVAL_ALGORITHM_WEIGHTS = {"BM25+": 1.0, "FAISS": 0.5}
+RETRIEVAL_MIN_SCORE = 0.1  # Lowered from 0.5
+RETRIEVAL_MULTI_ALGO_BONUS = 0.1
+```
 
 ### Answer Generation Modes
 
@@ -838,9 +897,6 @@ flowchart TB
 |------|---------|
 | `src/ai/ollama_model_manager.py` | Ollama REST API client |
 | `src/ai/summary_post_processor.py` | Length enforcement |
-| `src/prompt_template_manager.py` | Prompt template loading/management |
-| `src/prompt_focus_extractor.py` | AI-based focus area extraction |
-| `src/prompt_adapters.py` | Stage-specific prompt generation |
 | `src/progressive_summarizer.py` | Chunking and progressive context |
 | `src/chunking_engine.py` | Text chunking logic |
 | `src/summarization/__init__.py` | Summarization package exports |
@@ -848,17 +904,40 @@ flowchart TB
 | `src/summarization/document_summarizer.py` | Single document summarization |
 | `src/summarization/multi_document_orchestrator.py` | Multi-doc coordination |
 
+### Prompting System (Session 33)
+
+| File | Purpose |
+|------|---------|
+| `src/prompting/__init__.py` | Unified prompting API exports |
+| `src/prompting/template_manager.py` | Prompt template loading/management |
+| `src/prompting/focus_extractor.py` | AI-based focus area extraction |
+| `src/prompting/adapters.py` | Stage-specific prompt generation |
+| `src/prompting/config.py` | Prompt parameters configuration |
+
 ### Q&A System
 
 | File | Purpose |
 |------|---------|
-| `src/qa/__init__.py` | Q&A package exports (QAOrchestrator, QAResult) |
+| `src/qa/__init__.py` | Unified Q&A API (re-exports vector_store + retrieval) |
 | `src/qa/qa_orchestrator.py` | Coordinates Q&A workflow |
 | `src/qa/answer_generator.py` | Generates answers (extraction/Ollama) |
 | `src/vector_store/__init__.py` | Vector store package exports |
 | `src/vector_store/vector_store_builder.py` | Creates FAISS indexes |
-| `src/vector_store/qa_retriever.py` | Retrieves context for questions |
+| `src/vector_store/qa_retriever.py` | Retrieves context using hybrid search |
+| `src/vector_store/question_flow.py` | Branching question tree logic |
 | `config/qa_questions.yaml` | Default Q&A questions |
+
+### Hybrid Retrieval (Session 31)
+
+| File | Purpose |
+|------|---------|
+| `src/retrieval/__init__.py` | Retrieval package exports |
+| `src/retrieval/base.py` | ABC and dataclasses for retrieval |
+| `src/retrieval/hybrid_retriever.py` | Coordinates BM25+ and FAISS algorithms |
+| `src/retrieval/chunk_merger.py` | Weighted result combination |
+| `src/retrieval/algorithms/__init__.py` | Algorithm registry |
+| `src/retrieval/algorithms/bm25_plus.py` | BM25+ lexical search |
+| `src/retrieval/algorithms/faiss_semantic.py` | FAISS semantic search |
 
 ### Vocabulary Extraction
 
@@ -890,7 +969,8 @@ flowchart TB
 
 | File | Purpose |
 |------|---------|
-| `src/ui/main_window.py` | Central UI coordinator |
+| `src/ui/main_window.py` | Central UI coordinator (business logic) |
+| `src/ui/window_layout.py` | UI layout creation mixin (Session 33) |
 | `src/ui/widgets.py` | FileTable, ModelSelector, OutputOptions |
 | `src/ui/workers.py` | ProcessingWorker, VocabularyWorker, QAWorker |
 | `src/ui/workflow_orchestrator.py` | Processing state machine |
@@ -938,4 +1018,4 @@ Mermaid diagrams can be previewed in:
 
 ---
 
-*This document serves as the architectural reference for LocalScribe. Last updated: Session 30 (2025-12-01)*
+*This document serves as the architectural reference for LocalScribe. Last updated: Session 33 (2025-12-01)*

@@ -61,7 +61,7 @@ if TYPE_CHECKING:
     from queue import Queue
 
     from src.ai.ollama_model_manager import OllamaModelManager
-    from src.prompt_adapters import PromptAdapter
+    from src.prompting import PromptAdapter
 
 
 class MultiDocumentOrchestrator:

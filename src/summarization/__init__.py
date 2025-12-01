@@ -1,49 +1,62 @@
 """
-Summarization Package for LocalScribe
+Summarization Package for LocalScribe - Unified API for Document Summarization.
 
-This package provides multi-document summarization with hierarchical
-map-reduce architecture:
+This is the main entry point for all summarization functionality. Import
+everything summarization-related from this package:
 
-1. Map Phase: Each document is processed through ProgressiveSummarizer
-   (chunking → chunk summaries → progressive document summary)
-
-2. Reduce Phase: Individual document summaries are combined into
-   a meta-summary that synthesizes the overall case narrative.
-
-Components:
-    DocumentSummaryResult - Result from single document summarization
-    MultiDocumentSummaryResult - Result from multi-document summarization
-    ProgressiveDocumentSummarizer - Wraps ProgressiveSummarizer for single docs
-    MultiDocumentOrchestrator - Coordinates parallel multi-doc processing
-    MetaSummaryGenerator - Combines individual summaries into meta-summary
-
-Usage:
     from src.summarization import (
-        ProgressiveDocumentSummarizer,
-        MultiDocumentOrchestrator,
-        MultiDocumentSummaryResult,
+        # Core components
+        ProgressiveSummarizer, ChunkingEngine,
+        # Document-level
+        ProgressiveDocumentSummarizer, DocumentSummaryResult,
+        # Multi-document
+        MultiDocumentOrchestrator, MultiDocumentSummaryResult,
     )
 
-    # Create components
-    doc_summarizer = ProgressiveDocumentSummarizer(model_manager)
-    orchestrator = MultiDocumentOrchestrator(doc_summarizer, model_manager)
+Architecture:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  src.summarization (this package) - Unified Summarization  │
+    ├─────────────────────────────────────────────────────────────┤
+    │  MultiDocumentOrchestrator (coordinates multiple docs)      │
+    │            ↓                                                │
+    │  ProgressiveDocumentSummarizer (single doc wrapper)        │
+    │            ↓                                                │
+    │  ProgressiveSummarizer → ChunkingEngine                    │
+    │            ↓                                                │
+    │  Ollama Model → Chunk Summaries → Final Summary            │
+    └─────────────────────────────────────────────────────────────┘
 
-    # Process multiple documents
-    result = orchestrator.summarize_documents(documents)
-    print(result.meta_summary)
+Map-Reduce Flow:
+1. Map Phase: Each document → ProgressiveSummarizer → DocumentSummaryResult
+   (chunking → chunk summaries → progressive document summary)
+
+2. Reduce Phase: Document summaries → MetaSummaryGenerator → Final narrative
 """
 
+# Result types
 from .result_types import (
     DocumentSummaryResult,
     MultiDocumentSummaryResult,
 )
+
+# Document summarizers
 from .document_summarizer import (
     DocumentSummarizer,
     ProgressiveDocumentSummarizer,
 )
+
+# Multi-document orchestration
 from .multi_document_orchestrator import MultiDocumentOrchestrator
 
+# Core summarization (re-exported from src root for unified API)
+from src.progressive_summarizer import ProgressiveSummarizer
+from src.chunking_engine import Chunk, ChunkingEngine
+
 __all__ = [
+    # Core summarization engine
+    'ProgressiveSummarizer',
+    'ChunkingEngine',
+    'Chunk',
     # Result types
     'DocumentSummaryResult',
     'MultiDocumentSummaryResult',

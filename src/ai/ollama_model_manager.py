@@ -22,8 +22,7 @@ from ..config import (
     USER_PROMPTS_DIR,
 )
 from ..logging_config import debug, debug_log, warning
-from ..prompt_config import get_prompt_config
-from ..prompt_template_manager import PromptTemplateManager
+from ..prompting import get_prompt_config, PromptTemplateManager
 from .prompt_formatter import wrap_prompt_for_model
 from .summary_post_processor import SummaryPostProcessor
 

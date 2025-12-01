@@ -17,8 +17,7 @@ from ..config import (
     USER_PROMPTS_DIR,
 )
 from ..logging_config import debug_log
-from ..prompt_config import get_prompt_config
-from ..prompt_template_manager import PromptTemplateManager
+from ..prompting import get_prompt_config, PromptTemplateManager
 
 
 class SummaryPostProcessor:

@@ -5,6 +5,8 @@ Manages model-specific prompt templates with validation and preset discovery.
 Supports dual-directory system:
 - Built-in prompts in config/prompts/ (shipped with app)
 - User prompts in %APPDATA%/LocalScribe/prompts/ (persist through updates)
+
+Moved from src/prompt_template_manager.py to src/prompting/template_manager.py in Session 33.
 """
 
 from pathlib import Path

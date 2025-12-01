@@ -572,7 +572,7 @@ class MultiDocSummaryWorker(threading.Thread):
 
             # Import here to avoid circular imports
             from src.ai import OllamaModelManager
-            from src.prompt_adapters import MultiDocPromptAdapter
+            from src.prompting import MultiDocPromptAdapter
             from src.summarization import (
                 MultiDocumentOrchestrator,
                 ProgressiveDocumentSummarizer,

@@ -231,32 +231,37 @@ pytest tests/test_raw_text_extractor.py -v
 CaseSummarizer/
 ├── src/
 │   ├── main.py              # GUI application entry point
+│   ├── config.py            # Configuration constants
+│   ├── logging_config.py    # Unified logging with debug mode
 │   ├── extraction/          # Steps 1-2: Text extraction & basic normalization
 │   │   ├── raw_text_extractor.py  # Core extraction engine
 │   │   └── __init__.py            # Package exports
-│   ├── config.py            # Configuration constants
-│   ├── document_processor.py # Job queue specification
 │   ├── ai/
 │   │   ├── ollama_model_manager.py  # Ollama integration (Step 6)
 │   │   └── prompt_formatter.py      # Model-aware prompt formatting
+│   ├── prompting/           # Session 33: Unified prompt management
+│   │   ├── __init__.py            # Facade API exports
+│   │   ├── template_manager.py    # Prompt discovery & validation
+│   │   ├── focus_extractor.py     # AI focus area extraction
+│   │   ├── adapters.py            # Stage-specific prompt generation
+│   │   └── config.py              # Prompt parameters
 │   ├── ui/
-│   │   ├── main_window.py   # Main application window (Phase 2.7)
+│   │   ├── main_window.py   # Main application window (business logic)
+│   │   ├── window_layout.py # Session 33: UI layout mixin
 │   │   ├── workers.py       # Background processing threads
 │   │   ├── widgets.py       # Custom widgets (file table, summary display)
-│   │   ├── system_monitor.py # Real-time CPU/RAM monitor (Phase 2.6)
-│   │   ├── menu_handler.py  # Menu bar operations
-│   │   ├── tooltip_helper.py # Tooltip positioning utilities
+│   │   ├── system_monitor.py # Real-time CPU/RAM monitor
+│   │   ├── dynamic_output.py # Results display widget
 │   │   └── dialogs.py       # Progress dialogs
-│   ├── prompt_config.py     # Prompt template management
-│   ├── prompt_template_manager.py # Prompt discovery & validation
+│   ├── summarization/       # Multi-document summarization
+│   ├── vocabulary/          # Multi-algorithm vocabulary extraction
+│   ├── qa/                  # Q&A orchestration
+│   ├── retrieval/           # Hybrid BM25+/FAISS retrieval
+│   ├── vector_store/        # FAISS vector indexes
 │   ├── user_preferences.py  # User settings persistence
-│   ├── vocabulary/          # Step 4: Vocabulary extraction
-│   │   └── text_vocabulary_extractor.py
 │   └── utils/
-│       └── logger.py        # Logging with debug mode support
-├── tests/
-│   ├── test_raw_text_extractor.py  # Unit tests for Steps 1-2 (24 tests)
-│   └── sample_docs/                # Sample legal documents
+│       └── logger.py        # Backward-compat logging wrapper
+├── tests/                   # 224 unit tests
 ├── config/
 │   ├── prompt_parameters.json  # AI model settings (temperature, top_p, etc.)
 │   └── prompts/                # Prompt templates by model
@@ -264,10 +269,9 @@ CaseSummarizer/
 └── README.md               # This file
 
 Documentation Files:
+├── ARCHITECTURE.md                       # Mermaid architecture diagrams
 ├── development_log.md                    # Timestamped development history
 ├── human_summary.md                      # High-level project status
-├── scratchpad.md                         # Future ideas and enhancements
-├── PREPROCESSING_PROPOSAL.md             # Step 3 design specification
 └── PROJECT_OVERVIEW.md                   # Complete technical spec (PRIMARY SOURCE OF TRUTH)
 ```
 

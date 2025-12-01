@@ -1,30 +1,78 @@
 """
-Q&A Package for LocalScribe.
+Q&A Package for LocalScribe - Unified API for Question Answering.
 
-Provides question-answering functionality using FAISS vector search and
-optional Ollama LLM answer generation.
+This is the main entry point for all Q&A functionality. Import everything
+Q&A-related from this package:
 
-Components:
-- QAOrchestrator: Coordinates Q&A process (vector search + answer generation)
-- AnswerGenerator: Generates answers via extraction or Ollama
-- QAResult: Data model for question-answer pairs
+    from src.qa import (
+        # Orchestration
+        QAOrchestrator, QAResult, AnswerGenerator, AnswerMode,
+        # Vector Store
+        VectorStoreBuilder, QARetriever, QuestionFlowManager,
+        # Retrieval Algorithms
+        HybridRetriever, ChunkMerger,
+    )
 
-Usage:
-    from src.qa import QAOrchestrator, QAResult, AnswerMode
+Architecture:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  src.qa (this package) - Unified Q&A API                    │
+    ├─────────────────────────────────────────────────────────────┤
+    │  QAOrchestrator → AnswerGenerator → QARetriever            │
+    │                                          ↓                  │
+    │  src.vector_store: VectorStoreBuilder, QuestionFlowManager │
+    │                                          ↓                  │
+    │  src.retrieval: HybridRetriever (BM25+ + FAISS algorithms) │
+    └─────────────────────────────────────────────────────────────┘
 
-    orchestrator = QAOrchestrator(vector_store_path, embeddings)
-    results = orchestrator.run_default_questions()
-    for result in results:
-        print(f"Q: {result.question}")
-        print(f"A: {result.answer}")
+Components by layer:
+- Orchestration: QAOrchestrator, AnswerGenerator, AnswerMode, QAResult
+- Storage: VectorStoreBuilder (creates indexes), QARetriever (queries indexes)
+- Questions: QuestionFlowManager (branching question trees)
+- Retrieval: HybridRetriever, ChunkMerger (BM25+ and FAISS algorithms)
 """
 
+# Core Q&A orchestration
 from src.qa.answer_generator import AnswerGenerator, AnswerMode
 from src.qa.qa_orchestrator import QAOrchestrator, QAResult
 
+# Vector store and retrieval (re-exported for unified API)
+from src.vector_store import (
+    VectorStoreBuilder,
+    QARetriever,
+    QuestionFlowManager,
+    QuestionAnswer,
+    FlowState,
+)
+
+# Hybrid retrieval (re-exported for unified API)
+from src.retrieval import (
+    HybridRetriever,
+    ChunkMerger,
+    MergedChunk,
+    BaseRetrievalAlgorithm,
+    RetrievedChunk,
+    AlgorithmRetrievalResult,
+    DocumentChunk,
+)
+
 __all__ = [
+    # Core orchestration
     "QAOrchestrator",
     "QAResult",
     "AnswerGenerator",
     "AnswerMode",
+    # Vector store
+    "VectorStoreBuilder",
+    "QARetriever",
+    "QuestionFlowManager",
+    "QuestionAnswer",
+    "FlowState",
+    # Retrieval
+    "HybridRetriever",
+    "ChunkMerger",
+    "MergedChunk",
+    "BaseRetrievalAlgorithm",
+    "RetrievedChunk",
+    "AlgorithmRetrievalResult",
+    "DocumentChunk",
 ]

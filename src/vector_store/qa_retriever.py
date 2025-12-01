@@ -1,14 +1,14 @@
 """
 Q&A Retriever for LocalScribe.
 
-Retrieves relevant document context for user questions using FAISS similarity search.
-Formats context with source citations for RAG (Retrieval-Augmented Generation).
+Retrieves relevant document context for user questions using hybrid search
+combining BM25+ (lexical) and FAISS (semantic) algorithms.
 
-Architecture:
-- Loads FAISS index from disk (file-based persistence)
-- Performs similarity search to find relevant chunks
+Architecture (Session 31 - Hybrid Retrieval):
+- Loads documents from FAISS index on disk (backward compatible)
+- Builds BM25+ index on-the-fly for lexical search
+- Combines results from both algorithms using weighted merging
 - Returns formatted context string with source attribution
-- Supports relevance score filtering
 
 Integration:
 - Used by QAWorker in background thread
@@ -19,7 +19,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.config import DEBUG_MODE, QA_RETRIEVAL_K, QA_SIMILARITY_THRESHOLD
+from src.config import (
+    DEBUG_MODE,
+    QA_RETRIEVAL_K,
+    RETRIEVAL_ALGORITHM_WEIGHTS,
+    RETRIEVAL_ENABLE_BM25,
+    RETRIEVAL_ENABLE_FAISS,
+    RETRIEVAL_MIN_SCORE,
+)
 from src.logging_config import debug_log
 
 if TYPE_CHECKING:
@@ -36,6 +43,7 @@ class SourceInfo:
     section: str
     relevance_score: float
     word_count: int
+    sources: list[str] | None = None  # Which algorithms found this chunk
 
 
 @dataclass
@@ -50,11 +58,11 @@ class RetrievalResult:
 
 class QARetriever:
     """
-    Retrieves relevant context for Q&A from FAISS vector store.
+    Retrieves relevant context for Q&A using hybrid search.
 
-    Uses similarity search to find the most relevant document chunks
-    for a given question. Formats results with source citations for
-    accurate attribution in AI-generated answers.
+    Combines BM25+ (lexical) and FAISS (semantic) search for comprehensive
+    document retrieval. BM25+ handles exact terminology matching while
+    FAISS can find conceptually related content.
 
     Example:
         retriever = QARetriever(persist_dir, embeddings)
@@ -70,6 +78,8 @@ class QARetriever:
     ):
         """
         Initialize retriever with existing vector store.
+
+        Loads documents from FAISS index and builds BM25+ index.
 
         Args:
             vector_store_path: Path to directory containing index.faiss/index.pkl
@@ -91,16 +101,91 @@ class QARetriever:
                 "Ensure documents have been processed first."
             )
 
-        # Load FAISS index from disk
+        # Load FAISS index from disk (for backward compatibility and document access)
         # allow_dangerous_deserialization=True is safe because we control the data
-        self.vector_store = FAISS.load_local(
+        self._faiss_store = FAISS.load_local(
             folder_path=str(self.vector_store_path),
             embeddings=embeddings,
             allow_dangerous_deserialization=True
         )
 
         if DEBUG_MODE:
-            debug_log(f"[QARetriever] Loaded vector store from: {self.vector_store_path}")
+            debug_log(f"[QARetriever] Loaded FAISS index from: {self.vector_store_path}")
+
+        # Extract documents from FAISS docstore for hybrid retrieval
+        self._documents = self._extract_documents_from_faiss()
+
+        # Initialize hybrid retriever
+        self._hybrid_retriever = self._init_hybrid_retriever()
+
+        if DEBUG_MODE:
+            debug_log(f"[QARetriever] Hybrid retriever initialized with {len(self._documents)} chunks")
+
+    def _extract_documents_from_faiss(self) -> list[dict]:
+        """
+        Extract document texts and metadata from FAISS docstore.
+
+        Returns:
+            List of document dicts with extracted_text and filename
+        """
+        documents = []
+
+        # FAISS stores documents in docstore with index_to_docstore_id mapping
+        docstore = self._faiss_store.docstore
+        index_to_id = self._faiss_store.index_to_docstore_id
+
+        # Group by filename for better organization
+        chunks_by_file: dict[str, list[dict]] = {}
+
+        for idx, doc_id in index_to_id.items():
+            doc = docstore.search(doc_id)
+            if doc is None:
+                continue
+
+            metadata = doc.metadata
+            filename = metadata.get("filename", "unknown")
+
+            chunk_info = {
+                "text": doc.page_content,
+                "chunk_num": metadata.get("chunk_num", idx),
+                "section_name": metadata.get("section_name", "N/A"),
+                "word_count": metadata.get("word_count", len(doc.page_content.split())),
+            }
+
+            if filename not in chunks_by_file:
+                chunks_by_file[filename] = []
+            chunks_by_file[filename].append(chunk_info)
+
+        # Convert to document format expected by HybridRetriever
+        for filename, chunks in chunks_by_file.items():
+            documents.append({
+                "filename": filename,
+                "chunks": chunks,
+            })
+
+        return documents
+
+    def _init_hybrid_retriever(self):
+        """
+        Initialize the hybrid retriever with extracted documents.
+
+        Returns:
+            HybridRetriever instance
+        """
+        from src.retrieval import HybridRetriever
+
+        # Create hybrid retriever with config settings
+        retriever = HybridRetriever(
+            algorithm_weights=RETRIEVAL_ALGORITHM_WEIGHTS,
+            embeddings=self.embeddings,
+            enable_bm25=RETRIEVAL_ENABLE_BM25,
+            enable_faiss=RETRIEVAL_ENABLE_FAISS,
+        )
+
+        # Index documents
+        retriever.index_documents(self._documents)
+
+        return retriever
 
     def retrieve_context(
         self,
@@ -111,7 +196,7 @@ class QARetriever:
         """
         Retrieve top-k relevant chunks for a question.
 
-        Uses cosine similarity to find the most relevant document chunks.
+        Uses hybrid search (BM25+ + FAISS) to find the most relevant chunks.
         Filters by minimum relevance score if specified.
 
         Args:
@@ -123,53 +208,47 @@ class QARetriever:
             RetrievalResult with formatted context and source information
         """
         import time
+
         start_time = time.perf_counter()
 
         # Use config defaults if not specified
         k = k or QA_RETRIEVAL_K
-        min_score = min_score if min_score is not None else QA_SIMILARITY_THRESHOLD
+        min_score = min_score if min_score is not None else RETRIEVAL_MIN_SCORE
 
         if DEBUG_MODE:
-            debug_log(f"[QARetriever] Query: '{question[:50]}...' (k={k})")
+            debug_log(f"[QARetriever] Query: '{question[:50]}...' (k={k}, min_score={min_score})")
 
-        # Perform similarity search with scores
-        # Returns list of (Document, score) tuples
-        docs_and_scores = self.vector_store.similarity_search_with_relevance_scores(
-            question, k=k
-        )
+        # Use hybrid retriever
+        merged_result = self._hybrid_retriever.retrieve(question, k=k)
 
         # Filter by minimum score and build results
         context_parts = []
         sources = []
 
-        for doc, score in docs_and_scores:
+        for chunk in merged_result.chunks:
             # Skip low-relevance chunks
-            if score < min_score:
+            if chunk.combined_score < min_score:
                 if DEBUG_MODE:
-                    debug_log(f"[QARetriever] Skipped chunk (score {score:.2f} < {min_score})")
+                    debug_log(f"[QARetriever] Skipped chunk (score {chunk.combined_score:.3f} < {min_score})")
                 continue
 
-            # Extract metadata
-            metadata = doc.metadata
-            filename = metadata.get('filename', 'unknown')
-            chunk_num = metadata.get('chunk_num', 0)
-            section = metadata.get('section_name', 'N/A')
-            word_count = metadata.get('word_count', len(doc.page_content.split()))
-
             # Format source citation for context
-            source_cite = f"[{filename}"
-            if section and section != 'N/A':
-                source_cite += f", {section}"
+            source_cite = f"[{chunk.filename}"
+            if chunk.section_name and chunk.section_name != "N/A":
+                source_cite += f", {chunk.section_name}"
             source_cite += "]:"
 
-            context_parts.append(f"{source_cite}\n{doc.page_content}")
+            context_parts.append(f"{source_cite}\n{chunk.text}")
+
+            word_count = len(chunk.text.split())
 
             sources.append(SourceInfo(
-                filename=filename,
-                chunk_num=chunk_num,
-                section=section,
-                relevance_score=score,
-                word_count=word_count
+                filename=chunk.filename,
+                chunk_num=chunk.chunk_num,
+                section=chunk.section_name,
+                relevance_score=chunk.combined_score,
+                word_count=word_count,
+                sources=chunk.sources,  # Track which algorithms found this
             ))
 
         # Combine context parts with separator
@@ -180,7 +259,8 @@ class QARetriever:
         if DEBUG_MODE:
             debug_log(f"[QARetriever] Retrieved {len(sources)} chunks in {elapsed_ms:.1f}ms")
             for src in sources:
-                debug_log(f"  - {src.filename} (chunk {src.chunk_num}, score {src.relevance_score:.2f})")
+                algo_info = f" via {src.sources}" if src.sources else ""
+                debug_log(f"  - {src.filename} (chunk {src.chunk_num}, score {src.relevance_score:.3f}{algo_info})")
 
         return RetrievalResult(
             context=context,
@@ -209,7 +289,7 @@ class QARetriever:
 
         for source in result.sources:
             if source.filename not in seen_files:
-                if source.section and source.section != 'N/A':
+                if source.section and source.section != "N/A":
                     summaries.append(f"{source.filename} ({source.section})")
                 else:
                     summaries.append(source.filename)
@@ -224,5 +304,13 @@ class QARetriever:
         Returns:
             Number of indexed chunks
         """
-        # FAISS stores document count in index.ntotal
-        return self.vector_store.index.ntotal
+        return self._hybrid_retriever.get_chunk_count()
+
+    def get_algorithm_status(self) -> dict:
+        """
+        Get status of retrieval algorithms.
+
+        Returns:
+            Dictionary with algorithm name -> status info
+        """
+        return self._hybrid_retriever.get_algorithm_status()

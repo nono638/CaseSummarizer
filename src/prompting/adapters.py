@@ -12,8 +12,10 @@ Design Principles:
 3. All methods accept preset_id + model_name for flexibility
 4. Graceful fallback if template loading fails
 
+Moved from src/prompt_adapters.py to src/prompting/adapters.py in Session 33.
+
 Usage:
-    from src.prompt_adapters import MultiDocPromptAdapter
+    from src.prompting import MultiDocPromptAdapter
 
     adapter = MultiDocPromptAdapter(template_manager, model_manager)
 
@@ -32,11 +34,11 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from src.logging_config import debug_log, error
-from src.prompt_focus_extractor import AIFocusExtractor, FocusExtractor
+from src.prompting.focus_extractor import AIFocusExtractor, FocusExtractor
 
 if TYPE_CHECKING:
     from src.ai.ollama_model_manager import OllamaModelManager
-    from src.prompt_template_manager import PromptTemplateManager
+    from src.prompting.template_manager import PromptTemplateManager
 
 
 class PromptAdapter(ABC):

@@ -1,6 +1,8 @@
 """
 Prompt Parameters Configuration Loader
 Loads and manages user-configurable AI prompt settings.
+
+Moved from src/prompt_config.py to src/prompting/config.py in Session 33.
 """
 
 import json
@@ -8,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 # Path to the prompt parameters file
-PROMPT_PARAMS_FILE = Path(__file__).parent.parent / "config" / "prompt_parameters.json"
+PROMPT_PARAMS_FILE = Path(__file__).parent.parent.parent / "config" / "prompt_parameters.json"
 
 
 class PromptConfig:

@@ -1,5 +1,208 @@
 # Development Log
 
+## Session 33 - Codebase Organization & Cleanup (2025-12-01)
+
+**Objective:** Review and improve codebase organization, fix naming inconsistencies, and ensure documentation is up to date.
+
+### Phase 1: Critical Cleanup
+
+Deleted orphaned/obsolete files:
+- `src/1_ingestion/` - Empty directory from failed numeric prefix attempt
+- `src/vocabulary/vocabulary_extractor_backup.py` - Stale backup file
+- Duplicate `SettingsDialog` class from `src/ui/dialogs.py` (newer version in `src/ui/settings/`)
+- 15 `.tmp.*` temporary files
+
+### Phase 2: Logging Standardization
+
+Updated `src/extraction/raw_text_extractor.py` to use canonical logging import:
+- Old: `from src.utils import Timer, debug, error, info, warning`
+- New: `from src.logging_config import Timer, debug, error, info, warning`
+
+The backward-compat wrapper in `src/utils/logger.py` remains for any external code.
+
+### Phase 3: Created `src/prompting/` Package
+
+Consolidated 4 orphan prompt-related files from `src/` root into a proper package:
+
+| Old Location | New Location |
+|--------------|--------------|
+| `src/prompt_adapters.py` | `src/prompting/adapters.py` |
+| `src/prompt_focus_extractor.py` | `src/prompting/focus_extractor.py` |
+| `src/prompt_template_manager.py` | `src/prompting/template_manager.py` |
+| `src/prompt_config.py` | `src/prompting/config.py` |
+
+Created unified facade API in `src/prompting/__init__.py`:
+```python
+from src.prompting import (
+    PromptTemplateManager, AIFocusExtractor, MultiDocPromptAdapter,
+    PromptConfig, get_prompt_config,
+)
+```
+
+Updated all consumers to use new import paths:
+- `src/ai/ollama_model_manager.py`
+- `src/ai/summary_post_processor.py`
+- `src/summarization/document_summarizer.py`
+- `src/summarization/multi_document_orchestrator.py`
+- `src/ui/main_window.py`
+- `src/ui/workers.py`
+- Test files
+
+### Phase 4: UI Code Splitting
+
+**4.1 - main_window.py refactored:**
+- Created `src/ui/window_layout.py` with `WindowLayoutMixin`
+- Extracted 6 UI creation methods (~260 lines) into the mixin
+- `MainWindow` now inherits from `WindowLayoutMixin, ctk.CTk`
+- Clean separation: layout code in mixin, business logic in main_window.py
+
+**4.2 - workers.py assessed:**
+- Reviewed `workers.py` (651 lines) - under 1000-line threshold
+- 5 well-organized, cohesive worker classes (~75-170 lines each)
+- Decision: No split needed - file is appropriately sized
+
+### Pattern: Mixin for Layout Separation
+
+```python
+# window_layout.py
+class WindowLayoutMixin:
+    def _create_header(self): ...
+    def _create_main_panels(self): ...
+    def _create_status_bar(self): ...
+
+# main_window.py
+class MainWindow(WindowLayoutMixin, ctk.CTk):
+    # Business logic only
+```
+
+This pattern separates visual layout from event handling/business logic.
+
+### Files Changed
+
+**Created:**
+- `src/prompting/__init__.py` - Unified prompting API
+- `src/prompting/adapters.py` - Stage-specific prompt generation
+- `src/prompting/focus_extractor.py` - AI focus extraction
+- `src/prompting/template_manager.py` - Template loading/management
+- `src/prompting/config.py` - Prompt parameters
+- `src/ui/window_layout.py` - UI layout mixin
+
+**Deleted:**
+- `src/1_ingestion/` (empty directory)
+- `src/vocabulary/vocabulary_extractor_backup.py`
+- `src/prompt_adapters.py`
+- `src/prompt_focus_extractor.py`
+- `src/prompt_template_manager.py`
+- `src/prompt_config.py`
+- Old `SettingsDialog` in `src/ui/dialogs.py`
+
+---
+
+## Session 32 - Unified Package APIs & Architecture Docs (2025-12-01)
+
+**Objective:** Reorganize codebase to better match program flow (Input → Vocabulary → Q&A → Summaries) through unified package APIs rather than file moves.
+
+### Problem Solved
+
+User found code hard to follow because Q&A functionality was split across 3 packages (`qa/`, `vector_store/`, `retrieval/`). Rather than physically moving files (which would require 80+ import changes), we created **unified facade APIs**.
+
+### Unified Q&A API (`src/qa/__init__.py`)
+
+Everything Q&A-related is now importable from `src.qa`:
+
+```python
+from src.qa import (
+    # Orchestration
+    QAOrchestrator, QAResult, AnswerGenerator, AnswerMode,
+    # Storage
+    VectorStoreBuilder, QARetriever, QuestionFlowManager,
+    # Retrieval
+    HybridRetriever, ChunkMerger, BaseRetrievalAlgorithm,
+)
+```
+
+The package re-exports from `src.vector_store` and `src.retrieval`, providing a single entry point.
+
+### Unified Summarization API (`src/summarization/__init__.py`)
+
+All summarization functionality accessible from `src.summarization`:
+
+```python
+from src.summarization import (
+    ProgressiveSummarizer, ChunkingEngine, Chunk,  # Core
+    MultiDocumentOrchestrator, MultiDocumentSummaryResult,  # Multi-doc
+)
+```
+
+Orphan files (`progressive_summarizer.py`, `chunking_engine.py`) are re-exported without physical move.
+
+### Architecture Documentation Updates
+
+Updated `ARCHITECTURE.md` with:
+- New Mermaid diagram showing hybrid retrieval architecture
+- Hybrid retrieval section explaining BM25+/FAISS combination
+- File directory updated with retrieval package entries
+- Unified API documentation
+
+### Note on Numeric Directory Prefixes
+
+Initial plan was to use numbered prefixes (`1_ingestion/`, `2_vocabulary/`) for visual program flow, but **Python package names cannot start with digits**. Abandoned this approach in favor of unified APIs.
+
+### Test Results
+
+- **224 tests passing**
+- Pre-existing UI test issue with `test_ui_startup.py` excluded (unrelated)
+
+---
+
+## Session 31 - Hybrid BM25+ Retrieval System (2025-12-01)
+
+**Objective:** Replace FAISS-only Q&A retrieval with a hybrid BM25+ / FAISS system to fix "no information found" results. The semantic-only approach was failing because the embedding model wasn't trained on legal terminology.
+
+### Architecture
+
+Created a new `src/retrieval/` package mirroring the vocabulary extraction pattern:
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `BaseRetrievalAlgorithm` | `src/retrieval/base.py` | ABC for all retrieval algorithms |
+| `BM25PlusRetriever` | `src/retrieval/algorithms/bm25_plus.py` | Lexical search with BM25+ scoring |
+| `FAISSRetriever` | `src/retrieval/algorithms/faiss_semantic.py` | Semantic search with embeddings |
+| `ChunkMerger` | `src/retrieval/chunk_merger.py` | Weighted result combination |
+| `HybridRetriever` | `src/retrieval/hybrid_retriever.py` | Coordinates multiple algorithms |
+
+### Why BM25+ Over Pure Semantic Search
+
+- **Legal language is precise** - exact terms matter ("plaintiff" means plaintiff)
+- **Embedding model not trained on legal text** - `all-MiniLM-L6-v2` doesn't understand legal terminology
+- **BM25+ scores are more reliable** - deterministic, no neural model needed
+- **Future ML integration** - same pattern as vocabulary extraction allows user preference learning
+
+### Algorithm Weights (from config.py)
+
+```python
+RETRIEVAL_ALGORITHM_WEIGHTS = {
+    "BM25+": 1.0,   # Primary - exact term matching
+    "FAISS": 0.5,   # Secondary - semantic can help but less reliable
+}
+RETRIEVAL_MIN_SCORE = 0.1  # Lower than before (was 0.5)
+```
+
+### Key Changes
+
+- **New package:** `src/retrieval/` with 6 new files
+- **Refactored:** `src/vector_store/qa_retriever.py` now uses HybridRetriever internally
+- **Config:** Added `RETRIEVAL_*` settings to `src/config.py`
+- **Dependency:** Added `rank-bm25>=0.2.2` to requirements.txt
+- **Tests:** Added 17 new tests in `tests/test_hybrid_retrieval.py`
+
+### Test Results
+
+- **224 tests passing** (207 existing + 17 new hybrid retrieval tests)
+- Pre-existing UI test issue with `test_ui_startup.py` (unrelated to this session)
+
+---
+
 ## Session 30 - Q&A/Vocabulary Integration Fixes (2025-12-01)
 
 **Objective:** Wire up the Q&A and vocabulary systems to the new CustomTkinter UI and fix integration bugs.

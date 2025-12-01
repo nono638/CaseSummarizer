@@ -12,7 +12,7 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from src.ai.ollama_model_manager import OllamaModelManager
-from src.prompt_template_manager import PromptTemplateManager
+from src.prompting import PromptTemplateManager
 from src.config import PROMPTS_DIR
 
 def test_ollama_connection():

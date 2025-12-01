@@ -1,0 +1,316 @@
+"""
+Window Layout Mixin for MainWindow
+
+Provides UI layout creation methods for the MainWindow class.
+Extracted from main_window.py in Session 33 to improve code organization.
+
+This module contains all widget creation and layout code, separating
+visual structure from business logic in the main window.
+
+Usage:
+    class MainWindow(WindowLayoutMixin, ctk.CTk):
+        def __init__(self):
+            super().__init__()
+            self._create_header()
+            self._create_warning_banner()
+            self._create_main_panels()
+            self._create_status_bar()
+"""
+
+import customtkinter as ctk
+
+
+class WindowLayoutMixin:
+    """
+    Mixin providing layout creation methods for MainWindow.
+
+    This mixin expects the following attributes to be defined:
+    - self (ctk.CTk window instance)
+    - self._open_settings (callback method)
+    - self._on_corpus_changed (callback method)
+    - self._open_corpus_dialog (callback method)
+    - self._select_files (callback method)
+    - self._clear_files (callback method)
+    - self._update_generate_button_state (callback method)
+    - self._on_summary_checked (callback method)
+    - self._perform_tasks (callback method)
+    - self._ask_followup (callback method)
+
+    And expects to create these widget references:
+    - self.header_frame, self.title_label, self.settings_btn
+    - self.corpus_frame, self.corpus_dropdown, self.manage_corpus_btn
+    - self.banner_frame, self.banner_label, self.setup_corpus_btn
+    - self.main_frame, self.left_panel, self.right_panel
+    - self.file_table, self.add_files_btn, self.clear_files_btn
+    - self.qa_check, self.vocab_check, self.summary_check, self.generate_btn
+    - self.output_display, self.followup_entry, self.followup_btn
+    - self.status_frame, self.status_label, self.timer_label, self.corpus_info_label
+    """
+
+    def _create_header(self):
+        """Create header row with corpus dropdown and settings button."""
+        self.header_frame = ctk.CTkFrame(self, height=50, corner_radius=0)
+        self.header_frame.pack(fill="x", padx=0, pady=0)
+        self.header_frame.pack_propagate(False)
+
+        # App title (left)
+        self.title_label = ctk.CTkLabel(
+            self.header_frame,
+            text="LocalScribe",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        self.title_label.pack(side="left", padx=15, pady=10)
+
+        # Settings button (right)
+        self.settings_btn = ctk.CTkButton(
+            self.header_frame,
+            text="⚙ Settings",
+            width=100,
+            command=self._open_settings
+        )
+        self.settings_btn.pack(side="right", padx=15, pady=10)
+
+        # Corpus dropdown (right of title)
+        self.corpus_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.corpus_frame.pack(side="right", padx=10, pady=10)
+
+        corpus_label = ctk.CTkLabel(
+            self.corpus_frame,
+            text="Corpus:",
+            font=ctk.CTkFont(size=12)
+        )
+        corpus_label.pack(side="left", padx=(0, 5))
+
+        self.corpus_dropdown = ctk.CTkComboBox(
+            self.corpus_frame,
+            values=["Loading..."],
+            width=150,
+            command=self._on_corpus_changed
+        )
+        self.corpus_dropdown.pack(side="left")
+
+        # Manage button
+        self.manage_corpus_btn = ctk.CTkButton(
+            self.corpus_frame,
+            text="Manage",
+            width=70,
+            fg_color=("gray70", "gray30"),
+            command=self._open_corpus_dialog
+        )
+        self.manage_corpus_btn.pack(side="left", padx=(5, 0))
+
+    def _create_warning_banner(self):
+        """Create the no-corpus warning banner."""
+        self.banner_frame = ctk.CTkFrame(
+            self,
+            fg_color=("#fff3cd", "#4a4528"),
+            corner_radius=0,
+            height=45
+        )
+        # Initially hidden, shown by _update_corpus_banner if needed
+        self.banner_frame.pack_propagate(False)
+
+        warning_text = (
+            "⚠️ No corpus configured. Set up a corpus to improve vocabulary detection. "
+            "Your corpus stays 100% local and offline."
+        )
+        self.banner_label = ctk.CTkLabel(
+            self.banner_frame,
+            text=warning_text,
+            font=ctk.CTkFont(size=12),
+            text_color=("#856404", "#d4b833")
+        )
+        self.banner_label.pack(side="left", padx=15, pady=10)
+
+        self.setup_corpus_btn = ctk.CTkButton(
+            self.banner_frame,
+            text="Set Up Now",
+            width=100,
+            command=self._open_corpus_dialog
+        )
+        self.setup_corpus_btn.pack(side="right", padx=15, pady=8)
+
+    def _create_main_panels(self):
+        """Create the two-panel main content area."""
+        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Configure grid for two panels
+        self.main_frame.grid_columnconfigure(0, weight=2)  # Left panel
+        self.main_frame.grid_columnconfigure(1, weight=3)  # Right panel (larger)
+        self.main_frame.grid_rowconfigure(0, weight=1)
+
+        # Left panel: Session Documents + Tasks
+        self._create_left_panel()
+
+        # Right panel: Results
+        self._create_right_panel()
+
+    def _create_left_panel(self):
+        """Create the left panel with session documents and task options."""
+        from src.ui.widgets import FileReviewTable
+
+        self.left_panel = ctk.CTkFrame(self.main_frame)
+        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=0)
+
+        self.left_panel.grid_columnconfigure(0, weight=1)
+        self.left_panel.grid_rowconfigure(1, weight=1)  # File table expands
+
+        # Section header
+        docs_header = ctk.CTkLabel(
+            self.left_panel,
+            text="📁 SESSION DOCUMENTS",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        docs_header.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 5))
+
+        # File Review Table
+        self.file_table = FileReviewTable(self.left_panel)
+        self.file_table.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+        # File buttons
+        file_btn_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        file_btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+
+        self.add_files_btn = ctk.CTkButton(
+            file_btn_frame,
+            text="+ Add Files",
+            width=100,
+            command=self._select_files
+        )
+        self.add_files_btn.pack(side="left", padx=(0, 5))
+
+        self.clear_files_btn = ctk.CTkButton(
+            file_btn_frame,
+            text="Clear All",
+            width=80,
+            fg_color=("gray70", "gray30"),
+            command=self._clear_files
+        )
+        self.clear_files_btn.pack(side="left")
+
+        # Task checkboxes section
+        task_header = ctk.CTkLabel(
+            self.left_panel,
+            text="TASKS",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        task_header.grid(row=3, column=0, sticky="w", padx=10, pady=(15, 5))
+
+        task_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        task_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=0)
+
+        # Q&A checkbox (default ON)
+        self.qa_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Questions & Answers",
+            command=self._update_generate_button_state
+        )
+        self.qa_check.pack(anchor="w", pady=2)
+        self.qa_check.select()  # ON by default
+
+        # Vocabulary checkbox (default ON)
+        self.vocab_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Vocabulary",
+            command=self._update_generate_button_state
+        )
+        self.vocab_check.pack(anchor="w", pady=2)
+        self.vocab_check.select()  # ON by default
+
+        # Summary checkbox (default OFF, with warning)
+        self.summary_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Summary (slow)",
+            command=self._on_summary_checked
+        )
+        self.summary_check.pack(anchor="w", pady=2)
+        # OFF by default - no select()
+
+        # "Perform N Tasks" button
+        self.generate_btn = ctk.CTkButton(
+            self.left_panel,
+            text="Perform 2 Tasks",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=40,
+            command=self._perform_tasks
+        )
+        self.generate_btn.grid(row=5, column=0, sticky="ew", padx=10, pady=(15, 10))
+
+    def _create_right_panel(self):
+        """Create the right panel with results display."""
+        from src.ui.dynamic_output import DynamicOutputWidget
+
+        self.right_panel = ctk.CTkFrame(self.main_frame)
+        self.right_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=0)
+
+        self.right_panel.grid_columnconfigure(0, weight=1)
+        self.right_panel.grid_rowconfigure(1, weight=1)  # Results area expands
+
+        # Header with results dropdown
+        results_header = ctk.CTkFrame(self.right_panel, fg_color="transparent")
+        results_header.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+
+        results_label = ctk.CTkLabel(
+            results_header,
+            text="📋 RESULTS",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        results_label.pack(side="left")
+
+        # Dynamic Output Widget (contains the results selector and display)
+        self.output_display = DynamicOutputWidget(self.right_panel)
+        self.output_display.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+        # Follow-up question input (for Q&A mode)
+        followup_frame = ctk.CTkFrame(self.right_panel, fg_color="transparent")
+        followup_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
+        followup_frame.grid_columnconfigure(0, weight=1)
+
+        self.followup_entry = ctk.CTkEntry(
+            followup_frame,
+            placeholder_text="Ask a follow-up question...",
+            height=35
+        )
+        self.followup_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        self.followup_entry.bind("<Return>", lambda e: self._ask_followup())
+
+        self.followup_btn = ctk.CTkButton(
+            followup_frame,
+            text="Ask",
+            width=60,
+            command=self._ask_followup,
+            state="disabled"  # Enabled after Q&A results exist
+        )
+        self.followup_btn.grid(row=0, column=1)
+
+    def _create_status_bar(self):
+        """Create status bar at bottom of window."""
+        self.status_frame = ctk.CTkFrame(self, height=30, corner_radius=0)
+        self.status_frame.pack(fill="x", side="bottom")
+        self.status_frame.pack_propagate(False)
+
+        # Status text
+        self.status_label = ctk.CTkLabel(
+            self.status_frame,
+            text="Ready",
+            font=ctk.CTkFont(size=11)
+        )
+        self.status_label.pack(side="left", padx=10, pady=5)
+
+        # Timer (right side)
+        self.timer_label = ctk.CTkLabel(
+            self.status_frame,
+            text="⏱ 0:00",
+            font=ctk.CTkFont(size=11)
+        )
+        self.timer_label.pack(side="right", padx=10, pady=5)
+
+        # Corpus info (middle)
+        self.corpus_info_label = ctk.CTkLabel(
+            self.status_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=("gray50", "gray60")
+        )
+        self.corpus_info_label.pack(side="right", padx=20, pady=5)

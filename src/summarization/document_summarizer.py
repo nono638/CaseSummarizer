@@ -44,7 +44,7 @@ from .result_types import DocumentSummaryResult
 
 if TYPE_CHECKING:
     from src.ai.ollama_model_manager import OllamaModelManager
-    from src.prompt_adapters import PromptAdapter
+    from src.prompting import PromptAdapter
 
 
 class DocumentSummarizer(ABC):
