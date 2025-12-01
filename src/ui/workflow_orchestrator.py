@@ -93,12 +93,13 @@ class WorkflowOrchestrator:
         Read current output options from UI checkboxes.
 
         Returns:
-            Dictionary with keys: individual_summaries, meta_summary, vocab_csv
+            Dictionary with keys: individual_summaries, meta_summary, vocab_csv, qa_questions
         """
         return {
             "individual_summaries": self.main_window.output_options.individual_summaries_check.get(),
             "meta_summary": self.main_window.output_options.meta_summary_check.get(),
-            "vocab_csv": self.main_window.output_options.vocab_csv_check.get()
+            "vocab_csv": self.main_window.output_options.vocab_csv_check.get(),
+            "qa_questions": self.main_window.output_options.qa_questions_check.get()
         }
 
     def on_extraction_complete(
@@ -337,13 +338,29 @@ class WorkflowOrchestrator:
         """
         def build_store():
             try:
+                debug_log("[ORCHESTRATOR] Vector store thread started.")
+
+                # Update status - embedding model load can take 15-30s on first run
+                if self.state.output_options and self.state.output_options.get('qa_questions', False):
+                    self.main_window.ui_queue.put(('progress', (65, "Loading AI embedding model...")))
+
+                # Import and initialize embeddings
+                # NOTE: This import triggers torch loading which can take 10-15 seconds
                 from langchain_huggingface import HuggingFaceEmbeddings
                 from src.vector_store import VectorStoreBuilder
 
-                debug_log("[ORCHESTRATOR] Vector store thread started.")
-
                 # Initialize embeddings (reusing the same model as ChunkingEngine)
-                embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+                # Note: First run downloads model (~90MB), subsequent runs use cache
+                # IMPORTANT: Explicitly set device='cpu' to avoid "meta tensor" errors
+                # See: https://discuss.huggingface.co/t/cannot-copy-out-of-meta-tensor-no-data/128996
+                embeddings = HuggingFaceEmbeddings(
+                    model_name="all-MiniLM-L6-v2",
+                    model_kwargs={'device': 'cpu'}
+                )
+
+                # Update status now that model is loaded
+                if self.state.output_options and self.state.output_options.get('qa_questions', False):
+                    self.main_window.ui_queue.put(('progress', (75, "Building Q&A search index...")))
 
                 # Build vector store
                 builder = VectorStoreBuilder()
@@ -377,6 +394,7 @@ class WorkflowOrchestrator:
         Handle completion of vector store creation.
 
         Updates workflow state with vector store path for Q&A retrieval.
+        If Q&A is requested, starts the Q&A worker.
 
         Args:
             result: Dictionary with 'path', 'case_id', 'chunk_count'
@@ -384,3 +402,96 @@ class WorkflowOrchestrator:
         self.state.vector_store_path = result.get('path')
         self.state.vector_store_ready = True
         debug_log(f"[ORCHESTRATOR] Vector store complete: {result.get('case_id')}")
+
+        # Start Q&A processing if requested
+        if self.state.output_options and self.state.output_options.get('qa_questions', False):
+            self._start_qa_processing(result)
+
+    def _start_qa_processing(self, vector_store_result: dict):
+        """
+        Start Q&A worker to process default questions against documents.
+
+        Args:
+            vector_store_result: Dictionary with 'path', 'case_id', 'chunk_count'
+        """
+        from src.ui.workers import QAWorker
+        from langchain_huggingface import HuggingFaceEmbeddings
+        from src.user_preferences import get_user_preferences
+
+        debug_log("[ORCHESTRATOR] Starting Q&A processing...")
+
+        # Get user's preferred answer mode from settings
+        prefs = get_user_preferences()
+        answer_mode = prefs.get("qa_answer_mode", "extraction")
+
+        # Initialize embeddings (same model as vector store creation)
+        # IMPORTANT: Explicitly set device='cpu' to avoid "meta tensor" errors
+        embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={'device': 'cpu'}
+        )
+
+        self.qa_worker = QAWorker(
+            vector_store_path=Path(vector_store_result['path']),
+            embeddings=embeddings,
+            ui_queue=self.main_window.ui_queue,
+            answer_mode=answer_mode
+        )
+        self.qa_worker.start()
+        debug_log(f"[ORCHESTRATOR] QAWorker started (mode={answer_mode})")
+
+    def ask_followup_question(self, question: str):
+        """
+        Ask a follow-up question against the current vector store.
+
+        This runs in a background thread and sends the result to the UI queue.
+
+        Args:
+            question: The question text to ask
+        """
+        if not self.state.vector_store_ready or not self.state.vector_store_path:
+            debug_log("[ORCHESTRATOR] Cannot ask follow-up: vector store not ready")
+            self.main_window.ui_queue.put(('qa_error', {
+                'error': 'Vector store not ready. Process documents first.'
+            }))
+            return
+
+        def ask_question():
+            try:
+                from langchain_huggingface import HuggingFaceEmbeddings
+                from src.qa.qa_orchestrator import QAOrchestrator
+                from src.user_preferences import get_user_preferences
+
+                debug_log(f"[ORCHESTRATOR] Asking follow-up: {question[:50]}...")
+
+                # Get answer mode from settings
+                prefs = get_user_preferences()
+                answer_mode = prefs.get("qa_answer_mode", "extraction")
+
+                # Initialize embeddings
+                # IMPORTANT: Explicitly set device='cpu' to avoid "meta tensor" errors
+                embeddings = HuggingFaceEmbeddings(
+                    model_name="all-MiniLM-L6-v2",
+                    model_kwargs={'device': 'cpu'}
+                )
+
+                # Create orchestrator with vector store path
+                qa_orchestrator = QAOrchestrator(
+                    vector_store_path=self.state.vector_store_path,
+                    embeddings=embeddings,
+                    answer_mode=answer_mode
+                )
+
+                # Ask the follow-up question
+                result = qa_orchestrator.ask_followup(question)
+
+                # Send result to UI
+                self.main_window.ui_queue.put(('qa_followup_result', result))
+                debug_log(f"[ORCHESTRATOR] Follow-up answered: {result.answer[:50] if result.answer else 'No answer'}...")
+
+            except Exception as e:
+                debug_log(f"[ORCHESTRATOR] Follow-up error: {e}")
+                self.main_window.ui_queue.put(('qa_error', {'error': str(e)}))
+
+        thread = threading.Thread(target=ask_question, daemon=True, name="FollowupQuestion")
+        thread.start()

@@ -69,7 +69,11 @@ class ChunkingEngine:
         debug_log("Initializing LangChain components for semantic chunking...")
         init_start = time.time()
         try:
-            self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            # IMPORTANT: Explicitly set device='cpu' to avoid "meta tensor" errors
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={'device': 'cpu'}
+            )
             self.semantic_chunker = SemanticChunker(
                 self.embeddings, breakpoint_threshold_type="gradient"
             )

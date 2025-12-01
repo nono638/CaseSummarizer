@@ -9,6 +9,7 @@
 - [Processing Pipeline](#processing-pipeline)
 - [Multi-Document Summarization Pipeline](#multi-document-summarization-pipeline)
 - [AI Integration Layer](#ai-integration-layer)
+- [Q&A System](#qa-system)
 - [Vocabulary Extraction System](#vocabulary-extraction-system)
 - [Parallel Processing Architecture](#parallel-processing-architecture)
 - [Configuration & Settings](#configuration--settings)
@@ -24,18 +25,21 @@ flowchart TB
     subgraph USER["User Input"]
         Files["PDF/TXT/RTF Files"]
         Settings["Settings & Preferences"]
+        Questions["Q&A Questions"]
     end
 
     subgraph UI["UI LAYER (CustomTkinter)"]
         MainWindow["MainWindow<br/>src/ui/main_window.py"]
         Widgets["Widgets<br/>FileTable, ModelSelector"]
         Output["DynamicOutput<br/>Results Display"]
+        QAPanel["QAPanel<br/>Q&A Results"]
     end
 
     subgraph WORKERS["WORKER THREADS"]
         ProcessingWorker["ProcessingWorker<br/>Document Extraction"]
         VocabWorker["VocabularyWorker<br/>Term Extraction"]
         AIWorker["AIWorkerManager<br/>Summarization"]
+        QAWorker["QAWorker<br/>Q&A Processing"]
     end
 
     subgraph PIPELINE["PROCESSING PIPELINE"]
@@ -45,18 +49,33 @@ flowchart TB
         Summarize["SUMMARIZE<br/>AI/Ollama"]
     end
 
+    subgraph VECTORSTORE["VECTOR STORE"]
+        FAISS["FAISS Index<br/>Embeddings"]
+        Retriever["QARetriever<br/>Context Search"]
+    end
+
+    subgraph VOCAB["VOCABULARY SYSTEM"]
+        Algorithms["Multi-Algorithm<br/>NER + RAKE + BM25"]
+        Feedback["ML Feedback<br/>User Learning"]
+    end
+
     subgraph SUPPORT["SUPPORT SYSTEMS"]
         Config["CONFIG<br/>config/"]
         Logging["LOGGING<br/>debug mode"]
-        Vocab["VOCABULARY<br/>spaCy/NER"]
         Prefs["SETTINGS<br/>user prefs"]
     end
 
     Files --> UI
     Settings --> UI
+    Questions --> UI
     UI <-->|ui_queue| WORKERS
     WORKERS --> PIPELINE
     PIPELINE --> Output
+    PIPELINE --> VECTORSTORE
+    VECTORSTORE --> QAWorker
+    QAWorker --> QAPanel
+    WORKERS --> VOCAB
+    VOCAB --> Output
     SUPPORT -.-> PIPELINE
 ```
 
@@ -69,6 +88,7 @@ flowchart TB
 | **Parallel Processing** | Strategy Pattern enables swappable execution modes |
 | **Graceful Degradation** | Fallbacks at every stage if components fail |
 | **Dependency Injection** | All major components accept optional adapters for testing |
+| **Pluggable Algorithms** | Registry pattern for vocabulary extraction algorithms |
 
 ---
 
@@ -96,13 +116,13 @@ flowchart TB
                 OutputOpts["OutputOptionsWidget<br/>Checkboxes + Slider"]
             end
             subgraph BR["Bottom-Right"]
-                DynamicOut["DynamicOutputWidget<br/>Results + Copy/Save"]
+                DynamicOut["DynamicOutputWidget<br/>Summary/Vocab/Q&A tabs"]
             end
         end
 
         subgraph StatusBar
             StatusLabel["Status Label"]
-            ProgressBar["Progress Bar"]
+            ProcessingTimer["Processing Timer"]
             SysMon["SystemMonitor<br/>CPU/RAM"]
         end
 
@@ -127,8 +147,11 @@ flowchart TB
 | `FileReviewTable` | `src/ui/widgets.py` | File list with status/confidence |
 | `ModelSelectionWidget` | `src/ui/widgets.py` | Model + prompt dropdown selection |
 | `OutputOptionsWidget` | `src/ui/widgets.py` | Output toggles + word count slider |
-| `DynamicOutputWidget` | `src/ui/dynamic_output.py` | Tabbed results display |
+| `DynamicOutputWidget` | `src/ui/dynamic_output.py` | Tabbed results display (Summary/Vocab/Q&A) |
+| `QAPanel` | `src/ui/qa_panel.py` | Q&A results with toggle list |
+| `QAQuestionEditor` | `src/ui/qa_question_editor.py` | Edit default Q&A questions |
 | `SystemMonitor` | `src/ui/system_monitor.py` | CPU/RAM usage display |
+| `ProcessingTimer` | `src/ui/processing_timer.py` | Elapsed time display |
 | `QueueMessageHandler` | `src/ui/queue_message_handler.py` | Routes worker messages to UI |
 | `WorkflowOrchestrator` | `src/ui/workflow_orchestrator.py` | Processing state machine |
 
@@ -151,17 +174,26 @@ sequenceDiagram
     Worker->>Queue: progress
     Worker->>Queue: file_processed
     Worker->>Queue: summary_result
+    Worker->>Queue: vocab_csv_generated
+    Worker->>Queue: qa_complete
+    Worker->>Queue: qa_followup_result
     Worker->>Queue: processing_finished
 ```
 
 **Message Types:**
-- `progress` → Progress bar + status label
-- `file_processed` → FileReviewTable row update
-- `processing_finished` → WorkflowOrchestrator.on_extraction_complete()
-- `vocab_csv_generated` → DynamicOutputWidget vocabulary tab
-- `summary_result` → DynamicOutputWidget summary tab
-- `multi_doc_result` → DynamicOutputWidget (all summaries)
-- `error` → Error dialog + UI reset
+
+| Message | Handler | UI Update |
+|---------|---------|-----------|
+| `progress` | `handle_progress()` | Progress bar + status label |
+| `file_processed` | `handle_file_processed()` | FileReviewTable row update |
+| `processing_finished` | `handle_processing_finished()` | WorkflowOrchestrator.on_extraction_complete() |
+| `vocab_csv_generated` | `handle_vocab_csv_generated()` | DynamicOutputWidget vocabulary tab |
+| `summary_result` | `handle_summary_result()` | DynamicOutputWidget summary tab |
+| `multi_doc_result` | `handle_multi_doc_result()` | DynamicOutputWidget (all summaries) |
+| `qa_complete` | `handle_qa_complete()` | DynamicOutputWidget Q&A tab + QAPanel |
+| `qa_followup_result` | `handle_qa_followup_result()` | Append to Q&A results |
+| `qa_error` | `handle_qa_error()` | Error display |
+| `error` | `handle_error()` | Error dialog + UI reset |
 
 ---
 
@@ -210,7 +242,7 @@ flowchart TB
         Pipeline --> P1 --> P2 --> P3 --> P4
     end
 
-    Output["Clean text ready for<br/>AI summarization"]
+    Output["Clean text ready for<br/>AI summarization & Q&A"]
 
     Input --> Stage1
     Stage1 --> Stage2
@@ -289,76 +321,6 @@ flowchart TB
 | **Document Final** | `emphasis` string | Preserve focus info in doc summary |
 | **Meta-Summary** | `instructions` list | Structure final output per user's needs |
 
-### Actual Prompt Templates
-
-#### Chunk Summarization Prompt (Stage 2)
-
-```
-<|system|>
-You are a legal case summarizer analyzing sections of a long document.
-Your summaries will be combined to create overview.
-<|end|>
-<|user|>
-DOCUMENT CONTEXT: {progressive_summary_so_far}
-PREVIOUS SECTION: {previous_chunk_summary}
-
-Summarize this section in approximately 75 words.
-
-Focus on key facts, developments, and decisions.
-Pay particular attention to: {focus.emphasis}  ← USER'S FOCUS
-
-Preserve any information related to these focus areas.
-
-SECTION TEXT: {chunk_text}
-<|end|>
-<|assistant|>
-```
-
-#### Document Final Summary Prompt (Stage 3)
-
-```
-<|system|>
-You are creating a comprehensive summary of a legal document.
-<|end|>
-<|user|>
-Create a 200-word summary of "{filename}" from these sections.
-
-Pay particular attention to: {focus.emphasis}  ← USER'S FOCUS
-
-Preserve any information related to these focus areas.
-Present in logical, chronological order where possible.
-
-SECTION SUMMARIES:
-{all_chunk_summaries_joined}
-<|end|>
-<|assistant|>
-```
-
-#### Meta-Summary Prompt (Stage 4)
-
-```
-<|system|>
-You are a legal document analyst reviewing summaries of {doc_count}
-documents from a single case.
-<|end|>
-<|user|>
-Individual document summaries:
-
---- complaint.pdf ---
-{document_1_summary}
-
---- deposition.pdf ---
-{document_2_summary}
-
-Create a comprehensive meta-summary (350-500 words) that:
-{focus.instructions}  ← FULL INSTRUCTIONS FROM USER'S TEMPLATE
-
-Present in logical, chronological order where appropriate.
-Synthesize information across documents.
-<|end|>
-<|assistant|>
-```
-
 ### Caching Strategy
 
 ```mermaid
@@ -421,45 +383,262 @@ flowchart TB
 
 ---
 
+## Q&A System
+
+### Overview
+
+The Q&A system enables users to ask questions about processed documents using FAISS vector search for context retrieval.
+
+```mermaid
+flowchart TB
+    subgraph Input["Document Processing"]
+        CleanText["Cleaned Document Text<br/>(from preprocessing)"]
+    end
+
+    subgraph VectorBuild["VECTOR STORE BUILDING"]
+        Builder["VectorStoreBuilder<br/>src/vector_store/vector_store_builder.py"]
+        Chunker["Text Chunking<br/>500 chars, 50 overlap"]
+        Embedder["Sentence Transformer<br/>all-MiniLM-L6-v2"]
+        FAISSIndex["FAISS Index<br/>%APPDATA%/LocalScribe/vector_stores/"]
+
+        Builder --> Chunker
+        Chunker --> Embedder
+        Embedder --> FAISSIndex
+    end
+
+    subgraph QAFlow["Q&A FLOW"]
+        Questions["Default Questions<br/>config/qa_questions.yaml"]
+        Retriever["QARetriever<br/>src/vector_store/qa_retriever.py"]
+        Orchestrator["QAOrchestrator<br/>src/qa/qa_orchestrator.py"]
+        Generator["AnswerGenerator<br/>src/qa/answer_generator.py"]
+    end
+
+    subgraph AnswerModes["ANSWER GENERATION MODES"]
+        Extraction["Extraction Mode<br/>Keyword matching (fast)"]
+        OllamaMode["Ollama Mode<br/>AI synthesis (accurate)"]
+    end
+
+    subgraph Output["Q&A OUTPUT"]
+        QAResult["QAResult<br/>• question<br/>• answer<br/>• confidence<br/>• sources"]
+        QAPanel["QAPanel UI<br/>Toggle list + Follow-up"]
+    end
+
+    CleanText --> VectorBuild
+    FAISSIndex --> Retriever
+    Questions --> Orchestrator
+    Retriever --> Orchestrator
+    Orchestrator --> Generator
+    Generator --> AnswerModes
+    AnswerModes --> QAResult
+    QAResult --> QAPanel
+```
+
+### Q&A Architecture Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `VectorStoreBuilder` | `src/vector_store/vector_store_builder.py` | Creates FAISS indexes from document text |
+| `QARetriever` | `src/vector_store/qa_retriever.py` | Retrieves relevant context for questions |
+| `QAOrchestrator` | `src/qa/qa_orchestrator.py` | Coordinates question loading, retrieval, answer generation |
+| `AnswerGenerator` | `src/qa/answer_generator.py` | Generates answers (extraction or Ollama mode) |
+| `QAResult` | `src/qa/__init__.py` | Dataclass for question/answer/confidence/sources |
+| `QAPanel` | `src/ui/qa_panel.py` | UI panel with toggle list and follow-up input |
+| `QAQuestionEditor` | `src/ui/qa_question_editor.py` | Modal dialog for editing default questions |
+| `QAWorker` | `src/ui/workers.py` | Background thread for Q&A processing |
+
+### Answer Generation Modes
+
+```mermaid
+flowchart LR
+    Question["User Question"]
+    Context["Retrieved Context<br/>(from FAISS)"]
+
+    subgraph Extraction["EXTRACTION MODE"]
+        Keywords["Keyword Matching"]
+        Sentences["Extract Relevant Sentences"]
+        Fast["Fast, Deterministic"]
+    end
+
+    subgraph Ollama["OLLAMA MODE"]
+        Prompt["Build Prompt with Context"]
+        AI["Ollama AI Generation"]
+        Synthesize["Synthesized Answer"]
+    end
+
+    Question --> Extraction
+    Question --> Ollama
+    Context --> Extraction
+    Context --> Ollama
+
+    Extraction --> Answer1["Quick Answer"]
+    Ollama --> Answer2["Detailed Answer"]
+```
+
+**Mode Selection:** Configured in Settings → Q&A tab. Extraction mode is faster but less sophisticated; Ollama mode provides synthesized answers but requires Ollama running.
+
+### Default Questions Flow
+
+```mermaid
+flowchart TB
+    YAML["config/qa_questions.yaml<br/>14 branching questions"]
+
+    subgraph QuestionTypes["Question Categories"]
+        CaseType["Case Type Detection<br/>'Is this criminal or civil?'"]
+        Parties["Party Identification<br/>'Who are the parties?'"]
+        Claims["Claims/Charges<br/>'What are the claims?'"]
+        Timeline["Timeline<br/>'Key dates?'"]
+        Damages["Damages/Injuries<br/>'What damages claimed?'"]
+    end
+
+    YAML --> QuestionTypes
+    QuestionTypes --> QAOrchestrator["QAOrchestrator<br/>Processes all questions"]
+```
+
+---
+
 ## Vocabulary Extraction System
+
+### Multi-Algorithm Architecture (Session 25+)
 
 ```mermaid
 flowchart TB
     Input["Sanitized Document Text"]
 
     subgraph VocabExtractor["VocabularyExtractor<br/>src/vocabulary/vocabulary_extractor.py"]
-        SpaCy["spaCy NLP<br/>en_core_web_sm model"]
-
-        subgraph Extraction
-            NER["Named Entity Recognition<br/>PERSON, ORG, GPE, DATE..."]
-            Technical["Technical Terms<br/>Legal/medical vocabulary"]
-            Rare["Rare Words<br/>Frequency analysis"]
+        subgraph Algorithms["PLUGGABLE ALGORITHMS"]
+            NER["NERAlgorithm<br/>spaCy en_core_web_lg<br/>Weight: 1.0"]
+            RAKE["RAKEAlgorithm<br/>rake-nltk<br/>Weight: 0.7"]
+            BM25["BM25Algorithm<br/>Corpus-based TF-IDF<br/>Weight: 0.8"]
         end
 
-        subgraph Filtering
-            StopWords["Remove stopwords"]
-            CommonFilter["Remove common words"]
-            Dedupe["Deduplicate"]
+        subgraph Merger["RESULT MERGER"]
+            Merge["ResultMerger<br/>Weighted confidence combination"]
+            Dedupe["Deduplication<br/>Substring filtering"]
+        end
+
+        subgraph Feedback["ML FEEDBACK SYSTEM"]
+            FeedbackMgr["FeedbackManager<br/>CSV storage"]
+            MetaLearner["VocabularyMetaLearner<br/>Logistic regression"]
         end
     end
 
-    Output["VocabularyResult<br/>• term, category, frequency, context<br/>• CSV export ready"]
+    subgraph Output["OUTPUT"]
+        Results["VocabularyResult[]<br/>• term, type, role<br/>• confidence, quality_score<br/>• algorithm_source"]
+        CSV["CSV Export"]
+        Table["UI Table with 👍/👎"]
+    end
 
-    Input --> SpaCy
-    SpaCy --> Extraction
-    Extraction --> Filtering
-    Filtering --> Output
+    Input --> Algorithms
+    Algorithms --> Merger
+    Merger --> Feedback
+    Feedback --> Output
 ```
 
-**Categories Extracted:**
-- **PERSON**: Names of individuals
-- **ORG**: Organizations, companies
-- **GPE**: Geographic locations
-- **DATE**: Dates and time expressions
-- **LEGAL**: Legal terms (plaintiff, defendant, motion)
-- **MEDICAL**: Medical terminology
-- **TECHNICAL**: Domain-specific terms
-- **UNKNOWN**: Rare words not categorized
+### Algorithm Registry Pattern
+
+```mermaid
+flowchart LR
+    subgraph Registry["Algorithm Registry<br/>src/vocabulary/algorithms/__init__.py"]
+        Register["@register_algorithm<br/>decorator"]
+        GetAll["get_all_algorithms()"]
+    end
+
+    subgraph Algorithms["Registered Algorithms"]
+        NER["NERAlgorithm"]
+        RAKE["RAKEAlgorithm"]
+        BM25["BM25Algorithm"]
+        Future["Future algorithms..."]
+    end
+
+    Register --> Algorithms
+    GetAll --> Algorithms
+```
+
+**Adding a new algorithm:**
+```python
+@register_algorithm
+class MyNewAlgorithm(BaseAlgorithm):
+    name = "my_algorithm"
+    weight = 0.6
+
+    def extract(self, text: str) -> AlgorithmResult:
+        # Implementation
+        pass
+```
+
+### Algorithm Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `BaseAlgorithm` | `src/vocabulary/algorithms/base.py` | ABC for all algorithms |
+| `CandidateTerm` | `src/vocabulary/algorithms/base.py` | Dataclass for extracted terms |
+| `NERAlgorithm` | `src/vocabulary/algorithms/ner_algorithm.py` | spaCy named entity recognition |
+| `RAKEAlgorithm` | `src/vocabulary/algorithms/rake_algorithm.py` | RAKE keyword extraction |
+| `BM25Algorithm` | `src/vocabulary/algorithms/bm25_algorithm.py` | Corpus-based TF-IDF scoring |
+| `ResultMerger` | `src/vocabulary/result_merger.py` | Combines algorithm results |
+| `FeedbackManager` | `src/vocabulary/feedback_manager.py` | Stores user 👍/👎 feedback |
+| `VocabularyMetaLearner` | `src/vocabulary/meta_learner.py` | Learns user preferences |
+| `CorpusManager` | `src/vocabulary/corpus_manager.py` | Manages BM25 corpus folder |
+
+### BM25 Corpus System
+
+```mermaid
+flowchart TB
+    subgraph CorpusFolder["%APPDATA%/LocalScribe/corpus/"]
+        Doc1["transcript1.pdf"]
+        Doc2["transcript2.txt"]
+        Doc3["deposition3.rtf"]
+        DocN["... (5+ docs to enable)"]
+    end
+
+    subgraph CorpusManager["CorpusManager<br/>src/vocabulary/corpus_manager.py"]
+        IDF["Build IDF Index"]
+        Cache["JSON Cache<br/>corpus_idf.json"]
+    end
+
+    subgraph BM25Algo["BM25Algorithm"]
+        Score["Score terms by<br/>TF-IDF vs corpus"]
+        Unusual["Flag corpus-unusual terms"]
+    end
+
+    CorpusFolder --> CorpusManager
+    CorpusManager --> BM25Algo
+    BM25Algo --> Results["Terms rare in corpus<br/>but frequent in document"]
+```
+
+**Activation:** BM25 auto-enables when corpus folder contains ≥5 documents. User can disable in Settings.
+
+### ML Feedback Learning
+
+```mermaid
+flowchart TB
+    subgraph UserAction["User Feedback"]
+        ThumbsUp["👍 Good term"]
+        ThumbsDown["👎 Bad term"]
+    end
+
+    subgraph Storage["FeedbackManager"]
+        CSV["feedback.csv<br/>%APPDATA%/LocalScribe/data/feedback/"]
+    end
+
+    subgraph Training["VocabularyMetaLearner"]
+        Features["Features:<br/>• quality_score<br/>• frequency metrics<br/>• algorithm flags<br/>• type one-hot"]
+        Model["Logistic Regression"]
+        Threshold["Training threshold: 30 samples"]
+    end
+
+    subgraph Application["Score Adjustment"]
+        Boost["Boost/penalize<br/>future extractions"]
+    end
+
+    UserAction --> Storage
+    Storage --> Training
+    Training --> Application
+```
+
+**Training triggers:**
+- Initial training: 30 feedback samples
+- Retrain: Every 10 new samples
 
 ---
 
@@ -467,14 +646,18 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    subgraph Strategies["Execution Strategies<br/>src/summarization/execution_strategies.py"]
+    subgraph Strategies["Execution Strategies<br/>src/parallel/"]
         Sequential["SequentialStrategy<br/>One doc at a time"]
-        Parallel["ParallelStrategy<br/>ThreadPoolExecutor"]
+        Parallel["ThreadPoolStrategy<br/>ThreadPoolExecutor"]
     end
 
     subgraph Orchestrator["MultiDocumentOrchestrator<br/>src/summarization/multi_document_orchestrator.py"]
         Map["MAP PHASE<br/>Per-document summaries"]
         Reduce["REDUCE PHASE<br/>Meta-summary"]
+    end
+
+    subgraph Progress["Progress Aggregation"]
+        Aggregator["ProgressAggregator<br/>Throttled UI updates (10/sec max)"]
     end
 
     Documents["Documents to Process"]
@@ -484,12 +667,15 @@ flowchart TB
 
     Sequential -->|"For testing/debugging"| Map
     Parallel -->|"For production"| Map
-    Map --> Reduce
+    Map --> Progress
+    Progress --> Reduce
 ```
 
 **Strategy Selection:**
 - `SequentialStrategy`: Processes one document at a time (safer, easier to debug)
-- `ParallelStrategy`: Uses ThreadPoolExecutor for concurrent processing (faster)
+- `ThreadPoolStrategy`: Uses ThreadPoolExecutor for concurrent processing (2.5-3x faster)
+
+**Worker Count:** `min(cpu_count, 4)` - Auto-detects CPU cores but caps at 4 for memory safety
 
 ---
 
@@ -502,9 +688,10 @@ flowchart TB
 | `config/settings.json` | Runtime settings (Ollama URL, timeouts) |
 | `config/chunking_config.yaml` | Chunking parameters (words per chunk, overlap) |
 | `config/prompts/{model}/` | Model-specific prompt templates |
-| `config/vocabulary_settings.yaml` | Vocabulary extraction settings |
+| `config/qa_questions.yaml` | Default Q&A questions |
+| `config/common_medical_legal.txt` | Vocabulary blacklist |
 
-### User Settings Location
+### User Data Location
 
 ```
 %APPDATA%/LocalScribe/
@@ -512,6 +699,13 @@ flowchart TB
 ├── prompts/               # Custom prompt templates
 │   └── phi-3-mini/
 │       └── my-custom.txt
+├── corpus/                # BM25 reference corpus
+│   └── *.pdf, *.txt, *.rtf
+├── vector_stores/         # FAISS indexes (per-session)
+│   └── {hash}.faiss
+├── data/
+│   └── feedback/          # ML feedback CSV files
+│       └── feedback.csv
 └── logs/                  # Debug logs (if enabled)
 ```
 
@@ -520,15 +714,30 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph SettingsDialog["SettingsDialog<br/>src/ui/settings/"]
-        GeneralTab["General Tab<br/>• Debug mode toggle<br/>• Default paths"]
-        OllamaTab["Ollama Tab<br/>• API URL<br/>• Timeouts"]
-        ProcessingTab["Processing Tab<br/>• Parallel processing<br/>• Chunk sizes"]
+        PerformanceTab["Performance Tab<br/>• Auto-detect CPU<br/>• Worker count<br/>• CPU allocation"]
+        SummarizationTab["Summarization Tab<br/>• Default word count"]
+        VocabTab["Vocabulary Tab<br/>• Display limit<br/>• Sort by rarity<br/>• Corpus settings"]
+        QATab["Q&A Tab<br/>• Answer mode<br/>• Auto-run Q&A<br/>• Edit questions"]
     end
 
-    SettingsManager["SettingsManager<br/>src/settings_manager.py"]
+    SettingsRegistry["SettingsRegistry<br/>Declarative definitions"]
 
-    SettingsDialog <--> SettingsManager
-    SettingsManager -->|Save| ConfigFile["settings.json"]
+    SettingsDialog <--> SettingsRegistry
+    SettingsRegistry -->|Save| UserPrefs["user_preferences.json"]
+```
+
+**Adding a new setting:**
+```python
+SettingsRegistry.register(SettingDefinition(
+    key="my_new_setting",
+    label="Enable New Feature",
+    category="General",  # Creates new tab if needed
+    setting_type=SettingType.CHECKBOX,
+    tooltip="Description shown on hover.",
+    default=False,
+    getter=lambda: prefs.get("my_new_setting", False),
+    setter=lambda v: prefs.set("my_new_setting", v),
+))
 ```
 
 ---
@@ -564,12 +773,23 @@ flowchart TB
         MetaSum["Meta-Summary<br/>Synthesize all docs"]
     end
 
-    subgraph Vocab["6. VOCABULARY (Optional)"]
-        VocabExt["VocabularyExtractor<br/>spaCy NER + rare words"]
+    subgraph VectorBuild["6. VECTOR STORE"]
+        FAISS["Build FAISS Index<br/>Embeddings for Q&A"]
     end
 
-    subgraph Output["7. OUTPUT"]
-        Display["DynamicOutputWidget<br/>View summaries"]
+    subgraph QA["7. Q&A (Optional)"]
+        Questions["Load Questions"]
+        Retrieve["Retrieve Context"]
+        Answer["Generate Answers"]
+    end
+
+    subgraph Vocab["8. VOCABULARY (Optional)"]
+        VocabExt["Multi-Algorithm Extraction<br/>NER + RAKE + BM25"]
+        MLBoost["ML Feedback Adjustment"]
+    end
+
+    subgraph Output["9. OUTPUT"]
+        Display["DynamicOutputWidget<br/>View summaries/vocab/Q&A"]
         Export["Export Options<br/>Copy, Save, CSV"]
     end
 
@@ -577,9 +797,13 @@ flowchart TB
     Extract --> Clean
     Clean --> Focus
     Focus --> Summarize
+    Clean --> VectorBuild
+    VectorBuild --> QA
     Clean --> Vocab
+    Vocab --> MLBoost
     Summarize --> Output
-    Vocab --> Output
+    QA --> Output
+    MLBoost --> Output
 ```
 
 ---
@@ -593,7 +817,7 @@ flowchart TB
 | `src/main.py` | Application entry point |
 | `src/config.py` | Global configuration constants |
 | `src/logging_config.py` | Debug logging setup |
-| `src/settings_manager.py` | User preferences management |
+| `src/user_preferences.py` | User preferences management |
 
 ### Extraction & Processing
 
@@ -601,7 +825,8 @@ flowchart TB
 |------|---------|
 | `src/extraction/raw_text_extractor.py` | PDF/TXT/RTF text extraction |
 | `src/sanitization/character_sanitizer.py` | Unicode normalization, mojibake fixes |
-| `src/preprocessing/pipeline.py` | Preprocessing pipeline orchestrator |
+| `src/preprocessing/__init__.py` | Preprocessing pipeline exports |
+| `src/preprocessing/base.py` | BasePreprocessor ABC |
 | `src/preprocessing/title_page_remover.py` | Cover page detection/removal |
 | `src/preprocessing/header_footer_remover.py` | Repeated header/footer removal |
 | `src/preprocessing/line_number_remover.py` | Transcript line number removal |
@@ -612,35 +837,87 @@ flowchart TB
 | File | Purpose |
 |------|---------|
 | `src/ai/ollama_model_manager.py` | Ollama REST API client |
+| `src/ai/summary_post_processor.py` | Length enforcement |
 | `src/prompt_template_manager.py` | Prompt template loading/management |
 | `src/prompt_focus_extractor.py` | AI-based focus area extraction |
 | `src/prompt_adapters.py` | Stage-specific prompt generation |
 | `src/progressive_summarizer.py` | Chunking and progressive context |
+| `src/chunking_engine.py` | Text chunking logic |
+| `src/summarization/__init__.py` | Summarization package exports |
+| `src/summarization/result_types.py` | Result dataclasses |
 | `src/summarization/document_summarizer.py` | Single document summarization |
 | `src/summarization/multi_document_orchestrator.py` | Multi-doc coordination |
-| `src/summarization/execution_strategies.py` | Sequential/parallel execution |
-| `src/summarization/result_types.py` | Result dataclasses |
-| `src/ai/summary_post_processor.py` | Length enforcement |
 
-### Vocabulary
+### Q&A System
 
 | File | Purpose |
 |------|---------|
-| `src/vocabulary/vocabulary_extractor.py` | spaCy-based term extraction |
+| `src/qa/__init__.py` | Q&A package exports (QAOrchestrator, QAResult) |
+| `src/qa/qa_orchestrator.py` | Coordinates Q&A workflow |
+| `src/qa/answer_generator.py` | Generates answers (extraction/Ollama) |
+| `src/vector_store/__init__.py` | Vector store package exports |
+| `src/vector_store/vector_store_builder.py` | Creates FAISS indexes |
+| `src/vector_store/qa_retriever.py` | Retrieves context for questions |
+| `config/qa_questions.yaml` | Default Q&A questions |
+
+### Vocabulary Extraction
+
+| File | Purpose |
+|------|---------|
+| `src/vocabulary/__init__.py` | Package exports |
+| `src/vocabulary/vocabulary_extractor.py` | Main orchestrator (580 lines) |
+| `src/vocabulary/role_profiles.py` | Profession-specific role detection |
+| `src/vocabulary/result_merger.py` | Combines algorithm results |
+| `src/vocabulary/feedback_manager.py` | CSV-based feedback storage |
+| `src/vocabulary/meta_learner.py` | Logistic regression meta-learner |
+| `src/vocabulary/corpus_manager.py` | BM25 corpus folder management |
+| `src/vocabulary/algorithms/__init__.py` | Algorithm registry |
+| `src/vocabulary/algorithms/base.py` | ABC and dataclasses |
+| `src/vocabulary/algorithms/ner_algorithm.py` | spaCy NER extraction |
+| `src/vocabulary/algorithms/rake_algorithm.py` | RAKE keyword extraction |
+| `src/vocabulary/algorithms/bm25_algorithm.py` | BM25 corpus-based scoring |
+
+### Parallel Processing
+
+| File | Purpose |
+|------|---------|
+| `src/parallel/__init__.py` | Parallel package exports |
+| `src/parallel/executor_strategy.py` | Strategy interface + implementations |
+| `src/parallel/task_runner.py` | Task orchestration |
+| `src/parallel/progress_aggregator.py` | Throttled progress updates |
 
 ### User Interface
 
 | File | Purpose |
 |------|---------|
 | `src/ui/main_window.py` | Central UI coordinator |
-| `src/ui/quadrant_builder.py` | 4-quadrant layout construction |
 | `src/ui/widgets.py` | FileTable, ModelSelector, OutputOptions |
-| `src/ui/workers.py` | ProcessingWorker, VocabularyWorker, etc. |
+| `src/ui/workers.py` | ProcessingWorker, VocabularyWorker, QAWorker |
 | `src/ui/workflow_orchestrator.py` | Processing state machine |
 | `src/ui/queue_message_handler.py` | Worker → UI message routing |
 | `src/ui/dynamic_output.py` | Results display widget |
+| `src/ui/qa_panel.py` | Q&A results panel |
+| `src/ui/qa_question_editor.py` | Q&A question editor dialog |
 | `src/ui/system_monitor.py` | CPU/RAM usage display |
-| `src/ui/settings/` | Settings dialog components |
+| `src/ui/processing_timer.py` | Elapsed time display |
+| `src/ui/settings/__init__.py` | Settings package exports |
+| `src/ui/settings/settings_registry.py` | Declarative setting definitions |
+| `src/ui/settings/settings_dialog.py` | Tabbed settings dialog |
+| `src/ui/settings/settings_widgets.py` | Custom setting widgets |
+
+### Tests
+
+| File | Purpose |
+|------|---------|
+| `tests/test_raw_text_extractor.py` | 24 extraction tests |
+| `tests/test_character_sanitizer.py` | 22 sanitization tests |
+| `tests/test_preprocessing.py` | 16 preprocessing tests |
+| `tests/test_vocabulary_extractor.py` | 7 vocabulary tests |
+| `tests/test_feedback_ml.py` | 16 feedback/ML tests |
+| `tests/test_bm25_algorithm.py` | 20 BM25 tests |
+| `tests/test_multi_document_summarization.py` | 16 multi-doc tests |
+| `tests/test_prompt_adapters.py` | 22 prompt adapter tests |
+| `tests/test_qa_orchestrator.py` | 20 Q&A tests |
 
 ---
 
@@ -652,6 +929,7 @@ When making changes to LocalScribe:
 2. **File moved/renamed?** Update the File Directory table
 3. **New message type?** Add to Message Flow section
 4. **Processing stage changed?** Update the Complete Data Flow diagram
+5. **New algorithm?** Add to Vocabulary Extraction section
 
 Mermaid diagrams can be previewed in:
 - GitHub (native support)
@@ -660,4 +938,4 @@ Mermaid diagrams can be previewed in:
 
 ---
 
-*This document serves as the architectural reference for LocalScribe. Last updated: Session 21 (2025-11-29)*
+*This document serves as the architectural reference for LocalScribe. Last updated: Session 30 (2025-12-01)*

@@ -3,10 +3,13 @@ Tests for the VocabularyExtractor class.
 
 Tests cover:
 - Word list loading (exclude list, medical terms)
-- Unusual term detection logic
-- Category assignment
+- Category assignment (via extraction pipeline)
 - Definition lookup via WordNet
 - Full extraction pipeline with deduplication and relevance scoring
+- Multi-algorithm result merging (Session 25)
+
+Note: Internal methods like _is_unusual and _get_category have been refactored
+into the algorithm classes (Session 25). Tests focus on public API behavior.
 """
 
 import os
@@ -25,6 +28,7 @@ from src.vocabulary import VocabularyExtractor  # noqa: E402
 TEST_DIR = Path(__file__).parent
 EXCLUDE_LIST_PATH = TEST_DIR / "test_legal_exclude.txt"
 MEDICAL_TERMS_PATH = TEST_DIR / "test_medical_terms.txt"
+
 
 # Create dummy exclude and medical terms files for testing
 @pytest.fixture(scope="module", autouse=True)
@@ -48,77 +52,37 @@ def setup_test_files():
     os.remove(EXCLUDE_LIST_PATH)
     os.remove(MEDICAL_TERMS_PATH)
 
+
 @pytest.fixture
 def extractor():
-    return VocabularyExtractor(EXCLUDE_LIST_PATH, MEDICAL_TERMS_PATH)
+    """Create VocabularyExtractor with test configuration."""
+    return VocabularyExtractor(
+        exclude_list_path=EXCLUDE_LIST_PATH,
+        medical_terms_path=MEDICAL_TERMS_PATH
+    )
+
 
 def test_load_word_list(extractor):
+    """Test that word lists are loaded correctly."""
     assert "verdict" in extractor.exclude_list
     assert "plaintiff" in extractor.exclude_list
     assert "cardiomyopathy" in extractor.medical_terms
     assert "nephrology" in extractor.medical_terms
 
-def test_is_unusual(extractor):
-    # Common word, should not be unusual
-    doc = extractor.nlp("The quick brown fox jumps over the lazy dog.")
-    assert not extractor._is_unusual(doc[1], ent_type=doc[1].ent_type_) # quick
 
-    # Excluded legal term, should not be unusual
-    doc = extractor.nlp("The jury reached a verdict.")
-    assert not extractor._is_unusual(doc[4], ent_type=doc[4].ent_type_) # verdict
+def test_algorithms_initialized(extractor):
+    """Test that algorithms are properly initialized (Session 25)."""
+    assert len(extractor.algorithms) >= 2
+    algorithm_names = [alg.name for alg in extractor.algorithms]
+    assert "NER" in algorithm_names
+    assert "RAKE" in algorithm_names
 
-    # Medical term, should be unusual
-    doc = extractor.nlp("The patient suffered from cardiomyopathy.")
-    assert extractor._is_unusual(doc[4], ent_type=doc[4].ent_type_) # cardiomyopathy
-
-    # Proper noun, not in exclude list, should be unusual
-    doc = extractor.nlp("Dr. Smith examined the patient.")
-    assert extractor._is_unusual(doc[1], ent_type=doc[1].ent_type_) # Smith
-
-    # Acronym, should be unusual
-    doc = extractor.nlp("The FDA approved the drug.")
-    assert extractor._is_unusual(doc[1], ent_type=doc[1].ent_type_) # FDA
-
-    # Number/Punctuation, should not be unusual
-    doc = extractor.nlp("123,.")
-    assert not extractor._is_unusual(doc[0], ent_type=doc[0].ent_type_) # 123
-    assert not extractor._is_unusual(doc[1], ent_type=doc[1].ent_type_) # ,
-
-def test_get_category(extractor):
-    doc = extractor.nlp("Dr. John Smith is a cardiologist at Mayo Clinic. The patient had a CT scan.")
-
-    # Person (simplified category) - requires full_term for validation with new heuristics
-    token_smith = doc[3] # Smith
-    ent_smith = [ent for ent in doc.ents if ent.text == "John Smith"][0]
-    # Pass full entity text so validation heuristics can check multi-word name pattern
-    assert extractor._get_category(token_smith, ent_type=ent_smith.label_, full_term="John Smith") == "Person"
-
-    # Organization → Place (simplified category)
-    token_mayo = doc[8] # Mayo
-    ent_mayo = [ent for ent in doc.ents if ent.text == "Mayo Clinic"][0]
-    # Pass full entity text so validation can detect "Clinic" as organization indicator
-    assert extractor._get_category(token_mayo, ent_type=ent_mayo.label_, full_term="Mayo Clinic") == "Place"
-
-    # Medical Term
-    token_cardio = doc[5] # cardiologist (will be lowercased in _is_unusual check)
-    assert extractor._get_category(token_cardio, ent_type=token_cardio.ent_type_) == "Technical"
-
-    # Acronym "CT" - behavior varies by spaCy model version
-    # With en_core_web_lg, CT may be detected differently
-    token_ct = doc[14] # CT
-    ct_category = extractor._get_category(token_ct, ent_type=token_ct.ent_type_)
-    # Accept either Place (if detected as ORG) or Technical (if detected as acronym)
-    assert ct_category in ["Place", "Technical", "Unknown"]
-
-    # Known medical term
-    doc2 = extractor.nlp("The patient requires a nephrology consultation.")
-    token_nephro = doc2[4] # nephrology
-    assert extractor._get_category(token_nephro, ent_type=token_nephro.ent_type_) == "Medical"
 
 def test_get_definition(extractor):
+    """Test WordNet definition lookup."""
     # WordNet definition for Technical term
     definition = extractor._get_definition("cat", category="Technical")
-    assert "feline" in definition.lower() # Check for part of the definition
+    assert "feline" in definition.lower()  # Check for part of the definition
 
     # No WordNet definition
     definition_no_def = extractor._get_definition("asdfghjkl", category="Technical")
@@ -132,7 +96,9 @@ def test_get_definition(extractor):
     definition_place = extractor._get_definition("Mayo Clinic", category="Place")
     assert definition_place == "—"
 
+
 def test_extract(extractor):
+    """Test full extraction pipeline."""
     # Session 23: Test text updated to have terms appear twice (except PERSON)
     # Minimum occurrence filter requires ≥2 for non-PERSON terms (Medical, Place, Technical)
     # PERSON entities are exempt from this filter - they can appear just once
@@ -143,12 +109,11 @@ def test_extract(extractor):
     # Expected terms (using new simplified API: Type and Role/Relevance)
     # Note: Some classifications may vary based on spaCy model version and NER context
     # Session 23: Added Quality Score, In-Case Freq, Freq Rank columns
-    # Session 23: Removed "mayo clinic" from expected - spaCy treats "Mayo Clinic" and
-    # "Mayo Clinic's" as different entities, making occurrence counting unreliable
+    # Session 25: Added Sources column for algorithm tracking
     expected_terms_single = {
-        "john doe": {"Type": "Person", "Role/Relevance": "Person in case"},  # No plaintiff context
+        "john doe": {"Type": "Person", "Role/Relevance": "Person in case"},
         "cardiomyopathy": {"Type": "Medical", "Role/Relevance": "Medical term"},
-        "jane smith": {"Type": "Person", "Role/Relevance": "Medical professional"},  # "Dr. Jane Smith"
+        "jane smith": {"Type": "Person", "Role/Relevance": "Medical professional"},
     }
 
     found_terms = {item["Term"].lower(): item for item in vocabulary}
@@ -170,13 +135,17 @@ def test_extract(extractor):
         assert "Quality Score" in found_terms[term], "Missing Quality Score column"
         assert "In-Case Freq" in found_terms[term], "Missing In-Case Freq column"
         assert "Freq Rank" in found_terms[term], "Missing Freq Rank column"
+        # Session 25: Verify Sources column exists
+        assert "Sources" in found_terms[term], "Missing Sources column"
 
     # Ensure excluded terms are not present
     assert "plaintiff" not in found_terms
     assert "court" not in found_terms
     assert "verdict" not in found_terms
 
-    # Check that duplicates are handled
+
+def test_extract_deduplication(extractor):
+    """Test that duplicates are handled correctly."""
     test_text_dup = "Cardiomyopathy is a serious condition. The patient had cardiomyopathy. Also, cardiomyopathy can be genetic."
     vocabulary_dup = extractor.extract(test_text_dup)
 
@@ -185,5 +154,28 @@ def test_extract(extractor):
     assert found_cardiomyopathy is not None
     assert found_cardiomyopathy["Type"] == "Medical"
     assert found_cardiomyopathy["Role/Relevance"] == "Medical term"
-    assert found_cardiomyopathy["Definition"] != "—" # Should have a definition
-    assert sum(1 for item in vocabulary_dup if item["Term"].lower() == "cardiomyopathy") == 1 # Still only one entry
+    assert found_cardiomyopathy["Definition"] != "—"  # Should have a definition
+    assert sum(1 for item in vocabulary_dup if item["Term"].lower() == "cardiomyopathy") == 1  # Only one entry
+
+
+def test_quality_score_range(extractor):
+    """Test that quality scores are in valid range."""
+    test_text = "Dr. John Smith diagnosed the patient with cardiomyopathy at Memorial Hospital. The cardiomyopathy was severe."
+    vocabulary = extractor.extract(test_text)
+
+    for term in vocabulary:
+        score = term["Quality Score"]
+        assert 0.0 <= score <= 100.0, f"Quality score {score} out of range for '{term['Term']}'"
+
+
+def test_sources_column(extractor):
+    """Test that Sources column tracks algorithm provenance (Session 25)."""
+    test_text = "Dr. Smith and Dr. Jones consulted on the adenocarcinoma diagnosis. The adenocarcinoma was confirmed."
+    vocabulary = extractor.extract(test_text)
+
+    for term in vocabulary:
+        sources = term.get("Sources", "")
+        # Sources should be comma-separated list of algorithm names
+        assert sources, f"Empty Sources for '{term['Term']}'"
+        # Should contain at least one known algorithm
+        assert any(alg in sources for alg in ["NER", "RAKE"]), f"Unknown algorithms in Sources: {sources}"

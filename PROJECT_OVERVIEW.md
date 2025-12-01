@@ -7,15 +7,20 @@ Build a **100% offline, private, commercial Windows desktop application** ("Loca
 
 ---
 
-## 2. Core Features (The 4-Step Pipeline)
+## 2. Core Features (The 5-Step Pipeline)
 
-The app executes a 4-step process:
+> **Strategic Pivot (Session 29):** The application has evolved from summarization-first to **Q&A-first**. Court reporters need quick case familiarization—Q&A results serve as handoff documents for colleagues. Summarization remains available but is off by default due to 30+ minute processing times.
+
+The app executes a 5-step process:
 
 1.  **File Ingest:** User selects one or more documents (PDF, TXT, RTF).
 2.  **Pre-processing (The "Sniffer" & "Cleaner"):** The app extracts clean, usable text from each document and provides OCR confidence scores.
 3.  **File Selection:** User reviews OCR confidence scores and selects which documents to include in processing.
-4.  **AI Processing (The "Brain"):** All selected documents are combined and fed to a local AI model for case-level analysis.
-5.  **Output Generation:** The app displays two final products: a case summary and a vocabulary list.
+4.  **AI Processing (The "Brain"):** Selected documents are indexed in a FAISS vector store for Q&A, and optionally fed to Ollama for summarization.
+5.  **Output Generation:** The app displays three outputs:
+    - **Q&A Results (Primary):** Answers to 14 branching questions about the case using vector search
+    - **Vocabulary List:** Rare/unusual terms identified via multi-algorithm extraction (NER + RAKE + BM25)
+    - **Case Summary (Optional):** AI-generated synthesis via Ollama (off by default)
 
 ---
 

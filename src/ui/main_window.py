@@ -1,477 +1,1033 @@
 """
-LocalScribe - Main Window
+LocalScribe - Main Window (CustomTkinter)
+Session 29: Two-Panel Q&A-First Layout
 
-Main application window for LocalScribe, built with CustomTkinter.
-
-This module serves as the central coordinator for the application:
-- Manages application state (selected files, processing results)
-- Creates and wires up UI components
-- Handles user interactions (file selection, generation start)
-- Coordinates between workers, message handlers, and orchestrator
-
-Architecture:
-- UI Layout: Delegated to quadrant_builder.py
-- Message Routing: Delegated to QueueMessageHandler
-- Workflow Logic: Delegated to WorkflowOrchestrator
-- Background Work: Delegated to workers.py
-
-Performance Optimizations (Session 14):
-- Explicit garbage collection after processing completes
-- Worker reference cleanup to prevent memory leaks
-- Improved queue processing to prevent duplicate AI message handling
+Main application window with:
+- Header: Corpus dropdown + Settings button
+- No-corpus warning banner
+- Two-panel layout: Left (Session Documents + Tasks), Right (Results)
+- Status bar with processing timer
 """
-import gc
+
 import os
-from queue import Empty, Queue
+import sys
+import time
+from pathlib import Path
+from queue import Queue, Empty
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from src.ai import ModelManager
-from src.config import PROMPTS_DIR, USER_PROMPTS_DIR
+from src.config import DEBUG_MODE, PROMPTS_DIR
 from src.logging_config import debug_log
+from src.ai import OllamaModelManager
 from src.prompt_template_manager import PromptTemplateManager
-from src.ui.settings import SettingsDialog
-from src.ui.menu_handler import create_menus
-from src.ui.quadrant_builder import create_central_widget_layout
-from src.ui.queue_message_handler import QueueMessageHandler
-from src.ui.processing_timer import ProcessingTimer
-from src.ui.system_monitor import SystemMonitor
-from src.ui.workers import OllamaAIWorkerManager, ProcessingWorker
-from src.ui.workflow_orchestrator import WorkflowOrchestrator
 from src.user_preferences import get_user_preferences
-from src.utils.text_utils import combine_document_texts
+from src.ui.widgets import FileReviewTable, ModelSelectionWidget, OutputOptionsWidget
+from src.ui.dynamic_output import DynamicOutputWidget
+from src.ui.workers import ProcessingWorker, VocabularyWorker, QAWorker
+from src.vocabulary import get_corpus_registry
+from src.vector_store import VectorStoreBuilder
 
 
 class MainWindow(ctk.CTk):
     """
     Main application window for LocalScribe.
 
-    This class manages:
-    - Application state (selected_files, processed_results, pending_ai_generation)
-    - UI component lifecycle (toolbar, central widget, status bar)
-    - Event loop integration (queue polling, Ollama health checks)
+    Session 29: Q&A-first two-panel layout with corpus management.
 
-    Separation of Concerns:
-    - QueueMessageHandler: Routes messages and updates UI widgets
-    - WorkflowOrchestrator: Decides workflow steps (vocab extraction, AI generation)
-    - Workers: Execute background tasks (extraction, vocabulary, AI)
-
-    Attributes:
-        selected_files: List of file paths selected by user
-        processed_results: List of extraction results from ProcessingWorker
-        pending_ai_generation: Dict of AI params when generation is pending
-        model_manager: OllamaModelManager for AI model operations
-        ui_queue: Queue for inter-thread communication
-        message_handler: QueueMessageHandler instance
-        workflow_orchestrator: WorkflowOrchestrator instance
+    Layout:
+    - Header row: App title, corpus dropdown, settings button
+    - Warning banner: Shown when no corpus configured
+    - Left panel: Session documents + task checkboxes + "Perform N Tasks" button
+    - Right panel: Results display with output type selector
+    - Status bar: Status text + corpus info + processing timer
     """
 
     def __init__(self):
         super().__init__()
-        self.title("LocalScribe v2.1 - 100% Offline Legal Document Processor")
-        self.geometry("1200x800")
 
-        # Application State
-        self.selected_files = []
-        self.processed_results = []
-        self.worker = None
-        self.pending_ai_generation = None
+        self.title("LocalScribe")
+        self.geometry("1200x750")
+        self.minsize(900, 600)
 
-        # AI Model Manager
-        self.model_manager = ModelManager()
+        # State
+        self.selected_files: list[str] = []
+        self.processing_results: list[dict] = []
+        self._processing_start_time: float | None = None
+        self._timer_after_id: str | None = None
 
-        # Prompt Template Manager (for prompt style selection)
-        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR, USER_PROMPTS_DIR)
+        # Managers
+        self.model_manager = OllamaModelManager()
+        self.prompt_template_manager = PromptTemplateManager(PROMPTS_DIR)
+        self.corpus_registry = get_corpus_registry()
 
-        # Threading Queue for worker communication
-        self.ui_queue = Queue()
+        # Workers and queue
+        self._processing_worker: ProcessingWorker | None = None
+        self._vocabulary_worker: VocabularyWorker | None = None
+        self._qa_worker: QAWorker | None = None
+        self._ui_queue: Queue | None = None
+        self._queue_poll_id: str | None = None
 
-        # AI Worker Manager for Ollama summaries
-        self.ai_worker_manager = OllamaAIWorkerManager(self.ui_queue)
+        # Q&A infrastructure
+        self._embeddings = None  # Lazy-loaded HuggingFaceEmbeddings
+        self._vector_store_path = None  # Path to current session's vector store
+        self._qa_results: list = []  # Store QAResult objects
 
-        # Message Handler and Workflow Orchestrator (separation of concerns)
-        self.message_handler = QueueMessageHandler(self)
-        self.workflow_orchestrator = WorkflowOrchestrator(self)
-        self.message_handler.set_orchestrator(self.workflow_orchestrator)
-
-        # Initialize UI Components
-        self._create_main_layout()
-        self._create_menus()
-        self._create_toolbar()
-        self._create_central_widget()
+        # Build UI
+        self._create_header()
+        self._create_warning_banner()
+        self._create_main_panels()
         self._create_status_bar()
 
-        # Start queue polling for worker messages
-        self.after(100, self._process_queue)
+        # Initialize state
+        self._refresh_corpus_dropdown()
+        self._update_corpus_banner()
+        self._update_generate_button_state()
 
-        # Check Ollama service availability on startup
+        # Startup checks
         self._check_ollama_service()
-        self.model_selection.refresh_status()
 
-    def _create_main_layout(self):
-        """Creates the main grid layout."""
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+        if DEBUG_MODE:
+            debug_log("[MainWindow] Initialized with two-panel layout")
 
-    def _create_menus(self):
-        """Create menubar with File and Help menus using menu_handler module."""
-        create_menus(self, self.select_files, self.show_settings, self.quit)
+    # =========================================================================
+    # UI Creation Methods
+    # =========================================================================
 
-    def show_settings(self):
-        """Open the Settings dialog."""
-        def on_save():
-            """Callback when user saves settings."""
-            self.status_label.configure(text="Settings saved.", text_color="green")
+    def _create_header(self):
+        """Create header row with corpus dropdown and settings button."""
+        self.header_frame = ctk.CTkFrame(self, height=50, corner_radius=0)
+        self.header_frame.pack(fill="x", padx=0, pady=0)
+        self.header_frame.pack_propagate(False)
 
-        dialog = SettingsDialog(parent=self, on_save_callback=on_save)
-        self.wait_window(dialog)  # Wait for dialog to close
+        # App title (left)
+        self.title_label = ctk.CTkLabel(
+            self.header_frame,
+            text="LocalScribe",
+            font=ctk.CTkFont(size=20, weight="bold")
+        )
+        self.title_label.pack(side="left", padx=15, pady=10)
 
-    def _create_toolbar(self):
-        """Create toolbar with file selection controls."""
-        self.toolbar_frame = ctk.CTkFrame(self, height=50, corner_radius=0)
-        self.toolbar_frame.grid(row=0, column=0, sticky="ew")
-        self.toolbar_frame.grid_columnconfigure(1, weight=1)
+        # Settings button (right)
+        self.settings_btn = ctk.CTkButton(
+            self.header_frame,
+            text="⚙ Settings",
+            width=100,
+            command=self._open_settings
+        )
+        self.settings_btn.pack(side="right", padx=15, pady=10)
 
-        self.select_files_btn = ctk.CTkButton(self.toolbar_frame, text="Select Files...", command=self.select_files)
-        self.select_files_btn.grid(row=0, column=0, padx=10, pady=10)
+        # Corpus dropdown (right of title)
+        self.corpus_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.corpus_frame.pack(side="right", padx=10, pady=10)
 
-        self.files_label = ctk.CTkLabel(self.toolbar_frame, text="No files selected", text_color="gray")
-        self.files_label.grid(row=0, column=2, padx=10, pady=10)
+        corpus_label = ctk.CTkLabel(
+            self.corpus_frame,
+            text="Corpus:",
+            font=ctk.CTkFont(size=12)
+        )
+        corpus_label.pack(side="left", padx=(0, 5))
 
-    def _create_central_widget(self):
-        """
-        Create the four-quadrant central widget using the quadrant builder.
+        self.corpus_dropdown = ctk.CTkComboBox(
+            self.corpus_frame,
+            values=["Loading..."],
+            width=150,
+            command=self._on_corpus_changed
+        )
+        self.corpus_dropdown.pack(side="left")
 
-        This method delegates all layout construction to the builder module,
-        keeping main_window.py focused on state management and event handling.
-        """
-        (
-            self.main_content_frame,
-            self.file_table,
-            self.model_selection,
-            self.summary_results,
-            self.output_options,
-            self.generate_outputs_btn,
-            self.cancel_btn
-        ) = create_central_widget_layout(self, self.model_manager, self.prompt_template_manager)
+        # Manage button
+        self.manage_corpus_btn = ctk.CTkButton(
+            self.corpus_frame,
+            text="Manage",
+            width=70,
+            fg_color=("gray70", "gray30"),
+            command=self._open_corpus_dialog
+        )
+        self.manage_corpus_btn.pack(side="left", padx=(5, 0))
 
-        # Bind the generate button command
-        self.generate_outputs_btn.configure(command=self._start_generation)
+    def _create_warning_banner(self):
+        """Create the no-corpus warning banner."""
+        self.banner_frame = ctk.CTkFrame(
+            self,
+            fg_color=("#fff3cd", "#4a4528"),
+            corner_radius=0,
+            height=45
+        )
+        # Initially hidden, shown by _update_corpus_banner if needed
+        self.banner_frame.pack_propagate(False)
 
-        # Bind the cancel button command
-        self.cancel_btn.configure(command=self._cancel_processing)
+        warning_text = (
+            "⚠️ No corpus configured. Set up a corpus to improve vocabulary detection. "
+            "Your corpus stays 100% local and offline."
+        )
+        self.banner_label = ctk.CTkLabel(
+            self.banner_frame,
+            text=warning_text,
+            font=ctk.CTkFont(size=12),
+            text_color=("#856404", "#d4b833")
+        )
+        self.banner_label.pack(side="left", padx=15, pady=10)
 
-        # Initialize prompt selector with available templates
-        self.model_selection.refresh_prompts()
+        self.setup_corpus_btn = ctk.CTkButton(
+            self.banner_frame,
+            text="Set Up Now",
+            width=100,
+            command=self._open_corpus_dialog
+        )
+        self.setup_corpus_btn.pack(side="right", padx=15, pady=8)
+
+    def _create_main_panels(self):
+        """Create the two-panel main content area."""
+        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Configure grid for two panels
+        self.main_frame.grid_columnconfigure(0, weight=2)  # Left panel
+        self.main_frame.grid_columnconfigure(1, weight=3)  # Right panel (larger)
+        self.main_frame.grid_rowconfigure(0, weight=1)
+
+        # Left panel: Session Documents + Tasks
+        self._create_left_panel()
+
+        # Right panel: Results
+        self._create_right_panel()
+
+    def _create_left_panel(self):
+        """Create the left panel with session documents and task options."""
+        self.left_panel = ctk.CTkFrame(self.main_frame)
+        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=0)
+
+        self.left_panel.grid_columnconfigure(0, weight=1)
+        self.left_panel.grid_rowconfigure(1, weight=1)  # File table expands
+
+        # Section header
+        docs_header = ctk.CTkLabel(
+            self.left_panel,
+            text="📁 SESSION DOCUMENTS",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        docs_header.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 5))
+
+        # File Review Table
+        self.file_table = FileReviewTable(self.left_panel)
+        self.file_table.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+        # File buttons
+        file_btn_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        file_btn_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+
+        self.add_files_btn = ctk.CTkButton(
+            file_btn_frame,
+            text="+ Add Files",
+            width=100,
+            command=self._select_files
+        )
+        self.add_files_btn.pack(side="left", padx=(0, 5))
+
+        self.clear_files_btn = ctk.CTkButton(
+            file_btn_frame,
+            text="Clear All",
+            width=80,
+            fg_color=("gray70", "gray30"),
+            command=self._clear_files
+        )
+        self.clear_files_btn.pack(side="left")
+
+        # Task checkboxes section
+        task_header = ctk.CTkLabel(
+            self.left_panel,
+            text="TASKS",
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        task_header.grid(row=3, column=0, sticky="w", padx=10, pady=(15, 5))
+
+        task_frame = ctk.CTkFrame(self.left_panel, fg_color="transparent")
+        task_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=0)
+
+        # Q&A checkbox (default ON)
+        self.qa_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Questions & Answers",
+            command=self._update_generate_button_state
+        )
+        self.qa_check.pack(anchor="w", pady=2)
+        self.qa_check.select()  # ON by default
+
+        # Vocabulary checkbox (default ON)
+        self.vocab_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Vocabulary",
+            command=self._update_generate_button_state
+        )
+        self.vocab_check.pack(anchor="w", pady=2)
+        self.vocab_check.select()  # ON by default
+
+        # Summary checkbox (default OFF, with warning)
+        self.summary_check = ctk.CTkCheckBox(
+            task_frame,
+            text="Summary (slow)",
+            command=self._on_summary_checked
+        )
+        self.summary_check.pack(anchor="w", pady=2)
+        # OFF by default - no select()
+
+        # "Perform N Tasks" button
+        self.generate_btn = ctk.CTkButton(
+            self.left_panel,
+            text="Perform 2 Tasks",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=40,
+            command=self._perform_tasks
+        )
+        self.generate_btn.grid(row=5, column=0, sticky="ew", padx=10, pady=(15, 10))
+
+    def _create_right_panel(self):
+        """Create the right panel with results display."""
+        self.right_panel = ctk.CTkFrame(self.main_frame)
+        self.right_panel.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=0)
+
+        self.right_panel.grid_columnconfigure(0, weight=1)
+        self.right_panel.grid_rowconfigure(1, weight=1)  # Results area expands
+
+        # Header with results dropdown
+        results_header = ctk.CTkFrame(self.right_panel, fg_color="transparent")
+        results_header.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
+
+        results_label = ctk.CTkLabel(
+            results_header,
+            text="📋 RESULTS",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        results_label.pack(side="left")
+
+        # Dynamic Output Widget (contains the results selector and display)
+        self.output_display = DynamicOutputWidget(self.right_panel)
+        self.output_display.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+
+        # Follow-up question input (for Q&A mode)
+        followup_frame = ctk.CTkFrame(self.right_panel, fg_color="transparent")
+        followup_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=(0, 10))
+        followup_frame.grid_columnconfigure(0, weight=1)
+
+        self.followup_entry = ctk.CTkEntry(
+            followup_frame,
+            placeholder_text="Ask a follow-up question...",
+            height=35
+        )
+        self.followup_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        self.followup_entry.bind("<Return>", lambda e: self._ask_followup())
+
+        self.followup_btn = ctk.CTkButton(
+            followup_frame,
+            text="Ask",
+            width=60,
+            command=self._ask_followup,
+            state="disabled"  # Enabled after Q&A results exist
+        )
+        self.followup_btn.grid(row=0, column=1)
 
     def _create_status_bar(self):
-        """Create status bar for messages, timer, and system monitoring."""
-        self.status_bar_frame = ctk.CTkFrame(self, height=40, corner_radius=0)
-        self.status_bar_frame.grid(row=2, column=0, sticky="ew")
-        self.status_bar_frame.grid_columnconfigure(0, weight=1)  # Status label expands
-        self.status_bar_frame.grid_columnconfigure(1, weight=0)  # Timer fixed
-        self.status_bar_frame.grid_columnconfigure(2, weight=0)  # Progress bar fixed
-        self.status_bar_frame.grid_columnconfigure(3, weight=0)  # Monitor fixed
+        """Create status bar at bottom of window."""
+        self.status_frame = ctk.CTkFrame(self, height=30, corner_radius=0)
+        self.status_frame.pack(fill="x", side="bottom")
+        self.status_frame.pack_propagate(False)
 
-        # Status label - much larger for high visibility
-        # Using white/light cyan text on dark background for contrast
+        # Status text
         self.status_label = ctk.CTkLabel(
-            self.status_bar_frame,
+            self.status_frame,
             text="Ready",
-            anchor="w",
-            font=ctk.CTkFont(size=18, weight="bold"),
-            text_color="#00E5FF"  # Bright cyan - high contrast on dark bg
+            font=ctk.CTkFont(size=11)
         )
-        self.status_label.grid(row=0, column=0, sticky="ew", padx=10, pady=6)
+        self.status_label.pack(side="left", padx=10, pady=5)
 
-        # Processing timer - shows elapsed time during processing
-        self.processing_timer = ProcessingTimer(
-            self.status_bar_frame,
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#FFD700"  # Gold color for timer visibility
+        # Timer (right side)
+        self.timer_label = ctk.CTkLabel(
+            self.status_frame,
+            text="⏱ 0:00",
+            font=ctk.CTkFont(size=11)
         )
-        self.processing_timer.grid(row=0, column=1, sticky="e", padx=(5, 10))
+        self.timer_label.pack(side="right", padx=10, pady=5)
 
-        self.progress_bar = ctk.CTkProgressBar(self.status_bar_frame, mode="determinate")
-        self.progress_bar.set(0)
-        self.progress_bar.grid(row=0, column=2, sticky="e", padx=(5, 5))
-
-        # Add system monitor (CPU/RAM display with hover tooltip)
-        self.system_monitor = SystemMonitor(self.status_bar_frame)
-        self.system_monitor.grid(row=0, column=3, sticky="e", padx=(0, 5))
-
-    def select_files(self):
-        """Open file dialog and update selected files."""
-        filepaths = filedialog.askopenfilenames(
-            title="Select Legal Documents",
-            filetypes=(("Documents", "*.pdf *.txt *.rtf"), ("All files", "*.*"))
+        # Corpus info (middle)
+        self.corpus_info_label = ctk.CTkLabel(
+            self.status_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=("gray50", "gray60")
         )
-        if filepaths:
-            self.selected_files = filepaths
-            self.files_label.configure(text=f"{len(filepaths)} file(s) selected")
-            self.generate_outputs_btn.configure(state="normal")
+        self.corpus_info_label.pack(side="right", padx=20, pady=5)
 
-            # Update output options with document count for dynamic button text
-            self.output_options.set_document_count(len(filepaths))
+    # =========================================================================
+    # Corpus Management
+    # =========================================================================
 
-            # Populate file table with initial pending status
-            self.file_table.clear() # Clear existing entries
-            for filepath in filepaths:
-                filename = os.path.basename(filepath)
-                file_size = os.path.getsize(filepath) # Get actual file size
-                self.file_table.add_result({
-                    'filename': filename,
-                    'status': 'pending',
-                    'method': 'N/A',
-                    'confidence': 0,
-                    'page_count': 0, # Page count requires processing, keep as 0 for now
-                    'file_size': file_size
-                })
-
-        else:
-            self.selected_files = []
-            self.files_label.configure(text="No files selected")
-            self.generate_outputs_btn.configure(state="disabled")
-            self.output_options.set_document_count(0)  # Reset document count
-            self.file_table.clear()
-
-    def _start_generation(self):
-        """Initiate the processing and generation of outputs."""
-        if not self.selected_files:
-            messagebox.showwarning("No Files Selected", "Please select documents to process first.")
-            return
-
-        # Get selected model and summary length
-        selected_model = self.model_selection.model_selector.get()
-        if selected_model == "Loading..." or selected_model == "Ollama not found":
-            messagebox.showwarning("Model Not Selected", "Please select a valid AI model.")
-            return
-
-        summary_length = int(self.output_options.length_slider.get())
-
-        # Get output options
-        output_options = {
-            "individual_summaries": self.output_options.individual_summaries_check.get(),
-            "meta_summary": self.output_options.meta_summary_check.get(),
-            "vocab_csv": self.output_options.vocab_csv_check.get()
-        }
-
-        # Check if at least one output option is selected
-        if not any(output_options.values()):
-            messagebox.showwarning("No Output Selected", "Please select at least one output type (Individual Summaries, Meta-Summary, or Rare Word List).")
-            return
-
-        self.start_processing(self.selected_files, selected_model, summary_length, output_options)
-
-    def start_processing(self, file_paths, selected_model, summary_length, output_options):
-        """Start background processing of selected documents."""
-        # Disable UI elements to prevent mid-flight changes
-        self.select_files_btn.configure(state="disabled")
-        self.generate_outputs_btn.configure(state="disabled")
-        self.output_options.lock_controls()  # Lock slider and checkboxes
-
-        # Update button text to show "Generating..."
-        self.output_options.set_generating_state(True)
-
-        # Enable cancel button (make it red and clickable)
-        self.cancel_btn.configure(
-            state="normal",
-            fg_color="#dc3545",  # Red when active
-            hover_color="#b02a37"
-        )
-
-        self.progress_bar.grid()  # Make progress bar visible (already gridded at column 1)
-        # DO NOT clear the file table - users need to see which files are being processed
-        # The table entries will be updated with status as files are processed
-        self.processed_results = []
-        self.summary_results.update_outputs(meta_summary="", vocab_csv_data=[], document_summaries={}) # Clear previous results
-
-        # Get selected prompt preset
-        selected_preset_id = self.model_selection.get_selected_preset_id()
-
-        # Build list of outputs being requested for metrics logging
-        outputs_requested = []
-        if output_options.get("individual_summaries"):
-            outputs_requested.append("individual_summaries")
-        if output_options.get("meta_summary"):
-            outputs_requested.append("meta_summary")
-        if output_options.get("vocab_csv"):
-            outputs_requested.append("vocab_csv")
-
-        # Gather document metadata for the timer/metrics
-        documents_metadata = []
-        for filepath in file_paths:
-            documents_metadata.append({
-                'filename': os.path.basename(filepath),
-                'file_size': os.path.getsize(filepath),
-                'page_count': 0  # Will be updated after extraction
-            })
-
-        # Start the processing timer with job metadata for CSV logging
-        self.processing_timer.start({
-            'documents': documents_metadata,
-            'model_name': selected_model,
-            'outputs_requested': outputs_requested
-        })
-
-        # Store AI generation parameters for after document extraction completes
-        self.pending_ai_generation = {
-            "selected_model": selected_model,
-            "summary_length": summary_length,
-            "output_options": output_options,
-            "preset_id": selected_preset_id
-        }
-
-        self.worker = ProcessingWorker(
-            file_paths,
-            self.ui_queue
-        )
-        self.worker.start()
-
-    def _cancel_processing(self):
-        """Cancel all running background workers and restore UI state."""
-        debug_log("[MAIN WINDOW] User requested cancellation.")
-
-        # Stop ProcessingWorker if running
-        if self.worker and self.worker.is_alive():
-            debug_log("[MAIN WINDOW] Stopping ProcessingWorker...")
-            self.worker.stop()
-
-        # Stop VocabularyWorker if running (via orchestrator)
-        if self.workflow_orchestrator.vocab_worker and self.workflow_orchestrator.vocab_worker.is_alive():
-            debug_log("[MAIN WINDOW] Stopping VocabularyWorker...")
-            self.workflow_orchestrator.vocab_worker.stop()
-
-        # Stop AI worker if running
-        if self.ai_worker_manager.is_running:
-            debug_log("[MAIN WINDOW] Stopping AI worker...")
-            self.ai_worker_manager.stop_worker()
-
-        # Stop timer without logging (cancelled jobs shouldn't be in metrics)
-        self.processing_timer.reset()
-
-        # Reset UI state
-        self.status_label.configure(text="Processing cancelled by user.")
-        self.progress_bar.set(0)
-        self.progress_bar.grid_remove()
-
-        # Re-enable UI controls
-        self.select_files_btn.configure(state="normal")
-        self.generate_outputs_btn.configure(state="normal")
-        self.output_options.unlock_controls()
-
-        # Reset button text from "Generating..." back to normal
-        self.output_options.set_generating_state(False)
-
-        # Disable cancel button (grey it out instead of hiding)
-        self.cancel_btn.configure(
-            state="disabled",
-            fg_color="#6c757d",  # Grey when disabled
-            hover_color="#5a6268"
-        )
-
-        # Clear pending AI generation and processed results
-        self.pending_ai_generation = None
-        self.processed_results = []
-
-        # Clear worker references to allow garbage collection
-        self.worker = None
-        self.workflow_orchestrator.vocab_worker = None
-
-        # Run garbage collection in background thread (non-blocking)
-        import threading
-        threading.Thread(target=gc.collect, daemon=True).start()
-
-        debug_log("[MAIN WINDOW] Cancellation complete. UI restored, background GC started.")
-
-    def _start_ai_generation(self, extracted_documents, ai_params):
-        """
-        Start AI summary generation after document extraction is complete.
-
-        Args:
-            extracted_documents: List of extracted document dictionaries
-            ai_params: Dict with 'selected_model', 'summary_length', 'output_options', 'preset_id'
-        """
+    def _refresh_corpus_dropdown(self):
+        """Refresh the corpus dropdown with available corpora."""
         try:
-            selected_model = ai_params["selected_model"]
-            summary_length = ai_params["summary_length"]
-            preset_id = ai_params.get("preset_id", "factual-summary")  # Default to factual-summary
+            corpora = self.corpus_registry.list_corpora()
+            names = [c.name for c in corpora]
 
-            # Combine documents with filename headers for AI context
-            combined_text = combine_document_texts(
-                extracted_documents,
-                include_headers=True
-            )
+            if names:
+                self.corpus_dropdown.configure(values=names)
+                active = self.corpus_registry.get_active_corpus()
+                self.corpus_dropdown.set(active)
 
-            self.status_label.configure(text="Generating AI summary...")
-            self.progress_bar.set(0.5)
-
-            # Send task to AI worker - using the correct format expected by ollama_worker
-            task_payload = {
-                "case_text": combined_text,
-                "max_words": summary_length,
-                "preset_id": preset_id  # Use the selected prompt template
-            }
-
-            self.ai_worker_manager.send_task("GENERATE_SUMMARY", task_payload)
-            debug_log(f"[MAIN WINDOW] Started AI generation with model: {selected_model}, preset: {preset_id}, length: {summary_length} words")
+                # Update status bar with corpus info
+                active_info = next((c for c in corpora if c.name == active), None)
+                if active_info:
+                    self.corpus_info_label.configure(
+                        text=f"Corpus: {active} ({active_info.doc_count} docs)"
+                    )
+            else:
+                self.corpus_dropdown.configure(values=["No corpora"])
+                self.corpus_dropdown.set("No corpora")
+                self.corpus_info_label.configure(text="")
 
         except Exception as e:
-            debug_log(f"[MAIN WINDOW] Error starting AI generation: {e}")
-            messagebox.showerror("AI Generation Error", f"Failed to start AI summary generation: {str(e)}")
-            self.select_files_btn.configure(state="normal")
-            self.generate_outputs_btn.configure(state="normal")
-            self.progress_bar.grid_remove()
+            debug_log(f"[MainWindow] Error refreshing corpus dropdown: {e}")
+            self.corpus_dropdown.configure(values=["Error"])
+            self.corpus_dropdown.set("Error")
 
-    def _process_queue(self):
-        """
-        Process messages from the worker thread queue and AI worker manager.
+    def _update_corpus_banner(self):
+        """Show or hide the no-corpus warning banner."""
+        try:
+            corpora = self.corpus_registry.list_corpora()
+            total_docs = sum(c.doc_count for c in corpora)
 
-        Uses the QueueMessageHandler for decoupled, testable message routing.
-        Processes messages in batches to keep GUI responsive during heavy loads.
+            if total_docs == 0:
+                # Show banner
+                self.banner_frame.pack(fill="x", after=self.header_frame)
+            else:
+                # Hide banner
+                self.banner_frame.pack_forget()
 
-        AI messages are processed directly (not re-queued) to prevent duplicates.
-        """
-        # Process up to 10 messages per cycle to keep GUI responsive
-        # For 260-page PDFs, this prevents blocking the main thread
-        MAX_MESSAGES_PER_CYCLE = 10
-        messages_processed = 0
+        except Exception:
+            # On error, hide banner
+            self.banner_frame.pack_forget()
+
+    def _on_corpus_changed(self, corpus_name: str):
+        """Handle corpus selection change."""
+        try:
+            self.corpus_registry.set_active_corpus(corpus_name)
+            self._refresh_corpus_dropdown()
+            self.set_status(f"Active corpus: {corpus_name}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to switch corpus: {e}")
+
+    def _open_corpus_dialog(self):
+        """Open the corpus management dialog."""
+        from src.ui.corpus_dialog import CorpusDialog
+
+        dialog = CorpusDialog(self)
+        self.wait_window(dialog)
+
+        # Refresh after dialog closes
+        if dialog.corpus_changed:
+            self._refresh_corpus_dropdown()
+            self._update_corpus_banner()
+            self.set_status("Corpus updated")
+
+    # =========================================================================
+    # File Management
+    # =========================================================================
+
+    def _select_files(self):
+        """Open file dialog to select documents for this session."""
+        files = filedialog.askopenfilenames(
+            title="Select Documents for This Session",
+            filetypes=[
+                ("Documents", "*.pdf *.txt *.rtf"),
+                ("PDF files", "*.pdf"),
+                ("Text files", "*.txt"),
+                ("RTF files", "*.rtf"),
+                ("All files", "*.*")
+            ]
+        )
+
+        if not files:
+            return
+
+        self.selected_files = list(files)
+        self.set_status(f"Processing {len(files)} file(s)...")
+        self._start_preprocessing()
+
+    def _clear_files(self):
+        """Clear all files from the session."""
+        self.selected_files.clear()
+        self.processing_results.clear()
+        self.file_table.clear()
+        self._update_generate_button_state()
+        self.set_status("Files cleared")
+
+    def _start_preprocessing(self):
+        """Start preprocessing selected files."""
+        if not self.selected_files:
+            return
+
+        # Disable controls during preprocessing
+        self.add_files_btn.configure(state="disabled")
+        self.generate_btn.configure(state="disabled")
+
+        # Clear previous results
+        self.file_table.clear()
+        self.processing_results.clear()
+
+        # Start timer
+        self._start_timer()
+
+        # Create queue for worker communication
+        self._ui_queue = Queue()
+
+        # Create and start worker
+        self._processing_worker = ProcessingWorker(
+            file_paths=self.selected_files,
+            ui_queue=self._ui_queue
+        )
+        self._processing_worker.start()
+
+        # Start polling the queue
+        self._poll_queue()
+
+    def _poll_queue(self):
+        """Poll the UI queue for worker messages."""
+        try:
+            while True:
+                msg_type, data = self._ui_queue.get_nowait()
+                self._handle_queue_message(msg_type, data)
+        except Empty:
+            pass
+
+        # Continue polling if worker is running
+        if self._processing_worker and self._processing_worker.is_alive():
+            self._queue_poll_id = self.after(50, self._poll_queue)
+        else:
+            # Final poll to catch any remaining messages
+            try:
+                while True:
+                    msg_type, data = self._ui_queue.get_nowait()
+                    self._handle_queue_message(msg_type, data)
+            except Empty:
+                pass
+
+    def _handle_queue_message(self, msg_type: str, data):
+        """Handle a message from the worker queue."""
+        if msg_type == "progress":
+            percentage, message = data
+            self.set_status(message)
+
+        elif msg_type == "file_processed":
+            self.processing_results.append(data)
+            self.file_table.add_result(data)
+
+        elif msg_type == "processing_finished":
+            self._on_preprocessing_complete(data)
+
+        elif msg_type == "error":
+            self.set_status(f"Error: {data}")
+            messagebox.showerror("Processing Error", str(data))
+            self._on_preprocessing_complete([])
+
+    def _on_preprocessing_complete(self, results: list[dict]):
+        """Handle preprocessing completion."""
+        # Stop timer
+        self._stop_timer()
+
+        # Stop queue polling
+        if self._queue_poll_id:
+            self.after_cancel(self._queue_poll_id)
+            self._queue_poll_id = None
+
+        # Re-enable controls
+        self.add_files_btn.configure(state="normal")
+        self._update_generate_button_state()
+
+        # Count results
+        success_count = sum(1 for r in results if r.get('status') == 'success')
+        failed_count = len(results) - success_count
+
+        status = f"Processed {len(results)} file(s): {success_count} ready"
+        if failed_count > 0:
+            status += f", {failed_count} failed"
+
+        self.set_status(status)
+
+    # =========================================================================
+    # Task Execution
+    # =========================================================================
+
+    def _get_task_count(self) -> int:
+        """Get the number of selected tasks."""
+        count = 0
+        if self.qa_check.get():
+            count += 1
+        if self.vocab_check.get():
+            count += 1
+        if self.summary_check.get():
+            count += 1
+        return count
+
+    def _update_generate_button_state(self):
+        """Update the generate button text and state."""
+        task_count = self._get_task_count()
+        has_files = len(self.processing_results) > 0
+
+        if task_count == 0:
+            self.generate_btn.configure(text="Select Tasks", state="disabled")
+        elif not has_files:
+            self.generate_btn.configure(text=f"Add Files ({task_count} tasks)", state="disabled")
+        elif task_count == 1:
+            self.generate_btn.configure(text="Perform 1 Task", state="normal")
+        else:
+            self.generate_btn.configure(text=f"Perform {task_count} Tasks", state="normal")
+
+    def _on_summary_checked(self):
+        """Handle summary checkbox toggle - show warning if enabling."""
+        if self.summary_check.get():
+            # Show warning dialog
+            result = messagebox.askyesno(
+                "Summary Warning",
+                "Summary generation typically takes 30+ minutes and results depend "
+                "heavily on your hardware.\n\n"
+                "For quick case familiarization, Q&A is recommended instead.\n\n"
+                "Continue with summary?",
+                icon="warning"
+            )
+            if not result:
+                self.summary_check.deselect()
+
+        self._update_generate_button_state()
+
+    def _perform_tasks(self):
+        """Execute the selected tasks."""
+        if not self.processing_results:
+            messagebox.showwarning("No Files", "Please add files first.")
+            return
+
+        task_count = self._get_task_count()
+        if task_count == 0:
+            messagebox.showwarning("No Tasks", "Please select at least one task.")
+            return
+
+        # Disable controls during processing
+        self.generate_btn.configure(state="disabled", text=f"Processing {task_count} tasks...")
+        self.add_files_btn.configure(state="disabled")
+
+        # Start timer
+        self._start_timer()
+
+        # Get selected options
+        do_qa = self.qa_check.get()
+        do_vocab = self.vocab_check.get()
+        do_summary = self.summary_check.get()
+
+        # Track pending tasks
+        self._pending_tasks = {
+            'vocab': do_vocab,
+            'qa': do_qa,
+            'summary': do_summary
+        }
+        self._completed_tasks = set()
+
+        # Start vocabulary extraction first (if requested)
+        if do_vocab:
+            self._start_vocabulary_extraction()
+        elif do_qa:
+            self._start_qa_task()
+        elif do_summary:
+            self._start_summary_task()
+        else:
+            self._on_tasks_complete(True, "No tasks selected")
+
+    def _start_vocabulary_extraction(self):
+        """Start vocabulary extraction task."""
+        from src.utils.text_utils import combine_document_texts
+        from src.config import LEGAL_EXCLUDE_LIST_PATH, MEDICAL_TERMS_LIST_PATH, USER_VOCAB_EXCLUDE_PATH
+
+        self.set_status("Extracting vocabulary...")
+
+        # Debug: Log what's in processing_results
+        debug_log(f"[MainWindow] Vocabulary: {len(self.processing_results)} documents in processing_results")
+        for i, doc in enumerate(self.processing_results):
+            text_len = len(doc.get('extracted_text', '') or '')
+            debug_log(f"[MainWindow] Doc {i}: {doc.get('filename', 'unknown')} - {text_len} chars, status={doc.get('status')}")
+
+        # Combine text from all processed documents
+        combined_text = combine_document_texts(self.processing_results)
+
+        debug_log(f"[MainWindow] Combined text length: {len(combined_text)} chars")
+
+        if not combined_text.strip():
+            self.set_status("No text to analyze for vocabulary")
+            debug_log("[MainWindow] WARNING: No text after combining documents!")
+            self._on_vocab_complete([])
+            return
+
+        # Create queue for vocab worker
+        self._vocab_queue = Queue()
+
+        # Start vocabulary worker
+        self._vocabulary_worker = VocabularyWorker(
+            combined_text=combined_text,
+            ui_queue=self._vocab_queue,
+            exclude_list_path=str(LEGAL_EXCLUDE_LIST_PATH),
+            medical_terms_path=str(MEDICAL_TERMS_LIST_PATH),
+            user_exclude_path=str(USER_VOCAB_EXCLUDE_PATH),
+            doc_count=len(self.processing_results)
+        )
+        self._vocabulary_worker.start()
+
+        # Start polling vocab queue
+        self._poll_vocab_queue()
+
+    def _poll_vocab_queue(self):
+        """Poll the vocabulary worker queue."""
+        try:
+            while True:
+                msg_type, data = self._vocab_queue.get_nowait()
+                if msg_type == "progress":
+                    self.set_status(data[1] if isinstance(data, tuple) else str(data))
+                elif msg_type == "vocab_csv_generated":
+                    self._on_vocab_complete(data)
+                    return
+                elif msg_type == "error":
+                    self.set_status(f"Vocabulary error: {data}")
+                    self._on_vocab_complete([])
+                    return
+        except Empty:
+            pass
+
+        # Continue polling if worker is alive
+        if self._vocabulary_worker and self._vocabulary_worker.is_alive():
+            self.after(50, self._poll_vocab_queue)
+        else:
+            # Worker finished - do final poll
+            try:
+                while True:
+                    msg_type, data = self._vocab_queue.get_nowait()
+                    if msg_type == "vocab_csv_generated":
+                        self._on_vocab_complete(data)
+                        return
+            except Empty:
+                pass
+            # If we get here, worker finished without sending results
+            self._on_vocab_complete([])
+
+    def _on_vocab_complete(self, vocab_data: list):
+        """Handle vocabulary extraction completion."""
+        self._completed_tasks.add('vocab')
+
+        # Display results using update_outputs
+        if vocab_data:
+            self.output_display.update_outputs(vocab_csv_data=vocab_data)
+            self.set_status(f"Vocabulary: {len(vocab_data)} terms found")
+        else:
+            self.set_status("Vocabulary extraction complete (no terms)")
+
+        # Continue to next task
+        if self._pending_tasks.get('qa'):
+            self._start_qa_task()
+        elif self._pending_tasks.get('summary'):
+            self._start_summary_task()
+        else:
+            self._finalize_tasks()
+
+    def _start_qa_task(self):
+        """Start Q&A task - build vector store then run questions."""
+        import threading
+
+        self.set_status("Q&A: Loading embeddings model (this may take a moment)...")
+
+        # Run the heavy initialization in a background thread
+        def initialize_qa():
+            """Background thread for embeddings + vector store setup."""
+            try:
+                # Lazy-load embeddings model (slow first time, reused after)
+                if self._embeddings is None:
+                    debug_log("[MainWindow] Loading HuggingFaceEmbeddings model...")
+                    from langchain_huggingface import HuggingFaceEmbeddings
+                    self._embeddings = HuggingFaceEmbeddings(
+                        model_name="all-MiniLM-L6-v2",
+                        model_kwargs={'device': 'cpu'}
+                    )
+                    debug_log("[MainWindow] Embeddings model loaded")
+
+                # Build vector store from documents
+                debug_log("[MainWindow] Building vector store...")
+                builder = VectorStoreBuilder()
+                result = builder.create_from_documents(
+                    documents=self.processing_results,
+                    embeddings=self._embeddings
+                )
+                self._vector_store_path = result.persist_dir
+                debug_log(f"[MainWindow] Vector store created: {result.chunk_count} chunks at {result.persist_dir}")
+
+                # Signal main thread that initialization is complete
+                self.after(0, lambda: self._qa_init_complete(True, None))
+
+            except Exception as e:
+                debug_log(f"[MainWindow] Q&A initialization error: {e}")
+                self.after(0, lambda: self._qa_init_complete(False, str(e)))
+
+        # Start background thread
+        init_thread = threading.Thread(target=initialize_qa, daemon=True)
+        init_thread.start()
+
+    def _qa_init_complete(self, success: bool, error: str | None):
+        """Called when Q&A initialization (embeddings + vector store) completes."""
+        if not success:
+            self.set_status(f"Q&A error: {error[:50] if error else 'Unknown'}...")
+            self._completed_tasks.add('qa')
+            if self._pending_tasks.get('summary'):
+                self._start_summary_task()
+            else:
+                self._finalize_tasks()
+            return
+
+        self.set_status("Q&A: Building vector store...")
+
+        # Create Q&A queue and worker
+        self._qa_queue = Queue()
+        self._qa_worker = QAWorker(
+            vector_store_path=self._vector_store_path,
+            embeddings=self._embeddings,
+            ui_queue=self._qa_queue,
+            answer_mode="extraction"  # Fast extraction mode
+        )
+        self._qa_worker.start()
+
+        # Start polling Q&A queue
+        self.set_status("Q&A: Processing questions...")
+        self._poll_qa_queue()
+
+    def _poll_qa_queue(self):
+        """Poll the Q&A worker queue for results."""
+        try:
+            while True:
+                msg_type, data = self._qa_queue.get_nowait()
+                if msg_type == "qa_progress":
+                    current, total, question = data
+                    self.set_status(f"Q&A: Processing question {current + 1}/{total}...")
+                elif msg_type == "qa_result":
+                    # Individual result - could update incrementally
+                    pass
+                elif msg_type == "qa_complete":
+                    self._on_qa_complete(data)
+                    return
+                elif msg_type == "error":
+                    self.set_status(f"Q&A error: {data}")
+                    self._on_qa_complete([])
+                    return
+        except Empty:
+            pass
+
+        # Continue polling if worker is alive
+        if self._qa_worker and self._qa_worker.is_alive():
+            self.after(50, self._poll_qa_queue)
+        else:
+            # Worker finished - do final poll
+            try:
+                while True:
+                    msg_type, data = self._qa_queue.get_nowait()
+                    if msg_type == "qa_complete":
+                        self._on_qa_complete(data)
+                        return
+            except Empty:
+                pass
+            # Worker finished without sending results
+            self._on_qa_complete([])
+
+    def _on_qa_complete(self, qa_results: list):
+        """Handle Q&A completion."""
+        self._completed_tasks.add('qa')
+        self._qa_results = qa_results
+
+        # Display results using update_outputs
+        if qa_results:
+            self.output_display.update_outputs(qa_results=qa_results)
+            self.set_status(f"Q&A: {len(qa_results)} questions answered")
+            # Enable follow-up button
+            self.followup_btn.configure(state="normal")
+        else:
+            self.set_status("Q&A complete (no results)")
+
+        # Continue to next task
+        if self._pending_tasks.get('summary'):
+            self._start_summary_task()
+        else:
+            self._finalize_tasks()
+
+    def _start_summary_task(self):
+        """Start summary generation task."""
+        self.set_status("Summary: This feature takes 30+ minutes...")
+
+        # Summary is complex - show placeholder for now
+        self._completed_tasks.add('summary')
+
+        self.output_display.update_outputs(
+            meta_summary="Summary generation is a long-running task (30+ minutes). "
+            "For quick case familiarization, use Q&A instead."
+        )
+
+        self._finalize_tasks()
+
+    def _finalize_tasks(self):
+        """Finalize all tasks and update UI."""
+        completed = len(self._completed_tasks)
+        self._on_tasks_complete(True, f"Completed {completed} task(s)")
+
+    def _on_tasks_complete(self, success: bool, message: str):
+        """Handle task completion."""
+        self._stop_timer()
+
+        # Re-enable controls
+        self.add_files_btn.configure(state="normal")
+        self._update_generate_button_state()
+
+        # Enable follow-up if Q&A was run
+        if self.qa_check.get() and success:
+            self.followup_btn.configure(state="normal")
+
+        self.set_status(message)
+
+    def _ask_followup(self):
+        """Ask a follow-up question using the Q&A system."""
+        question = self.followup_entry.get().strip()
+        if not question:
+            return
+
+        # Check prerequisites
+        if not self._vector_store_path or not self._embeddings:
+            messagebox.showwarning("Not Ready", "Please run Q&A first to enable follow-up questions.")
+            return
+
+        # Clear entry
+        self.followup_entry.delete(0, "end")
+
+        self.set_status(f"Asking: {question[:40]}...")
 
         try:
-            while messages_processed < MAX_MESSAGES_PER_CYCLE:
-                message_type, data = self.ui_queue.get_nowait()
-                # Delegate to message handler for routing and processing
-                self.message_handler.process_message(message_type, data)
-                messages_processed += 1
+            # Import and use QAOrchestrator for follow-up
+            from src.qa import QAOrchestrator
 
-        except Empty:
-            pass  # No messages in queue
+            orchestrator = QAOrchestrator(
+                vector_store_path=self._vector_store_path,
+                embeddings=self._embeddings,
+                answer_mode="extraction"
+            )
 
-        # Process AI worker messages directly (not re-queued to prevent duplicates)
-        if hasattr(self, 'ai_worker_manager'):
-            ai_messages = self.ai_worker_manager.check_for_messages()
-            for msg_type, msg_data in ai_messages:
-                # Process AI messages directly through message handler
-                self.message_handler.process_message(msg_type, msg_data)
-                messages_processed += 1
+            # Ask the follow-up question
+            result = orchestrator.ask_followup(question)
 
-        # Force UI update to keep responsive during heavy processing
-        if messages_processed > 0:
-            self.update_idletasks()
+            # Add to existing results and refresh display
+            self._qa_results.append(result)
+            self.output_display.update_outputs(qa_results=self._qa_results)
+            self.set_status(f"Follow-up answered: {len(result.answer)} chars")
 
-        self.after(100, self._process_queue)  # Poll again after 100ms
+        except Exception as e:
+            debug_log(f"[MainWindow] Follow-up error: {e}")
+            messagebox.showerror("Error", f"Failed to process follow-up: {str(e)}")
+
+    # =========================================================================
+    # Settings
+    # =========================================================================
+
+    def _open_settings(self):
+        """Open the settings dialog."""
+        from src.ui.settings.settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(self, self.model_manager, self.prompt_template_manager)
+        dialog.wait_window()
+
+        # Refresh UI after settings change
+        self._refresh_corpus_dropdown()
+        self._update_corpus_banner()
+
+    # =========================================================================
+    # Timer
+    # =========================================================================
+
+    def _start_timer(self):
+        """Start the processing timer."""
+        self._processing_start_time = time.time()
+        self._update_timer()
+
+    def _stop_timer(self):
+        """Stop the processing timer."""
+        if self._timer_after_id:
+            self.after_cancel(self._timer_after_id)
+            self._timer_after_id = None
+
+        # Keep final time displayed
+        if self._processing_start_time:
+            elapsed = time.time() - self._processing_start_time
+            self._format_timer(elapsed)
+
+    def _update_timer(self):
+        """Update the timer display."""
+        if self._processing_start_time:
+            elapsed = time.time() - self._processing_start_time
+            self._format_timer(elapsed)
+            self._timer_after_id = self.after(1000, self._update_timer)
+
+    def _format_timer(self, seconds: float):
+        """Format and display the timer."""
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        self.timer_label.configure(text=f"⏱ {minutes}:{secs:02d}")
+
+    # =========================================================================
+    # Status Bar
+    # =========================================================================
+
+    def set_status(self, message: str):
+        """Update the status bar message."""
+        self.status_label.configure(text=message)
+        if DEBUG_MODE:
+            debug_log(f"[MainWindow] Status: {message}")
+
+    # =========================================================================
+    # Startup Checks
+    # =========================================================================
 
     def _check_ollama_service(self):
         """Check if Ollama service is running on startup."""
         try:
             self.model_manager.health_check()
-            debug_log("[MAIN WINDOW] [OK] Ollama service is accessible on startup")
-            self.status_label.configure(text="Ollama service connected.", text_color="green")
+            debug_log("[MainWindow] Ollama service is accessible")
         except Exception as e:
-            debug_log(f"[MAIN WINDOW] [ERROR] Ollama service not accessible: {str(e)}")
-            self.status_label.configure(text="Ollama service not found!", text_color="red")
+            debug_log(f"[MainWindow] Ollama service not accessible: {e}")
+
+            # Show warning
             messagebox.showwarning(
-                "Ollama Service Not Found",
-                "Ollama service is not accessible. Please ensure Ollama is running to generate summaries."
+                "Ollama Not Found",
+                "Ollama service is not running.\n\n"
+                "LocalScribe requires Ollama for Q&A and summaries.\n\n"
+                "To install: Visit https://ollama.ai\n"
+                "To start: Run 'ollama serve' in a terminal\n\n"
+                "Vocabulary extraction will still work without Ollama."
             )
+
+    # =========================================================================
+    # Cleanup
+    # =========================================================================
+
+    def destroy(self):
+        """Clean up resources before destroying window."""
+        # Stop queue polling
+        if self._queue_poll_id:
+            self.after_cancel(self._queue_poll_id)
+            self._queue_poll_id = None
+
+        # Stop any running workers
+        if self._processing_worker and self._processing_worker.is_alive():
+            # Worker is a daemon thread, will stop when main thread exits
+            pass
+        if self._vocabulary_worker and hasattr(self._vocabulary_worker, 'is_alive') and self._vocabulary_worker.is_alive():
+            pass
+
+        # Stop timer
+        self._stop_timer()
+
+        super().destroy()

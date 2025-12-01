@@ -241,9 +241,9 @@ class VocabularyWorker(threading.Thread):
             # Create extractor with graceful fallback for missing files
             try:
                 extractor = VocabularyExtractor(
-                    self.exclude_list_path,
-                    self.medical_terms_path,
-                    self.user_exclude_path
+                    exclude_list_path=self.exclude_list_path,
+                    medical_terms_path=self.medical_terms_path,
+                    user_exclude_path=self.user_exclude_path
                 )
             except FileNotFoundError as e:
                 # Graceful fallback: create extractor with empty exclude lists
@@ -281,6 +281,123 @@ class VocabularyWorker(threading.Thread):
         except Exception as e:
             error_msg = f"Vocabulary extraction failed: {str(e)}"
             debug_log(f"[VOCAB WORKER] {error_msg}\n{traceback.format_exc()}")
+            self.ui_queue.put(('error', error_msg))
+
+
+class QAWorker(threading.Thread):
+    """
+    Background worker for Q&A document querying.
+
+    Runs default questions against the document using FAISS vector search
+    and generates answers via extraction or Ollama.
+
+    Signals sent to ui_queue:
+    - ('qa_progress', (current, total, question)) - Question being processed
+    - ('qa_result', QAResult) - Single result ready
+    - ('qa_complete', list[QAResult]) - All questions processed
+    - ('error', str) - Error occurred
+
+    Example:
+        worker = QAWorker(
+            vector_store_path=Path("./vector_stores/case_123"),
+            embeddings=embeddings_model,
+            ui_queue=ui_queue,
+            answer_mode="extraction"
+        )
+        worker.start()
+    """
+
+    def __init__(
+        self,
+        vector_store_path: Path,
+        embeddings,
+        ui_queue: Queue,
+        answer_mode: str = "extraction",
+        questions: list[str] | None = None
+    ):
+        """
+        Initialize Q&A worker.
+
+        Args:
+            vector_store_path: Path to FAISS index directory
+            embeddings: HuggingFaceEmbeddings model
+            ui_queue: Queue for UI communication
+            answer_mode: "extraction" or "ollama"
+            questions: Custom questions to ask (None = use defaults from YAML)
+        """
+        super().__init__(daemon=True)
+        self.vector_store_path = Path(vector_store_path)
+        self.embeddings = embeddings
+        self.ui_queue = ui_queue
+        self.answer_mode = answer_mode
+        self.custom_questions = questions
+        self._stop_event = threading.Event()
+        self.results: list = []
+
+    def stop(self):
+        """Signal the worker to stop processing."""
+        debug_log("[QA WORKER] Stop signal received.")
+        self._stop_event.set()
+
+    def run(self):
+        """Execute Q&A in background thread."""
+        try:
+            from src.qa import QAOrchestrator
+
+            debug_log(f"[QA WORKER] Starting Q&A with mode: {self.answer_mode}")
+
+            # Initialize orchestrator
+            orchestrator = QAOrchestrator(
+                vector_store_path=self.vector_store_path,
+                embeddings=self.embeddings,
+                answer_mode=self.answer_mode
+            )
+
+            # Get questions to ask
+            if self.custom_questions:
+                questions = self.custom_questions
+            else:
+                questions = orchestrator.get_default_questions()
+
+            total = len(questions)
+            if total == 0:
+                debug_log("[QA WORKER] No questions to process")
+                self.ui_queue.put(('qa_complete', []))
+                return
+
+            debug_log(f"[QA WORKER] Processing {total} questions")
+
+            # Process each question
+            self.results = []
+            for i, question in enumerate(questions):
+                if self._stop_event.is_set():
+                    debug_log("[QA WORKER] Cancelled during processing")
+                    return
+
+                # Report progress
+                self.ui_queue.put(('qa_progress', (i, total, question[:50] + "..." if len(question) > 50 else question)))
+
+                # Ask the question
+                result = orchestrator._ask_single_question(question, is_followup=False)
+                self.results.append(result)
+
+                # Send individual result
+                self.ui_queue.put(('qa_result', result))
+
+                debug_log(f"[QA WORKER] Q{i + 1}/{total} complete: {len(result.answer)} chars")
+
+            # Send completion signal with all results
+            self.ui_queue.put(('qa_complete', self.results))
+            debug_log(f"[QA WORKER] All {total} questions processed successfully")
+
+        except FileNotFoundError as e:
+            error_msg = f"Vector store not found: {e}"
+            debug_log(f"[QA WORKER] {error_msg}")
+            self.ui_queue.put(('error', error_msg))
+
+        except Exception as e:
+            error_msg = f"Q&A processing failed: {str(e)}"
+            debug_log(f"[QA WORKER] {error_msg}\n{traceback.format_exc()}")
             self.ui_queue.put(('error', error_msg))
 
 

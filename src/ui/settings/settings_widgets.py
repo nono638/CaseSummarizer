@@ -492,3 +492,58 @@ class SpinboxSetting(SettingRow):
         text_color = ("gray10", "gray90") if enabled else ("gray50", "gray50")
         self.value_label.configure(text_color=text_color)
         self.label_widget.configure(text_color=text_color)
+
+
+class ButtonSetting(SettingRow):
+    """
+    Button widget for action settings.
+
+    Displays a button that triggers an action when clicked.
+    Useful for opening folders, running calibrations, etc.
+    """
+
+    def __init__(
+        self,
+        parent,
+        label: str,
+        tooltip: str,
+        action: callable,
+        button_text: str = None,
+        **kwargs
+    ):
+        """
+        Initialize the button setting.
+
+        Args:
+            parent: Parent widget.
+            label: Display name (shown as button text if button_text is None).
+            tooltip: Help text.
+            action: Function to call when button is clicked.
+            button_text: Optional custom button text.
+        """
+        super().__init__(parent, label, tooltip, None, **kwargs)
+
+        self.action = action
+
+        self.button = ctk.CTkButton(
+            self,
+            text=button_text or label,
+            command=self._on_click,
+            width=180,
+            height=28,
+            font=ctk.CTkFont(size=12)
+        )
+        self.button.grid(row=0, column=2, sticky="w")
+
+    def _on_click(self):
+        """Handle button click."""
+        if self.action:
+            self.action()
+
+    def get_value(self):
+        """Buttons don't have a value."""
+        return None
+
+    def set_value(self, value) -> None:
+        """Buttons don't have a value."""
+        pass

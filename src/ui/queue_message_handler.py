@@ -328,6 +328,95 @@ class QueueMessageHandler:
         self.main_window.vector_store_path = None
         self.main_window.vector_store_case_id = None
 
+    # =========================================================================
+    # Q&A Handlers (Session 28)
+    # =========================================================================
+
+    def handle_qa_progress(self, data: tuple):
+        """
+        Handle 'qa_progress' message - Q&A question being processed.
+
+        Args:
+            data: Tuple of (current, total, question_text)
+        """
+        current, total, question = data
+        debug_log(f"[QUEUE HANDLER] Q&A progress: {current}/{total} - {question[:50]}...")
+        self.main_window.status_label.configure(
+            text=f"Q&A: Processing question {current}/{total}..."
+        )
+
+    def handle_qa_result(self, result):
+        """
+        Handle 'qa_result' message - single Q&A result ready.
+
+        Args:
+            result: QAResult object with question, answer, metadata
+        """
+        debug_log(f"[QUEUE HANDLER] Q&A result: {result.question[:40]}...")
+        # Results are accumulated by QAWorker, just update status
+        self.main_window.status_label.configure(
+            text=f"Q&A: Got answer for '{result.question[:30]}...'"
+        )
+
+    def handle_qa_complete(self, results: list):
+        """
+        Handle 'qa_complete' message - all Q&A processing finished.
+
+        Args:
+            results: List of QAResult objects
+        """
+        result_count = len(results) if results else 0
+        debug_log(f"[QUEUE HANDLER] Q&A complete: {result_count} results")
+
+        # Update status
+        self.main_window.status_label.configure(
+            text=f"Q&A Complete: {result_count} questions answered"
+        )
+
+        # Store results on main window for display
+        self.main_window.qa_results = results
+
+        # Update the summary results widget to show Q&A results
+        if hasattr(self.main_window, 'summary_results') and results:
+            self.main_window.summary_results.update_outputs(qa_results=results)
+
+        debug_log("[QUEUE HANDLER] Q&A results delivered to UI")
+
+    def handle_qa_followup_result(self, result):
+        """
+        Handle 'qa_followup_result' message - follow-up question answered.
+
+        Adds the result to the existing Q&A results and updates the QAPanel.
+
+        Args:
+            result: QAResult object for the follow-up question
+        """
+        # Add to existing results
+        if not hasattr(self.main_window, 'qa_results') or self.main_window.qa_results is None:
+            self.main_window.qa_results = []
+        self.main_window.qa_results.append(result)
+
+        # Update QAPanel if visible
+        if hasattr(self.main_window, 'summary_results') and self.main_window.summary_results._qa_panel:
+            qa_panel = self.main_window.summary_results._qa_panel
+            qa_panel.display_results(self.main_window.qa_results)
+
+        self.main_window.status_label.configure(
+            text=f"Follow-up answered: {result.question[:30]}..."
+        )
+        debug_log(f"[QUEUE HANDLER] Follow-up Q&A result delivered: {result.question[:30]}...")
+
+    def handle_qa_error(self, data: dict):
+        """
+        Handle 'qa_error' message - Q&A processing error.
+
+        Args:
+            data: Dictionary with 'error' key containing error message
+        """
+        error_msg = data.get('error', 'Unknown Q&A error')
+        self.main_window.status_label.configure(text=f"Q&A Error: {error_msg}")
+        debug_log(f"[QUEUE HANDLER] Q&A error: {error_msg}")
+
     def process_message(self, message_type: str, data) -> bool:
         """
         Route a message to the appropriate handler.
@@ -351,6 +440,12 @@ class QueueMessageHandler:
             # Vector Store Q&A handlers (Session 24)
             'vector_store_ready': self.handle_vector_store_ready,
             'vector_store_error': self.handle_vector_store_error,
+            # Q&A handlers (Session 28)
+            'qa_progress': self.handle_qa_progress,
+            'qa_result': self.handle_qa_result,
+            'qa_complete': self.handle_qa_complete,
+            'qa_followup_result': self.handle_qa_followup_result,
+            'qa_error': self.handle_qa_error,
         }
 
         handler = handlers.get(message_type)

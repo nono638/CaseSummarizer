@@ -25,6 +25,7 @@ from .settings_widgets import (
     CheckboxSetting,
     DropdownSetting,
     SpinboxSetting,
+    ButtonSetting,
 )
 
 
@@ -248,6 +249,14 @@ class SettingsDialog(ctk.CTkToplevel):
                 min_value=int(setting.min_value),
                 max_value=int(setting.max_value),
                 initial_value=initial_value,
+            )
+
+        elif setting.setting_type == SettingType.BUTTON:
+            return ButtonSetting(
+                parent,
+                label=setting.label,
+                tooltip=setting.tooltip,
+                action=setting.action,
             )
 
         else:

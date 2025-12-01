@@ -315,7 +315,7 @@ class OutputOptionsWidget(ctk.CTkFrame):
             command=self._update_generate_button_text
         )
         self.meta_summary_check.grid(row=5, column=0, padx=10, pady=5, sticky="w")
-        self.meta_summary_check.select() # On by default
+        self.meta_summary_check.deselect()  # Off by default (secondary feature)
 
         self.vocab_csv_check = ctk.CTkCheckBox(
             self, text="Rare Word List (CSV)",
@@ -323,6 +323,23 @@ class OutputOptionsWidget(ctk.CTkFrame):
         )
         self.vocab_csv_check.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.vocab_csv_check.select()  # On by default
+
+        self.qa_questions_check = ctk.CTkCheckBox(
+            self, text="Ask Questions of Documents",
+            command=self._update_generate_button_text
+        )
+        self.qa_questions_check.grid(row=7, column=0, padx=10, pady=5, sticky="w")
+        self.qa_questions_check.deselect()  # Off by default (requires vector store)
+
+        # BM25 Corpus Status Indicator (Session 26)
+        self.corpus_status_label = ctk.CTkLabel(
+            self,
+            text="",
+            text_color="gray",
+            font=ctk.CTkFont(size=11)
+        )
+        self.corpus_status_label.grid(row=8, column=0, padx=10, pady=(5, 10), sticky="w")
+        self._update_corpus_status()
 
     def set_generate_button(self, button):
         """
@@ -389,7 +406,7 @@ class OutputOptionsWidget(ctk.CTkFrame):
         Return the total number of outputs that will be generated.
 
         Individual summaries count = number of documents (not 1).
-        Meta-summary and vocab CSV each count as 1.
+        Meta-summary, vocab CSV, and Q&A each count as 1.
         """
         count = 0
         doc_count = getattr(self, '_document_count', 0)
@@ -400,6 +417,8 @@ class OutputOptionsWidget(ctk.CTkFrame):
         if self.meta_summary_check.get():
             count += 1
         if self.vocab_csv_check.get():
+            count += 1
+        if self.qa_questions_check.get():
             count += 1
         return count
 
@@ -412,6 +431,8 @@ class OutputOptionsWidget(ctk.CTkFrame):
             count += 1
         if self.vocab_csv_check.get():
             count += 1
+        if self.qa_questions_check.get():
+            count += 1
         return count
 
     def lock_controls(self):
@@ -420,6 +441,7 @@ class OutputOptionsWidget(ctk.CTkFrame):
         self.individual_summaries_check.configure(state="disabled")
         self.meta_summary_check.configure(state="disabled")
         self.vocab_csv_check.configure(state="disabled")
+        self.qa_questions_check.configure(state="disabled")
 
     def unlock_controls(self):
         """Re-enable all output option controls after processing completes."""
@@ -427,4 +449,50 @@ class OutputOptionsWidget(ctk.CTkFrame):
         self.individual_summaries_check.configure(state="normal")
         self.meta_summary_check.configure(state="normal")
         self.vocab_csv_check.configure(state="normal")
+        self.qa_questions_check.configure(state="normal")
+
+    def _update_corpus_status(self):
+        """
+        Update the BM25 corpus status indicator.
+
+        Shows document count and whether BM25 is active or how many
+        more documents are needed to activate it.
+        """
+        try:
+            from src.vocabulary.corpus_manager import get_corpus_manager
+            from src.user_preferences import get_user_preferences
+
+            prefs = get_user_preferences()
+            bm25_enabled = prefs.get("bm25_enabled", True)
+
+            if not bm25_enabled:
+                self.corpus_status_label.configure(
+                    text="📊 Corpus analysis: Disabled in settings"
+                )
+                return
+
+            manager = get_corpus_manager()
+            doc_count = manager.get_document_count()
+            min_docs = 5
+
+            if doc_count >= min_docs:
+                self.corpus_status_label.configure(
+                    text=f"🟢 Corpus: {doc_count} docs (BM25 active)"
+                )
+            elif doc_count > 0:
+                remaining = min_docs - doc_count
+                self.corpus_status_label.configure(
+                    text=f"⚪ Corpus: {doc_count}/{min_docs} docs (add {remaining} more)"
+                )
+            else:
+                self.corpus_status_label.configure(
+                    text="⚪ Add transcripts to corpus for BM25 analysis"
+                )
+        except Exception:
+            # If corpus manager fails to load, just hide the label
+            self.corpus_status_label.configure(text="")
+
+    def refresh_corpus_status(self):
+        """Public method to refresh corpus status (call after settings change)."""
+        self._update_corpus_status()
 

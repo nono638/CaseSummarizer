@@ -38,12 +38,14 @@ class SettingType(Enum):
     - DROPDOWN: DropdownSetting (selection)
     - SPINBOX: SpinboxSetting (integer +/-)
     - PATH: Reserved for future file/folder picker
+    - BUTTON: ActionButton (executes action on click)
     """
     SLIDER = "slider"
     CHECKBOX = "checkbox"
     DROPDOWN = "dropdown"
     PATH = "path"
     SPINBOX = "spinbox"
+    BUTTON = "button"
 
 
 @dataclass
@@ -67,6 +69,7 @@ class SettingDefinition:
         options: List of (display_text, value) tuples (for DROPDOWN)
         getter: Function that returns the current value
         setter: Function that applies a new value
+        action: Function to execute on click (for BUTTON)
     """
     key: str
     label: str
@@ -80,6 +83,7 @@ class SettingDefinition:
     options: list = field(default_factory=list)
     getter: Callable[[], Any] = None
     setter: Callable[[Any], None] = None
+    action: Callable[[], None] = None
 
 
 class SettingsRegistry:
@@ -163,6 +167,7 @@ def _register_all_settings():
     - Vocabulary: Term extraction settings
     """
     # Import lazily to avoid circular imports
+    import os
     from src.user_preferences import get_user_preferences
     from src.config import (
         USER_DEFINED_MAX_WORKER_COUNT,
@@ -172,6 +177,8 @@ def _register_all_settings():
         DEFAULT_SUMMARY_WORDS,
         MIN_SUMMARY_WORDS,
         MAX_SUMMARY_WORDS,
+        CORPUS_DIR,
+        BM25_ENABLED,
     )
 
     prefs = get_user_preferences()
@@ -311,6 +318,128 @@ def _register_all_settings():
         ],
         getter=lambda: prefs.get("vocab_export_format", "basic"),
         setter=lambda v: prefs.set("vocab_export_format", v),
+    ))
+
+    # Session 26: BM25 Corpus-based term extraction
+    SettingsRegistry.register(SettingDefinition(
+        key="bm25_enabled",
+        label="Enable Corpus Analysis (BM25)",
+        category="Vocabulary",
+        setting_type=SettingType.CHECKBOX,
+        tooltip=(
+            "Compare your current document against your library of past "
+            "transcripts to identify case-specific terminology. Terms that "
+            "are frequent in this document but rare in your corpus are likely "
+            "important. Requires 5+ documents in your corpus folder.\n\n"
+            "🔒 Privacy: All analysis happens locally on your computer - "
+            "no documents or data are ever sent to external servers."
+        ),
+        default=BM25_ENABLED,
+        getter=lambda: prefs.get("bm25_enabled", BM25_ENABLED),
+        setter=lambda v: prefs.set("bm25_enabled", v),
+    ))
+
+    def _open_corpus_folder():
+        """Open the corpus folder in the system file explorer."""
+        try:
+            # Windows
+            os.startfile(str(CORPUS_DIR))
+        except AttributeError:
+            # macOS/Linux fallback
+            import subprocess
+            import sys
+            if sys.platform == "darwin":
+                subprocess.run(["open", str(CORPUS_DIR)])
+            else:
+                subprocess.run(["xdg-open", str(CORPUS_DIR)])
+
+    SettingsRegistry.register(SettingDefinition(
+        key="open_corpus_folder",
+        label="Open Corpus Folder",
+        category="Vocabulary",
+        setting_type=SettingType.BUTTON,
+        tooltip=(
+            "Add your past transcripts (PDF, TXT, RTF) to this folder to "
+            "build your personal vocabulary baseline. The more documents "
+            "you add, the better the system identifies unusual terms "
+            "specific to each new case.\n\n"
+            "📁 Location: " + str(CORPUS_DIR)
+        ),
+        default=None,
+        action=_open_corpus_folder,
+    ))
+
+
+    # ===================================================================
+    # Q&A TAB
+    # ===================================================================
+
+    SettingsRegistry.register(SettingDefinition(
+        key="qa_answer_mode",
+        label="Answer generation mode",
+        category="Q&A",
+        setting_type=SettingType.DROPDOWN,
+        tooltip=(
+            "How to generate answers from retrieved document context.\n\n"
+            "• Extraction: Finds the most relevant sentences directly from "
+            "your document. Fast and deterministic - same question always "
+            "gives the same answer. Best for quick lookups.\n\n"
+            "• Ollama: Uses AI to synthesize a natural-language answer from "
+            "relevant passages. Slower but produces more readable, comprehensive "
+            "responses. Requires Ollama to be running."
+        ),
+        default="extraction",
+        options=[
+            ("Extraction (fast, from document)", "extraction"),
+            ("Ollama AI (slower, synthesized)", "ollama"),
+        ],
+        getter=lambda: prefs.get("qa_answer_mode", "extraction"),
+        setter=lambda v: prefs.set("qa_answer_mode", v),
+    ))
+
+    SettingsRegistry.register(SettingDefinition(
+        key="qa_auto_run",
+        label="Auto-run default questions",
+        category="Q&A",
+        setting_type=SettingType.CHECKBOX,
+        tooltip=(
+            "Automatically run the default questions after document processing "
+            "completes. Disable this if you prefer to manually trigger Q&A "
+            "or if processing large documents where Q&A adds overhead."
+        ),
+        default=True,
+        getter=lambda: prefs.get("qa_auto_run", True),
+        setter=lambda v: prefs.set("qa_auto_run", v),
+    ))
+
+    def _open_question_editor():
+        """Open the Q&A question editor dialog."""
+        from src.ui.qa_question_editor import QAQuestionEditor
+        # Get root window - traverse up the widget tree
+        import tkinter as tk
+        for widget in tk._default_root.winfo_children():
+            if widget.winfo_class() == 'CTkToplevel':
+                # Find the settings dialog
+                editor = QAQuestionEditor(widget)
+                editor.wait_window()
+                return
+        # Fallback to root
+        if tk._default_root:
+            editor = QAQuestionEditor(tk._default_root)
+            editor.wait_window()
+
+    SettingsRegistry.register(SettingDefinition(
+        key="qa_edit_questions",
+        label="Edit Default Questions",
+        category="Q&A",
+        setting_type=SettingType.BUTTON,
+        tooltip=(
+            "Customize the questions that are automatically asked for every "
+            "document. You can add, edit, delete, or reorder questions. "
+            "Changes are saved to config/qa_questions.yaml."
+        ),
+        default=None,
+        action=_open_question_editor,
     ))
 
 

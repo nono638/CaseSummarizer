@@ -29,6 +29,31 @@ for directory in [APPDATA_DIR, MODELS_DIR, CACHE_DIR, LOGS_DIR, CONFIG_DIR, DATA
 # Processing Metrics CSV (for future ML prediction of processing time)
 PROCESSING_METRICS_CSV = DATA_DIR / "processing_metrics.csv"
 
+# Feedback and ML Configuration (Session 25)
+FEEDBACK_DIR = DATA_DIR / "feedback"
+MODELS_ML_DIR = DATA_DIR / "models"  # ML models (separate from Ollama models)
+VOCAB_FEEDBACK_CSV = FEEDBACK_DIR / "vocab_feedback.csv"
+VOCAB_MODEL_PATH = MODELS_ML_DIR / "vocab_meta_learner.pkl"
+
+# ML Training Thresholds
+ML_MIN_SAMPLES = 30  # Minimum feedback samples before training
+ML_RETRAIN_THRESHOLD = 10  # New feedback entries to trigger retraining
+
+# Ensure ML directories exist
+for ml_dir in [FEEDBACK_DIR, MODELS_ML_DIR]:
+    ml_dir.mkdir(parents=True, exist_ok=True)
+
+# BM25 Corpus Configuration (Session 26)
+# User's corpus of previous transcripts for BM25-based term importance
+CORPUS_DIR = APPDATA_DIR / "corpus"
+CORPUS_MIN_DOCUMENTS = 5  # Minimum docs before BM25 activates
+BM25_ENABLED = True  # User can disable in settings
+BM25_MIN_SCORE_THRESHOLD = 2.0  # Minimum BM25 score to include term
+BM25_WEIGHT = 0.8  # Algorithm weight in merger (between NER 1.0 and RAKE 0.7)
+
+# Ensure corpus directory exists
+CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+
 # File Processing Limits
 MAX_FILE_SIZE_MB = 500
 LARGE_FILE_WARNING_MB = 100

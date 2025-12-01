@@ -1,11 +1,62 @@
 # LocalScribe TODO
 
 > **Purpose:** Backlog of future features, improvements, and ideas. Items here are not yet implemented.
-> Updated: 2025-11-30 (Session 24)
+> Updated: 2025-12-01 (Session 30)
 
 ---
 
 ## High Priority
+
+### 🔴 Session 30 Bug Fixes (Critical)
+
+**Status:** Blocking - App runs but tasks don't produce visible results
+**Priority:** CRITICAL - Must fix before continuing other work
+
+#### Issues Identified
+
+1. **Vocabulary returns 0 terms despite documents having text**
+   - `combine_document_texts()` may be returning empty string
+   - Debug logging added but not appearing (check if DEBUG_MODE is True)
+   - spaCy NER may not be finding entities in legal documents
+
+2. **Q&A shows "no information found" for all questions**
+   - Log shows negative relevance scores (-0.02 to 0.005)
+   - Vector search working but matches are semantically distant
+   - May need question rewording or different embedding model
+
+3. **Q&A not appearing in dropdown despite running**
+   - QAWorker runs (we see retriever warnings in log)
+   - But `update_outputs(qa_results=...)` may be called with empty list
+   - Or ordering issue with vocab vs Q&A dropdown refresh
+
+4. **"Not yet generated" shown for empty vocab list**
+   - Confusing UX - should say "No vocabulary terms found"
+   - Fix: Update `_display_csv()` message for empty vs None cases
+
+5. **Change Q&A retrieval algorithm from BM25 to BM25+**
+   - Current vector search has low relevance scores
+   - BM25+ may provide better results for legal document retrieval
+   - Investigate `rank_bm25` library or LangChain BM25 retriever
+
+6. **Add corpus name validation (prevent invalid directory characters)**
+   - User can enter slashes, periods, or other problematic characters
+   - Need to sanitize corpus names before creating directories
+   - Add validation in `CorpusDialog` when user creates/renames corpus
+   - Invalid chars: `\ / : * ? " < > |` (Windows filesystem)
+
+#### Debugging Steps for Next Session
+
+```bash
+# 1. Enable DEBUG_MODE in config.py (if not already)
+# 2. Run app and check log for:
+#    - "[MainWindow] Vocabulary: X documents in processing_results"
+#    - "[MainWindow] Doc 0: filename.pdf - XXXX chars, status=success"
+#    - "[MainWindow] Combined text length: XXXX chars"
+# 3. If combined text is empty, check processing_results structure
+# 4. If Q&A returns empty, check _on_qa_complete() is being called
+```
+
+---
 
 ### 🔴 Q&A System Implementation (RAG with FAISS) - IN PROGRESS
 

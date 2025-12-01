@@ -36,6 +36,14 @@ from src.config import (
 )
 from src.logging_config import debug_log
 from src.user_preferences import get_user_preferences
+from src.vocabulary.feedback_manager import get_feedback_manager
+
+# Feedback icons (Unicode for cross-platform compatibility)
+# Using checkmark (✓) and X (✗) for clearer approve/reject semantics
+THUMB_UP_EMPTY = "☐"      # U+2610 Ballot Box (empty checkbox)
+THUMB_UP_FILLED = "✓"     # U+2713 Check Mark (green via tag)
+THUMB_DOWN_EMPTY = "☐"    # U+2610 Ballot Box (empty checkbox)
+THUMB_DOWN_FILLED = "✗"   # U+2717 Ballot X (red via tag)
 
 # Pagination settings (imported from config.py for centralized tuning)
 ROWS_PER_PAGE = VOCABULARY_ROWS_PER_PAGE
@@ -46,6 +54,7 @@ BATCH_INSERT_DELAY_MS = VOCABULARY_BATCH_INSERT_DELAY_MS
 # Column width configuration (in pixels) - controls text truncation
 # Approximate character limits based on font size 10 Segoe UI
 # Session 23: Added Quality Score, In-Case Freq, Freq Rank columns for filtering
+# Session 25: Added feedback columns (👍/👎) for ML learning
 COLUMN_CONFIG = {
     "Term": {"width": 150, "max_chars": 25},
     "Type": {"width": 80, "max_chars": 12},
@@ -53,12 +62,15 @@ COLUMN_CONFIG = {
     "Quality Score": {"width": 85, "max_chars": 8},
     "In-Case Freq": {"width": 80, "max_chars": 8},
     "Freq Rank": {"width": 80, "max_chars": 10},
-    "Definition": {"width": 280, "max_chars": 45}
+    "Definition": {"width": 250, "max_chars": 40},  # Slightly narrower for feedback cols
+    "Keep": {"width": 45, "max_chars": 3},
+    "Skip": {"width": 45, "max_chars": 3},
 }
 
 # Columns visible in the GUI Treeview (confidence columns hidden for cleaner display)
 # Session 23: Users can export all columns via CSV, but GUI shows only essential info
-GUI_DISPLAY_COLUMNS = ("Term", "Type", "Role/Relevance", "Definition")
+# Session 25: Added feedback columns for ML learning
+GUI_DISPLAY_COLUMNS = ("Term", "Type", "Role/Relevance", "Definition", "Keep", "Skip")
 
 # All columns available for export (includes confidence/filtering columns)
 ALL_EXPORT_COLUMNS = ("Term", "Type", "Role/Relevance", "Quality Score", "In-Case Freq", "Freq Rank", "Definition")
@@ -132,15 +144,22 @@ class DynamicOutputWidget(ctk.CTkFrame):
         # Internal storage for outputs
         self._outputs = {
             "Meta-Summary": "",
-            "Rare Word List (CSV)": []
+            "Rare Word List (CSV)": [],
+            "Q&A Results": []  # List of QAResult objects
         }
         self._document_summaries = {}  # {filename: summary_text}
+
+        # Q&A panel (created on first use)
+        self._qa_panel = None
 
         # Pagination state for vocabulary display
         self._vocab_display_offset = 0  # Current offset into vocabulary data
         self._vocab_total_items = 0  # Total items in vocabulary data
         self._load_more_btn = None  # "Load More" button reference
         self._is_loading = False  # Prevents duplicate load operations
+
+        # Feedback manager for ML learning (Session 25)
+        self._feedback_manager = get_feedback_manager()
 
     def _on_output_selection(self, choice):
         """Handle selection change in the output_selector dropdown."""
@@ -154,8 +173,10 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self.summary_text_display.grid(row=0, column=0, sticky="nsew")
             self.summary_text_display.delete("0.0", "end")
             self.summary_text_display.insert("0.0", self._outputs.get("Meta-Summary", "Meta-Summary not yet generated."))
-        elif choice == "Rare Word List (CSV)":
+        elif choice.startswith("Rare Word List"):
             self._display_csv(self._outputs.get("Rare Word List (CSV)", []))
+        elif choice.startswith("Q&A Results"):
+            self._display_qa_results(self._outputs.get("Q&A Results", []))
         elif choice.startswith("Summary for "):
             doc_name = choice.replace("Summary for ", "")
             self.summary_text_display.grid(row=0, column=0, sticky="nsew")
@@ -187,7 +208,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
         gc.collect()
         debug_log("[VOCAB DISPLAY] Cleanup completed, memory freed.")
 
-    def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None):
+    def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None, qa_results: list = None):
         """
         Updates the internal storage with new outputs and refreshes the dropdown.
 
@@ -195,6 +216,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
             meta_summary: The generated meta-summary text.
             vocab_csv_data: A list of dicts representing vocabulary data.
             document_summaries: A dictionary of {filename: summary_text}.
+            qa_results: A list of QAResult objects from Q&A processing.
         """
         if meta_summary:
             self._outputs["Meta-Summary"] = meta_summary
@@ -202,6 +224,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self._outputs["Rare Word List (CSV)"] = vocab_csv_data
         if document_summaries:
             self._document_summaries.update(document_summaries)
+        if qa_results is not None:
+            self._outputs["Q&A Results"] = qa_results
 
         self._refresh_dropdown()
 
@@ -211,8 +235,18 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         if self._outputs.get("Meta-Summary"):
             options.append("Meta-Summary")
-        if self._outputs.get("Rare Word List (CSV)"):
-            options.append("Rare Word List (CSV)")
+
+        # Show vocabulary option if it was processed (even if empty list)
+        # Use 'is not None' instead of truthiness check for lists
+        vocab_data = self._outputs.get("Rare Word List (CSV)")
+        if vocab_data is not None:
+            vocab_count = len(vocab_data)
+            options.append(f"Rare Word List ({vocab_count} terms)")
+
+        qa_data = self._outputs.get("Q&A Results")
+        if qa_data is not None:
+            qa_count = len(qa_data)
+            options.append(f"Q&A Results ({qa_count})")
 
         doc_summary_options = [f"Summary for {name}" for name in self._document_summaries.keys()]
         if doc_summary_options:
@@ -362,9 +396,15 @@ class DynamicOutputWidget(ctk.CTkFrame):
             # Bind right-click for context menu
             self.csv_treeview.bind("<Button-3>", self._on_right_click)
             self.csv_treeview.bind("<Double-1>", self._on_double_click)
+            # Bind left-click for feedback columns (Session 25)
+            self.csv_treeview.bind("<Button-1>", self._on_treeview_click)
 
             # Create context menu
             self._create_context_menu()
+
+            # Configure feedback icon tags for coloring
+            self.csv_treeview.tag_configure('rated_up', foreground='#28a745')  # Green
+            self.csv_treeview.tag_configure('rated_down', foreground='#dc3545')  # Red
 
         # Clear existing data
         self.csv_treeview.delete(*self.csv_treeview.get_children())
@@ -377,6 +417,44 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         # Start async batch insertion for initial load
         self._async_insert_rows(data, 0, initial_load)
+
+    def _display_qa_results(self, results: list):
+        """
+        Display Q&A results using the QAPanel widget.
+
+        Args:
+            results: List of QAResult objects
+        """
+        self._clear_dynamic_content()
+
+        if not results:
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert(
+                "0.0",
+                "Q&A Results not yet generated.\n\n"
+                "Q&A processing runs automatically after document extraction "
+                "if enabled in Settings > Q&A > Auto-run default questions."
+            )
+            return
+
+        # Create QAPanel on first use
+        if self._qa_panel is None:
+            from src.ui.qa_panel import QAPanel
+            self._qa_panel = QAPanel(self.dynamic_content_frame)
+
+            # Set up follow-up callback if main window has workflow orchestrator
+            if hasattr(self.master, 'workflow_orchestrator'):
+                self._qa_panel.set_followup_callback(
+                    self.master.workflow_orchestrator.ask_followup_question
+                )
+                debug_log("[Q&A DISPLAY] Follow-up callback connected")
+
+        # Display results
+        self._qa_panel.display_results(results)
+        self._qa_panel.grid(row=0, column=0, sticky="nsew")
+
+        debug_log(f"[Q&A DISPLAY] Showing {len(results)} Q&A results")
 
     def _async_insert_rows(self, data: list, start_idx: int, end_idx: int):
         """
@@ -404,22 +482,34 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
             for i in range(current_idx, batch_end):
                 item = data[i]
+                rating = 0  # Default no rating
                 if isinstance(item, dict):
                     # Apply text truncation to prevent row overflow
-                    # Only extract GUI_DISPLAY_COLUMNS (hides confidence columns)
-                    values = tuple(
-                        truncate_text(item.get(col, ""), COLUMN_CONFIG[col]["max_chars"])
-                        for col in GUI_DISPLAY_COLUMNS
-                    )
+                    # Build values for each column, handling feedback columns specially
+                    values = []
+                    term = item.get("Term", "")
+                    rating = self._feedback_manager.get_rating(term)
+
+                    for col in GUI_DISPLAY_COLUMNS:
+                        if col == "Keep":
+                            values.append(THUMB_UP_FILLED if rating == 1 else THUMB_UP_EMPTY)
+                        elif col == "Skip":
+                            values.append(THUMB_DOWN_FILLED if rating == -1 else THUMB_DOWN_EMPTY)
+                        else:
+                            values.append(truncate_text(item.get(col, ""), COLUMN_CONFIG[col]["max_chars"]))
+
+                    values = tuple(values)
                 else:
-                    # Handle list format (legacy) - apply truncation
+                    # Handle list format (legacy) - apply truncation, default empty feedback
                     raw_values = tuple(item) if len(item) >= 4 else tuple(item) + ("",) * (4 - len(item))
                     values = tuple(
                         truncate_text(str(v), COLUMN_CONFIG[GUI_DISPLAY_COLUMNS[j]]["max_chars"])
-                        for j, v in enumerate(raw_values[:len(GUI_DISPLAY_COLUMNS)])
-                    )
+                        for j, v in enumerate(raw_values[:4])
+                    ) + (THUMB_UP_EMPTY, THUMB_DOWN_EMPTY)
 
-                self.csv_treeview.insert("", "end", values=values)
+                # Apply tag for row coloring based on existing rating
+                tag = ('rated_up',) if rating == 1 else ('rated_down',) if rating == -1 else ()
+                self.csv_treeview.insert("", "end", values=values, tags=tag)
 
             current_idx = batch_end
 
@@ -632,7 +722,7 @@ class DynamicOutputWidget(ctk.CTkFrame):
         current_choice = self.output_selector.get()
         if current_choice == "Meta-Summary":
             return self._outputs.get("Meta-Summary", "")
-        elif current_choice == "Rare Word List (CSV)":
+        elif current_choice.startswith("Rare Word List"):
             # Convert list of dicts to CSV string
             data = self._outputs.get("Rare Word List (CSV)", [])
             if not data:
@@ -662,6 +752,11 @@ class DynamicOutputWidget(ctk.CTkFrame):
                     # Legacy list format - map by position
                     writer.writerow(item[:len(columns)])
             return output.getvalue()
+        elif current_choice.startswith("Q&A Results"):
+            # Get export content from QAPanel if available
+            if self._qa_panel is not None:
+                return self._qa_panel.get_export_content()
+            return ""
         elif current_choice.startswith("Summary for "):
             doc_name = current_choice.replace("Summary for ", "")
             return self._document_summaries.get(doc_name, "")
@@ -691,9 +786,12 @@ class DynamicOutputWidget(ctk.CTkFrame):
         if current_choice == "Meta-Summary":
             default_filename = "meta_summary.txt"
             filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
-        elif current_choice == "Rare Word List (CSV)":
+        elif current_choice.startswith("Rare Word List"):
             default_filename = "rare_word_list.csv"
             filetypes = [("CSV Files", "*.csv"), ("All Files", "*.*")]
+        elif current_choice.startswith("Q&A Results"):
+            default_filename = "qa_results.txt"
+            filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
         elif current_choice.startswith("Summary for "):
             doc_name = current_choice.replace("Summary for ", "")
             default_filename = f"{doc_name}_summary.txt"
@@ -709,3 +807,115 @@ class DynamicOutputWidget(ctk.CTkFrame):
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             messagebox.showinfo("Saved", f"Output saved to {filepath}")
+
+    def _on_treeview_click(self, event):
+        """
+        Handle left-click on treeview for feedback columns.
+
+        Detects clicks on the Keep or Skip columns and toggles the
+        feedback state for that term.
+
+        Column indices (1-based in identify_column):
+        - #1: Term, #2: Type, #3: Role/Relevance, #4: Definition
+        - #5: Keep, #6: Skip
+        """
+        # Identify which column and row was clicked
+        column = self.csv_treeview.identify_column(event.x)
+        item_id = self.csv_treeview.identify_row(event.y)
+
+        if not item_id:
+            return
+
+        # Check if click was on a feedback column
+        if column == "#5":  # Keep column
+            self._toggle_feedback(item_id, +1)
+        elif column == "#6":  # Skip column
+            self._toggle_feedback(item_id, -1)
+
+    def _toggle_feedback(self, item_id: str, feedback_type: int):
+        """
+        Toggle feedback state for a vocabulary term.
+
+        If the term already has this feedback, clear it.
+        If the term has opposite or no feedback, set the new feedback.
+
+        Args:
+            item_id: Treeview item identifier
+            feedback_type: +1 for Keep, -1 for Skip
+        """
+        # Get the term from the row
+        values = self.csv_treeview.item(item_id, 'values')
+        if not values:
+            return
+
+        term = values[0]  # Term is first column
+        current_rating = self._feedback_manager.get_rating(term)
+
+        # Toggle logic: if already this rating, clear it; otherwise set it
+        if current_rating == feedback_type:
+            new_rating = 0  # Clear the rating
+        else:
+            new_rating = feedback_type
+
+        # Find full term data from internal storage for ML features
+        term_data = self._find_term_data(term)
+        if not term_data:
+            term_data = {"Term": term}
+
+        # Record feedback (handles both setting and clearing)
+        success = self._feedback_manager.record_feedback(term_data, new_rating)
+
+        if success:
+            # Update the visual display
+            self._update_feedback_display(item_id, new_rating)
+            debug_log(f"[FEEDBACK UI] {'Cleared' if new_rating == 0 else 'Set'} "
+                      f"feedback for '{term}': {new_rating}")
+
+    def _find_term_data(self, term: str) -> dict | None:
+        """
+        Find full term data from internal storage by term name.
+
+        Args:
+            term: The term to search for (case-insensitive)
+
+        Returns:
+            Dictionary with term data, or None if not found
+        """
+        vocab_data = self._outputs.get("Rare Word List (CSV)", [])
+        lower_term = term.lower().strip()
+
+        for item in vocab_data:
+            if isinstance(item, dict):
+                if item.get("Term", "").lower().strip() == lower_term:
+                    return item
+
+        return None
+
+    def _update_feedback_display(self, item_id: str, rating: int):
+        """
+        Update the visual display of feedback icons for a term.
+
+        Args:
+            item_id: Treeview item identifier
+            rating: +1 (Keep filled), -1 (Skip filled), 0 (both empty)
+        """
+        values = list(self.csv_treeview.item(item_id, 'values'))
+        if len(values) < 6:
+            return
+
+        # Update the icon values (columns 5 and 6, indices 4 and 5)
+        if rating == 1:
+            values[4] = THUMB_UP_FILLED
+            values[5] = THUMB_DOWN_EMPTY
+            tag = ('rated_up',)
+        elif rating == -1:
+            values[4] = THUMB_UP_EMPTY
+            values[5] = THUMB_DOWN_FILLED
+            tag = ('rated_down',)
+        else:  # rating == 0
+            values[4] = THUMB_UP_EMPTY
+            values[5] = THUMB_DOWN_EMPTY
+            tag = ()
+
+        # Update the item with new values and tag for coloring
+        self.csv_treeview.item(item_id, values=tuple(values), tags=tag)
