@@ -262,10 +262,16 @@ CaseSummarizer/
 │   └── utils/
 │       └── logger.py        # Backward-compat logging wrapper
 ├── tests/                   # 224 unit tests
-│   └── manual/              # Manual integration tests (require Ollama)
+│   ├── manual/              # Manual integration tests (require Ollama)
+│   └── sample_docs/         # Sample documents for testing
 ├── config/
 │   ├── prompt_parameters.json  # AI model settings (temperature, top_p, etc.)
 │   └── prompts/                # Prompt templates by model
+├── data/
+│   └── frequency/              # Word frequency data for vocabulary rarity
+├── scripts/                 # Development utility scripts
+│   ├── check_spacy.py          # Verify spaCy installation
+│   └── download_onnx_models.py # Download ONNX models (legacy)
 ├── requirements.txt         # Python dependencies
 └── README.md               # This file
 

@@ -84,8 +84,8 @@ def test_summary_generation():
     print("TEST 4: Summary Generation")
     print("=" * 60)
 
-    # Read test document
-    test_doc = Path(__file__).parent / "test_simple_case.txt"
+    # Read test document (moved to tests/sample_docs/ in Session 34)
+    test_doc = Path(__file__).parent.parent / "sample_docs" / "test_simple_case.txt"
     if not test_doc.exists():
         print("[FAIL] Test document not found")
         return False

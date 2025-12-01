@@ -10,30 +10,31 @@
 
 ---
 
-## Latest Session (Session 34 - Root-Level Test File Cleanup)
+## Latest Session (Session 34 - Project Root Cleanup)
 
-**Focus:** Clean up orphaned test files in project root, organize manual integration tests.
+**Focus:** Organize project root - move files to proper directories, clean up artifacts.
 
-**Changes:**
-- ✅ **Deleted 2 orphaned test files** - `test_onnx_simple.py`, `test_phi3_summary.py` (tested deprecated ONNX backend)
-- ✅ **Created `tests/manual/`** - new directory for manual integration tests
-- ✅ **Moved 6 test files** - organized manual tests separate from automated pytest suite
-- ✅ **Added README** - documentation explaining manual test usage
+**Part 1 - Test File Cleanup:**
+- ✅ **Deleted 2 orphaned test files** - `test_onnx_simple.py`, `test_phi3_summary.py`
+- ✅ **Created `tests/manual/`** - new directory for 6 manual integration tests
 
-**Files Deleted (Orphaned):**
-- `test_onnx_simple.py` - broken import, tested deprecated ONNX backend
-- `test_phi3_summary.py` - tested legacy ONNX Phi-3 (abandoned due to token corruption)
+**Part 2 - Root Directory Cleanup:**
+- ✅ **Created `scripts/`** - moved utility scripts (`check_spacy.py`, `download_onnx_models.py`)
+- ✅ **Moved test data** - `test_simple_case.txt` → `tests/sample_docs/`
+- ✅ **Moved word frequency file** - `Word_rarity-count_1w.txt` → `data/frequency/`
+- ✅ **Updated `.gitignore`** - added `debug_flow.txt`, `generated_summary.txt`
+- ✅ **Updated code references** - `src/config.py`, `tests/manual/test_ollama_workflow.py`
 
-**Files Moved to `tests/manual/`:**
+**Root Directory After Cleanup:**
 ```
-tests/manual/
-├── README.md               # Usage instructions
-├── test_debug_mode.py      # Model pipeline integration test
-├── test_model_generation.py # ModelManager generation tests
-├── test_model_quick.py     # Fast smoke test
-├── test_ollama_workflow.py # Comprehensive Ollama test
-├── test_prompts.py         # Prompt template tests
-└── test_slider_config.py   # Slider config tests
+CaseSummarizer/
+├── .gitignore, pytest.ini, ruff.toml, requirements.txt  # Config
+├── README.md, ARCHITECTURE.md, TODO.md, etc.            # Docs
+├── src/                    # Source code
+├── tests/                  # Tests (unit + manual + sample_docs)
+├── config/                 # Prompts and settings
+├── data/                   # Data files (word frequencies)
+└── scripts/                # Development utilities
 ```
 
 ---

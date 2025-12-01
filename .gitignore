@@ -42,6 +42,11 @@ cleaned/
 AppData/
 data/keywords/*.txt
 data/frequency/*.txt
+!data/frequency/Word_rarity-count_1w.txt  # Shipped data file - keep tracked
+
+# Generated output files
+debug_flow.txt
+generated_summary.txt
 
 # Models (too large for git)
 *.gguf
@@ -55,6 +60,7 @@ tests/cleaned/
 .DS_Store
 Thumbs.db
 desktop.ini
+nul
 
 # Jupyter
 .ipynb_checkpoints/

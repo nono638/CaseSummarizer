@@ -170,7 +170,8 @@ USER_VOCAB_EXCLUDE_PATH = CONFIG_DIR / "user_vocab_exclude.txt"
 
 # Vocabulary Extraction Rarity Settings
 # Path to Google word frequency dataset (word\tfrequency_count format)
-GOOGLE_WORD_FREQUENCY_FILE = Path(__file__).parent.parent / "Word_rarity-count_1w.txt"
+# Moved to data/frequency/ in Session 34 for better organization
+GOOGLE_WORD_FREQUENCY_FILE = Path(__file__).parent.parent / "data" / "frequency" / "Word_rarity-count_1w.txt"
 # Words with rank >= threshold are considered rare
 # Higher threshold = more aggressive filtering (fewer terms extracted)
 # 150000 = bottom 55% of vocabulary (original, too permissive)
