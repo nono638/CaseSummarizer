@@ -262,6 +262,7 @@ CaseSummarizer/
 │   └── utils/
 │       └── logger.py        # Backward-compat logging wrapper
 ├── tests/                   # 224 unit tests
+│   └── manual/              # Manual integration tests (require Ollama)
 ├── config/
 │   ├── prompt_parameters.json  # AI model settings (temperature, top_p, etc.)
 │   └── prompts/                # Prompt templates by model

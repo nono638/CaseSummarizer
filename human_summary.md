@@ -5,53 +5,43 @@
 **Current Branch:** `main`
 **Application State:** 🟢 Codebase organized - ready for testing
 **Tests:** 224 passing
-**Sessions:** 33 completed
-**Last Updated:** 2025-12-01 (Session 33)
+**Sessions:** 34 completed
+**Last Updated:** 2025-12-01 (Session 34)
 
 ---
 
-## Latest Session (Session 33 - Codebase Organization & Cleanup)
+## Latest Session (Session 34 - Root-Level Test File Cleanup)
 
-**Focus:** Review and improve codebase organization, create proper packages from orphan files, split large UI files.
+**Focus:** Clean up orphaned test files in project root, organize manual integration tests.
 
 **Changes:**
-- ✅ **Created `src/prompting/` package** - consolidated 4 orphan prompt files into unified package
-- ✅ **Split `main_window.py`** - layout code extracted to `WindowLayoutMixin` in `window_layout.py`
-- ✅ **Cleaned up technical debt** - deleted empty dirs, backup files, duplicate classes, temp files
-- ✅ **Standardized logging** - all files now use `from src.logging_config import ...`
-- ✅ **Updated all imports** - 10+ files updated to use new package paths
-- ✅ **Documentation updated** - ARCHITECTURE.md, development_log.md refreshed
-- ✅ All 224 tests passing
+- ✅ **Deleted 2 orphaned test files** - `test_onnx_simple.py`, `test_phi3_summary.py` (tested deprecated ONNX backend)
+- ✅ **Created `tests/manual/`** - new directory for manual integration tests
+- ✅ **Moved 6 test files** - organized manual tests separate from automated pytest suite
+- ✅ **Added README** - documentation explaining manual test usage
 
-**New `src/prompting/` Package:**
-```python
-from src.prompting import (
-    PromptTemplateManager,  # Template loading/management
-    AIFocusExtractor,       # AI focus area extraction
-    MultiDocPromptAdapter,  # Stage-specific prompt generation
-    get_prompt_config,      # Prompt parameters
-)
+**Files Deleted (Orphaned):**
+- `test_onnx_simple.py` - broken import, tested deprecated ONNX backend
+- `test_phi3_summary.py` - tested legacy ONNX Phi-3 (abandoned due to token corruption)
+
+**Files Moved to `tests/manual/`:**
 ```
-
-**New UI Pattern - Mixin for Layout:**
-```python
-# window_layout.py - UI creation only
-class WindowLayoutMixin:
-    def _create_header(self): ...
-    def _create_main_panels(self): ...
-
-# main_window.py - Business logic only
-class MainWindow(WindowLayoutMixin, ctk.CTk):
-    def _on_corpus_changed(self): ...
+tests/manual/
+├── README.md               # Usage instructions
+├── test_debug_mode.py      # Model pipeline integration test
+├── test_model_generation.py # ModelManager generation tests
+├── test_model_quick.py     # Fast smoke test
+├── test_ollama_workflow.py # Comprehensive Ollama test
+├── test_prompts.py         # Prompt template tests
+└── test_slider_config.py   # Slider config tests
 ```
-
-**Files Changed:**
-- Created: `src/prompting/` (5 files), `src/ui/window_layout.py`
-- Deleted: 4 orphan prompt files, backup file, empty dir, duplicate class
 
 ---
 
 ## Recent Sessions Summary
+
+### Session 33 - Codebase Organization & Cleanup (2025-12-01)
+Created `src/prompting/` package from 4 orphan files, split `main_window.py` using mixin pattern, standardized logging imports. Cleaned up technical debt (empty dirs, backups, duplicates).
 
 ### Session 32 - Unified Package APIs (2025-12-01)
 Created unified facade APIs for Q&A and summarization packages. All Q&A imports now from `src.qa`, all summarization from `src.summarization`. Updated ARCHITECTURE.md with hybrid retrieval diagrams.
