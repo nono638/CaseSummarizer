@@ -1,5 +1,75 @@
 # Development Log
 
+## Session 34 - Project Root Cleanup (2025-12-01)
+
+**Objective:** Organize project root directory - move files to proper directories, clean up artifacts, and improve project structure.
+
+### Part 1: Test File Cleanup
+
+**Problem:** 8 test files in project root (unclear status, cluttering root)
+
+**Solution:**
+1. Deleted 2 orphaned ONNX test files (deprecated backend):
+   - `test_onnx_simple.py`
+   - `test_phi3_summary.py`
+
+2. Created `tests/manual/` for 6 integration tests requiring Ollama:
+   - `test_debug_mode.py`
+   - `test_model_generation.py`
+   - `test_model_quick.py`
+   - `test_ollama_workflow.py`
+   - `test_prompts.py`
+   - `test_slider_config.py`
+
+3. Created `tests/manual/README.md` documenting manual test procedures
+
+### Part 2: Root Directory Organization
+
+**Files Moved:**
+
+| From | To | Code Updates |
+|------|-----|--------------|
+| `check_spacy.py` | `scripts/check_spacy.py` | None |
+| `download_onnx_models.py` | `scripts/download_onnx_models.py` | None |
+| `test_simple_case.txt` | `tests/sample_docs/test_simple_case.txt` | 1 file |
+| `Word_rarity-count_1w.txt` | `data/frequency/Word_rarity-count_1w.txt` | 1 file |
+
+**Code Path Updates:**
+- `src/config.py:173` - Word frequency file path updated
+- `tests/manual/test_ollama_workflow.py:87` - Test data path updated
+
+**Files Created:**
+- `scripts/README.md` - Documents utility scripts
+
+**Configuration Updates:**
+- `.gitignore` - Added `debug_flow.txt`, `generated_summary.txt`, `nul` (Windows artifact)
+- `.gitignore` - Added exception for `!data/frequency/Word_rarity-count_1w.txt`
+
+### Pattern: Project Root Organization
+
+```
+CaseSummarizer/
+├── .gitignore, pytest.ini, ruff.toml, requirements.txt  # Config
+├── README.md, ARCHITECTURE.md, TODO.md, etc.            # Docs
+├── src/                    # Source code
+├── tests/                  # Tests (unit + manual + sample_docs)
+├── config/                 # Prompts and settings
+├── data/                   # Data files (word frequencies)
+└── scripts/                # Development utilities
+```
+
+Only essential config and docs in root - all code and data in directories.
+
+### User Testing Note
+
+Tested application workflow. Confirmed that the two-phase workflow is working correctly:
+1. **Phase 1:** Add Files → extracts text (timer runs during extraction)
+2. **Phase 2:** Perform Tasks → runs Q&A/Vocabulary/Summary (timer runs during tasks)
+
+Timer correctly stops after each phase completes.
+
+---
+
 ## Session 33 - Codebase Organization & Cleanup (2025-12-01)
 
 **Objective:** Review and improve codebase organization, fix naming inconsistencies, and ensure documentation is up to date.

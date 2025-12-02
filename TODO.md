@@ -1,7 +1,7 @@
 # LocalScribe TODO
 
 > **Purpose:** Backlog of future features, improvements, and ideas. Items here are not yet implemented.
-> Updated: 2025-12-01 (Session 33)
+> Updated: 2025-12-01 (Session 34)
 
 ---
 
@@ -347,6 +347,24 @@ Complete the vocabulary extraction pipeline with per-term definitions:
 ---
 
 ## Lower Priority / Future Phases
+
+### UX: Two-Phase Workflow Clarity (Session 34 observation)
+
+**Current Behavior:** Application has two distinct phases:
+1. "Add Files" button → extracts text (timer runs, stops when done)
+2. "Perform Tasks" button → runs Q&A/Vocabulary/Summary (user must click)
+
+**Potential Confusion:** User may expect tasks to run automatically after file extraction.
+
+**Possible Improvements:**
+- [ ] Add visual cue (highlight/pulse) on "Perform Tasks" button after extraction completes
+- [ ] Add notification banner: "Files ready! Click 'Perform Tasks' to continue"
+- [ ] Consider auto-start option in settings (for power users)
+- [ ] Update status text to be more directive: "Ready to process. Click 'Perform Tasks' to begin."
+
+**Current Status:** Working as designed, but UX could be clearer.
+
+---
 
 ### Phase 3: License Server Integration (Est. 4-6 hours)
 **Spec Reference:** Section 4 of PROJECT_OVERVIEW.md

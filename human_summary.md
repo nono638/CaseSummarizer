@@ -3,7 +3,7 @@
 ## Project Status
 
 **Current Branch:** `main`
-**Application State:** 🟢 Codebase organized - ready for testing
+**Application State:** 🟢 Codebase organized, workflow verified working
 **Tests:** 224 passing
 **Sessions:** 34 completed
 **Last Updated:** 2025-12-01 (Session 34)
@@ -36,6 +36,12 @@ CaseSummarizer/
 ├── data/                   # Data files (word frequencies)
 └── scripts/                # Development utilities
 ```
+
+**Workflow Verification:**
+- ✅ Confirmed two-phase workflow working correctly
+- Phase 1: "Add Files" extracts text (timer runs during extraction)
+- Phase 2: "Perform Tasks" runs Q&A/Vocabulary/Summary (requires button click)
+- Added UX improvement item to TODO.md for better workflow clarity
 
 ---
 
