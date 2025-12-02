@@ -648,3 +648,117 @@ class MultiDocSummaryWorker(threading.Thread):
             # Cleanup
             self.strategy.shutdown(wait=False)
             gc.collect()
+
+
+class BriefingWorker(threading.Thread):
+    """
+    Background worker for Case Briefing Sheet generation.
+
+    Uses the BriefingOrchestrator to process documents through the
+    Map-Reduce pipeline (chunk → extract → aggregate → synthesize → format).
+
+    Signals sent to ui_queue:
+    - ('briefing_progress', (phase, current, total, message)) - Phase progress
+    - ('briefing_complete', BriefingResult) - Generation complete
+    - ('error', str) - Error occurred
+
+    Example:
+        worker = BriefingWorker(
+            documents=[{"filename": "...", "text": "..."}],
+            ui_queue=ui_queue
+        )
+        worker.start()
+    """
+
+    def __init__(
+        self,
+        documents: list[dict],
+        ui_queue: Queue,
+    ):
+        """
+        Initialize briefing worker.
+
+        Args:
+            documents: List of document dicts with 'filename' and 'extracted_text'
+            ui_queue: Queue for UI communication
+        """
+        super().__init__(daemon=True)
+        self.documents = documents
+        self.ui_queue = ui_queue
+        self._stop_event = threading.Event()
+        self._orchestrator = None
+
+    def stop(self):
+        """Signal the worker to stop processing."""
+        debug_log("[BRIEFING WORKER] Stop signal received.")
+        self._stop_event.set()
+
+    def run(self):
+        """Execute briefing generation in background thread."""
+        try:
+            debug_log(f"[BRIEFING WORKER] Starting briefing for {len(self.documents)} documents")
+
+            # Import briefing components
+            from src.briefing import BriefingOrchestrator, BriefingFormatter
+
+            # Initialize orchestrator
+            self._orchestrator = BriefingOrchestrator()
+
+            # Check if ready
+            if not self._orchestrator.is_ready():
+                self.ui_queue.put(('error', "Ollama is not available. Please start Ollama and try again."))
+                return
+
+            # Prepare documents for briefing (rename key)
+            briefing_docs = []
+            for doc in self.documents:
+                if doc.get('status') != 'success':
+                    continue
+                briefing_docs.append({
+                    'filename': doc.get('filename', 'unknown'),
+                    'text': doc.get('extracted_text', ''),
+                })
+
+            if not briefing_docs:
+                self.ui_queue.put(('error', "No valid documents to process."))
+                return
+
+            debug_log(f"[BRIEFING WORKER] Prepared {len(briefing_docs)} documents for briefing")
+
+            # Progress callback
+            def progress_callback(phase: str, current: int, total: int, message: str):
+                if not self._stop_event.is_set():
+                    self.ui_queue.put(('briefing_progress', (phase, current, total, message)))
+
+            # Run the briefing pipeline
+            result = self._orchestrator.generate_briefing(
+                documents=briefing_docs,
+                progress_callback=progress_callback
+            )
+
+            # Check for cancellation
+            if self._stop_event.is_set():
+                debug_log("[BRIEFING WORKER] Cancelled during processing")
+                self.ui_queue.put(('error', "Briefing generation cancelled."))
+                return
+
+            # Format the result
+            formatter = BriefingFormatter(include_metadata=True)
+            formatted = formatter.format(result)
+
+            # Send completion with both result and formatted output
+            self.ui_queue.put(('briefing_complete', {
+                'result': result,
+                'formatted': formatted,
+            }))
+
+            debug_log(f"[BRIEFING WORKER] Complete: {result.total_time_seconds:.1f}s, "
+                     f"success={result.success}")
+
+        except Exception as e:
+            error_msg = f"Briefing generation failed: {str(e)}"
+            debug_log(f"[BRIEFING WORKER] {error_msg}\n{traceback.format_exc()}")
+            self.ui_queue.put(('error', error_msg))
+
+        finally:
+            gc.collect()

@@ -1,5 +1,261 @@
 # Development Log
 
+## Session 39 - Case Briefing UI Integration + Phase 4 Optimizations (2025-12-02)
+
+**Objective:** Integrate Case Briefing Generator into the UI and add Phase 4 optimizations.
+
+### Part 1: UI Integration
+
+**Files Modified:**
+
+| File | Changes |
+|------|---------|
+| `src/ui/workers.py` | Added `BriefingWorker` class (~70 lines) |
+| `src/ui/main_window.py` | Added briefing methods and flow integration |
+| `src/ui/dynamic_output.py` | Added Case Briefing display support |
+
+**Key Implementation:**
+
+1. **BriefingWorker** - Background thread for briefing generation:
+   - Inherits from `threading.Thread` with `daemon=True`
+   - Queue-based communication for progress/completion
+   - Uses `BriefingOrchestrator` + `BriefingFormatter` pipeline
+
+2. **MainWindow Integration:**
+   - `_start_briefing_task()`, `_poll_briefing_queue()`, `_on_briefing_complete()`
+   - Modified task flow to use briefing instead of legacy Q&A
+
+3. **DynamicOutputWidget Updates:**
+   - Added `briefing_text` and `briefing_sections` parameters
+   - Added `_display_briefing()` method for textbox display
+   - Case Briefing shown first in dropdown when available
+
+---
+
+### Part 2: Phase 4 Optimizations
+
+**Files Modified:**
+
+| File | Changes |
+|------|---------|
+| `src/briefing/extractor.py` | Added parallelization + improved prompts |
+
+**1. Parallelization (ThreadPoolExecutor):**
+
+```python
+def extract_batch(
+    chunks, progress_callback=None,
+    parallel=True,      # NEW: Enable parallel processing
+    max_workers=2       # NEW: Conservative default for Ollama
+) -> list[ChunkExtraction]
+```
+
+- Uses `concurrent.futures.ThreadPoolExecutor` for I/O-bound extraction
+- Thread-safe progress tracking with `threading.Lock`
+- Results ordered by `chunk_id` regardless of completion order
+- Falls back to sequential for single chunk or if disabled
+
+**Expected Performance Improvement:**
+- 3 chunks: ~142s → ~80s (2 workers processing in parallel)
+- Scales with chunk count; limited by Ollama throughput
+
+**2. Prompt Tuning for Party Identification:**
+
+Added explicit guidance to extraction prompt:
+- Clear definitions: PLAINTIFFS = filed lawsuit, DEFENDANTS = being sued
+- Case caption pattern: "NAME, Plaintiff, v. NAME, Defendant"
+- Domain hints: medical malpractice → patient=plaintiff, doctor=defendant
+- Improved schema examples with realistic medical malpractice names
+
+**Before:** LLM confused plaintiff/defendant in 50% of tests
+**After:** Explicit rules should significantly improve accuracy
+
+---
+
+### Summary
+
+The Case Briefing Generator UI integration is complete, pending real-world testing:
+1. ✅ UI displays briefing in output widget
+2. ✅ Background processing doesn't block UI
+3. ✅ Parallel extraction (2 workers default)
+4. ✅ Improved prompts for party identification
+
+**Status:** Work in Progress - needs end-to-end testing with real documents
+
+---
+
+## Session 38 - Case Briefing Generator Phase 3 (2025-12-02)
+
+**Objective:** Implement the orchestration and formatting phases - complete the core pipeline.
+
+### Phase 3 Implementation
+
+**New Files Added to `src/briefing/`:**
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `orchestrator.py` | ~290 | Coordinates full pipeline with progress callbacks |
+| `formatter.py` | ~310 | Formats output for display and export |
+
+### Key Components
+
+1. **BriefingOrchestrator** - Main entry point:
+   - `generate_briefing(documents)` runs the full pipeline
+   - Progress callback system for UI updates
+   - Timing breakdown per phase
+   - `is_ready()` checks Ollama availability
+
+2. **BriefingFormatter** - Output formatting:
+   - Plain text format for display
+   - Markdown format for rich export
+   - Section-based dict for UI panels
+   - Configurable metadata inclusion
+
+3. **Data Classes:**
+   - `BriefingResult` - Complete pipeline result with timing
+   - `FormattedBriefing` - Formatted output with sections
+
+### End-to-End Test Results
+
+Tested with sample complaint + answer documents:
+- **Total time:** 142s (sequential, will improve with parallelization)
+- **Chunks processed:** 3
+- **Successful extractions:** 2/3
+- **Case type detection:** ✅ Medical Malpractice
+- **Party identification:** Needs prompt tuning (confused plaintiff/defendant)
+- **Allegations/Defenses:** ✅ Correctly extracted
+
+### Pipeline Complete
+
+The core Map-Reduce pipeline is now fully functional:
+```
+Documents → Chunk → Extract → Aggregate → Synthesize → Format
+              ↓         ↓          ↓           ↓          ↓
+           Phase 1   Phase 1    Phase 2    Phase 2    Phase 3
+```
+
+### Remaining Work
+
+- **Phase 4:** Date weighting + parallelization + prompt tuning
+- **UI Integration:** BriefingWorker + panel display (can be separate session)
+
+---
+
+## Session 37 - Case Briefing Generator Phase 2 (2025-12-02)
+
+**Objective:** Implement the REDUCE and SYNTHESIS phases of the Map-Reduce pattern.
+
+### Phase 2 Implementation
+
+**New Files Added to `src/briefing/`:**
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `aggregator.py` | ~420 | Merge and deduplicate extracted data |
+| `synthesizer.py` | ~270 | Generate "WHAT HAPPENED" narrative |
+
+### Key Components
+
+1. **DataAggregator** - Merges ChunkExtraction objects with:
+   - Fuzzy name matching (0.85 similarity threshold) to deduplicate people
+   - Text similarity-based deduplication for allegations/defenses
+   - Case type voting from multiple hints
+   - Name normalization (removes titles, standardizes spacing)
+   - Category priority (PARTY > MEDICAL > WITNESS > OTHER)
+
+2. **NarrativeSynthesizer** - Generates narrative summaries:
+   - LLM-based synthesis with Ollama (temperature=0.3 for natural prose)
+   - Template-based fallback if LLM unavailable
+   - `format_people_section()` for "Names to Know" output
+   - Configurable target word count (~200 words default)
+
+3. **Data Classes:**
+   - `AggregatedBriefingData` - Unified output with all case data
+   - `PersonEntry` - Individual person with canonical name, aliases, role
+   - `SynthesisResult` - Narrative with success/method metadata
+
+### Pattern: Fuzzy Name Matching
+
+```python
+# Names like these are recognized as the same person:
+"Dr. John Smith, MD" → "John Smith" → "J. Smith"
+```
+
+Uses `difflib.SequenceMatcher` for similarity, plus component overlap detection.
+
+### Remaining Phases
+
+- **Phase 3:** BriefingOrchestrator + BriefingFormatter + UI integration
+- **Phase 4:** Date-based transcript weighting + parallelization
+
+---
+
+## Session 36 - Case Briefing Generator Phase 1 (2025-12-02)
+
+**Objective:** Replace Q&A system with LLM-First structured extraction for generating Case Briefing Sheets.
+
+### Architecture Decision
+
+After extensive planning and research, decided on **LLM-First Map-Reduce pattern**:
+- **Current Q&A system problem:** BM25+ is a search algorithm, but the use case requires structured extraction
+- **New approach:** Direct LLM extraction with JSON schema for structured output
+- **Industry validation:** Research confirms Map-Reduce is the standard for long-document processing
+
+### Business Context
+
+Court reporters need a "Case Briefing Sheet" for 30-minute prep before proceedings:
+- Case type and parties
+- What happened (narrative)
+- Allegations and defenses
+- Names to expect (grouped by role)
+- Medical vocabulary
+
+### Phase 1 Implementation (This Session)
+
+**New Package Created:** `src/briefing/`
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `__init__.py` | ~30 | Package with exports |
+| `chunker.py` | ~280 | Section-aware document splitting |
+| `extractor.py` | ~260 | Per-chunk LLM extraction |
+
+**Key Components:**
+
+1. **DocumentChunker** - Splits legal documents with awareness of:
+   - Legal section headers (CAUSES OF ACTION, WHEREFORE, etc.)
+   - Document type detection (complaint, answer, transcript)
+   - Paragraph boundaries
+   - Target ~1800 chars per chunk for context window
+
+2. **ChunkExtractor** - Extracts structured JSON from each chunk:
+   - Parties (plaintiffs/defendants)
+   - Allegations and defenses
+   - Names mentioned (with role and category)
+   - Key facts and dates
+   - Case type hints
+
+3. **OllamaModelManager.generate_structured()** - New method for JSON output:
+   - Uses Ollama v0.5+ `format: "json"` mode
+   - Temperature=0 for deterministic extraction
+   - Robust JSON parsing with fallback strategies
+
+### Remaining Phases
+
+- **Phase 2:** DataAggregator (merge/deduplicate) + NarrativeSynthesizer
+- **Phase 3:** BriefingOrchestrator + BriefingFormatter + UI integration
+- **Phase 4:** Date-based transcript weighting + parallelization
+
+### Pattern: Map-Reduce for Long Documents
+
+```
+Documents → Chunking → [MAP: Extract per-chunk] → [REDUCE: Merge] → [SYNTHESIZE: Narrative] → Format
+```
+
+This pattern is industry-standard for handling documents longer than LLM context windows.
+
+---
+
 ## Session 34 - Project Root Cleanup (2025-12-01)
 
 **Objective:** Organize project root directory - move files to proper directories, clean up artifacts, and improve project structure.

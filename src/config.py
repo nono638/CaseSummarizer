@@ -142,8 +142,7 @@ def get_model_config(model_name: str) -> dict:
         'max_input_tokens': 2048,
     }
 
-# Load configs on module import
-load_model_configs()
+# Note: Model configs loaded lazily by get_model_config() to avoid circular import
 # --- End New Model Configuration System ---
 
 

@@ -7,9 +7,17 @@ This is the next-generation model manager optimized for commercial use:
 - MIT-licensed (safe for commercial distribution)
 - Multiple model options (Mistral, Llama 2, Neural-Chat)
 - Simple installation and deployment
+
+Structured Output Support (Ollama v0.5+):
+- generate_structured() method for JSON schema-constrained output
+- Used by Case Briefing Generator for reliable extraction
+- Falls back to regex JSON parsing if needed
 """
 
+import json
+import re
 import time
+from typing import Any
 
 import requests
 
@@ -403,3 +411,162 @@ class OllamaModelManager:
             status['available_models'] = list(models.keys())
 
         return status
+
+    def generate_structured(
+        self,
+        prompt: str,
+        max_tokens: int = 1000,
+        temperature: float = 0.0,
+    ) -> dict[str, Any] | None:
+        """
+        Generate structured JSON output using Ollama's format mode.
+
+        Uses temperature=0 for deterministic extraction and format="json"
+        to constrain output to valid JSON. Falls back to regex JSON
+        extraction if the response contains extra text.
+
+        This is the primary method for Case Briefing extraction.
+
+        Args:
+            prompt: The prompt including JSON schema instructions
+            max_tokens: Maximum tokens to generate (default 1000)
+            temperature: Sampling temperature (default 0.0 for deterministic)
+
+        Returns:
+            Parsed JSON as dict, or None if parsing fails
+
+        Raises:
+            RuntimeError: If Ollama is not available
+        """
+        if not self.is_model_loaded():
+            raise RuntimeError(
+                f"Ollama not available at {self.api_base}. "
+                "Please ensure Ollama is running: https://ollama.ai"
+            )
+
+        debug_log("\n[OLLAMA STRUCTURED] Starting structured generation")
+        debug_log(f"[OLLAMA STRUCTURED] Model: {self.model_name}")
+        debug_log(f"[OLLAMA STRUCTURED] Max tokens: {max_tokens}, Temperature: {temperature}")
+        debug_log(f"[OLLAMA STRUCTURED] Prompt length: {len(prompt)} chars")
+
+        try:
+            # Build request payload with JSON format mode
+            payload = {
+                "model": self.model_name,
+                "prompt": prompt,
+                "temperature": temperature,
+                "stream": False,
+                "num_predict": max_tokens,
+                "format": "json",  # Ollama v0.5+ structured output mode
+                "options": {
+                    "num_ctx": OLLAMA_CONTEXT_WINDOW,
+                },
+            }
+
+            debug_log("[OLLAMA STRUCTURED] ===== PROMPT START =====")
+            debug_log(prompt[:500] + "..." if len(prompt) > 500 else prompt)
+            debug_log("[OLLAMA STRUCTURED] ===== PROMPT END =====")
+
+            # Make request to Ollama
+            start_time = time.time()
+            response = requests.post(
+                f"{self.api_base}/api/generate",
+                json=payload,
+                timeout=self.timeout
+            )
+
+            if response.status_code != 200:
+                debug_log(f"[OLLAMA STRUCTURED] Error: Status {response.status_code}")
+                return None
+
+            # Parse response
+            result = response.json()
+            generated_text = result.get('response', '').strip()
+            tokens_used = result.get('eval_count', 0)
+            elapsed = time.time() - start_time
+
+            debug_log(f"[OLLAMA STRUCTURED] Complete: {tokens_used} tokens in {elapsed:.2f}s")
+            debug_log(f"[OLLAMA STRUCTURED] Response length: {len(generated_text)} chars")
+            debug_log(f"[OLLAMA STRUCTURED] Response preview: {generated_text[:200]}...")
+
+            # Try to parse the JSON
+            parsed = self._parse_json_response(generated_text)
+
+            if parsed is not None:
+                debug_log(f"[OLLAMA STRUCTURED] Successfully parsed JSON with {len(parsed)} keys")
+            else:
+                debug_log("[OLLAMA STRUCTURED] Failed to parse JSON response")
+
+            return parsed
+
+        except requests.exceptions.Timeout:
+            debug_log(f"[OLLAMA STRUCTURED] Timeout after {self.timeout}s")
+            return None
+        except requests.exceptions.ConnectionError:
+            debug_log(f"[OLLAMA STRUCTURED] Connection error to {self.api_base}")
+            return None
+        except Exception as e:
+            debug_log(f"[OLLAMA STRUCTURED] Error: {str(e)}")
+            return None
+
+    def _parse_json_response(self, text: str) -> dict[str, Any] | None:
+        """
+        Parse JSON from LLM response with fallback strategies.
+
+        Tries multiple strategies:
+        1. Direct JSON parsing
+        2. Extract JSON object from surrounding text
+        3. Extract JSON array from surrounding text
+
+        Args:
+            text: Raw response text from LLM
+
+        Returns:
+            Parsed JSON as dict/list, or None if all parsing fails
+        """
+        if not text:
+            return None
+
+        # Strategy 1: Direct parse (ideal case)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Find JSON object in text (common with chatty models)
+        try:
+            # Look for {...} pattern
+            match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 3: Try to find the largest valid JSON block
+        try:
+            # Find all { and } positions
+            start_positions = [m.start() for m in re.finditer(r'\{', text)]
+            end_positions = [m.end() for m in re.finditer(r'\}', text)]
+
+            # Try from each start position
+            for start in start_positions:
+                for end in reversed(end_positions):
+                    if end > start:
+                        try:
+                            candidate = text[start:end]
+                            return json.loads(candidate)
+                        except json.JSONDecodeError:
+                            continue
+        except Exception:
+            pass
+
+        # Strategy 4: If it's a JSON array
+        try:
+            match = re.search(r'\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]', text, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+        except json.JSONDecodeError:
+            pass
+
+        debug_log(f"[OLLAMA STRUCTURED] All JSON parsing strategies failed for: {text[:100]}...")
+        return None

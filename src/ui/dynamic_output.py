@@ -145,9 +145,11 @@ class DynamicOutputWidget(ctk.CTkFrame):
         self._outputs = {
             "Meta-Summary": "",
             "Rare Word List (CSV)": [],
-            "Q&A Results": []  # List of QAResult objects
+            "Q&A Results": [],  # List of QAResult objects
+            "Case Briefing": "",  # Formatted briefing text
         }
         self._document_summaries = {}  # {filename: summary_text}
+        self._briefing_sections = {}  # Section name -> content for navigation
 
         # Q&A panel (created on first use)
         self._qa_panel = None
@@ -173,6 +175,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self.summary_text_display.grid(row=0, column=0, sticky="nsew")
             self.summary_text_display.delete("0.0", "end")
             self.summary_text_display.insert("0.0", self._outputs.get("Meta-Summary", "Meta-Summary not yet generated."))
+        elif choice.startswith("Case Briefing"):
+            self._display_briefing(self._outputs.get("Case Briefing", ""))
         elif choice.startswith("Rare Word List"):
             self._display_csv(self._outputs.get("Rare Word List (CSV)", []))
         elif choice.startswith("Q&A Results"):
@@ -196,9 +200,12 @@ class DynamicOutputWidget(ctk.CTkFrame):
         # Clear internal data storage
         self._outputs = {
             "Meta-Summary": "",
-            "Rare Word List (CSV)": []
+            "Rare Word List (CSV)": [],
+            "Q&A Results": [],
+            "Case Briefing": "",
         }
         self._document_summaries = {}
+        self._briefing_sections = {}
 
         # Clear treeview data if it exists
         if self.csv_treeview is not None:
@@ -208,7 +215,15 @@ class DynamicOutputWidget(ctk.CTkFrame):
         gc.collect()
         debug_log("[VOCAB DISPLAY] Cleanup completed, memory freed.")
 
-    def update_outputs(self, meta_summary: str = "", vocab_csv_data: list = None, document_summaries: dict = None, qa_results: list = None):
+    def update_outputs(
+        self,
+        meta_summary: str = "",
+        vocab_csv_data: list = None,
+        document_summaries: dict = None,
+        qa_results: list = None,
+        briefing_text: str = "",
+        briefing_sections: dict = None,
+    ):
         """
         Updates the internal storage with new outputs and refreshes the dropdown.
 
@@ -217,6 +232,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
             vocab_csv_data: A list of dicts representing vocabulary data.
             document_summaries: A dictionary of {filename: summary_text}.
             qa_results: A list of QAResult objects from Q&A processing.
+            briefing_text: The formatted Case Briefing Sheet text.
+            briefing_sections: Dict mapping section names to content for navigation.
         """
         if meta_summary:
             self._outputs["Meta-Summary"] = meta_summary
@@ -226,12 +243,20 @@ class DynamicOutputWidget(ctk.CTkFrame):
             self._document_summaries.update(document_summaries)
         if qa_results is not None:
             self._outputs["Q&A Results"] = qa_results
+        if briefing_text:
+            self._outputs["Case Briefing"] = briefing_text
+        if briefing_sections is not None:
+            self._briefing_sections = briefing_sections
 
         self._refresh_dropdown()
 
     def _refresh_dropdown(self):
         """Refreshes the output selection dropdown based on available outputs."""
         options = []
+
+        # Case Briefing is shown first as the primary output when Q&A is enabled
+        if self._outputs.get("Case Briefing"):
+            options.append("Case Briefing")
 
         if self._outputs.get("Meta-Summary"):
             options.append("Meta-Summary")
@@ -443,18 +468,52 @@ class DynamicOutputWidget(ctk.CTkFrame):
             from src.ui.qa_panel import QAPanel
             self._qa_panel = QAPanel(self.dynamic_content_frame)
 
-            # Set up follow-up callback if main window has workflow orchestrator
-            if hasattr(self.master, 'workflow_orchestrator'):
-                self._qa_panel.set_followup_callback(
-                    self.master.workflow_orchestrator.ask_followup_question
-                )
-                debug_log("[Q&A DISPLAY] Follow-up callback connected")
+            # Set up follow-up callback by finding MainWindow through the widget tree
+            # DynamicOutputWidget's master is right_panel, not MainWindow directly
+            # Use winfo_toplevel() to get the root window (MainWindow)
+            main_window = self.winfo_toplevel()
+            if hasattr(main_window, '_ask_followup_for_qa_panel'):
+                self._qa_panel.set_followup_callback(main_window._ask_followup_for_qa_panel)
+                debug_log("[Q&A DISPLAY] Follow-up callback connected to MainWindow")
 
         # Display results
         self._qa_panel.display_results(results)
         self._qa_panel.grid(row=0, column=0, sticky="nsew")
 
         debug_log(f"[Q&A DISPLAY] Showing {len(results)} Q&A results")
+
+    def _display_briefing(self, briefing_text: str):
+        """
+        Display Case Briefing Sheet in the summary textbox.
+
+        The briefing is formatted text with sections like:
+        - Case Type
+        - Parties Involved
+        - Names to Know
+        - What Happened (narrative)
+
+        Args:
+            briefing_text: Formatted briefing text from BriefingFormatter
+        """
+        self._clear_dynamic_content()
+
+        if not briefing_text:
+            self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+            self.summary_text_display.delete("0.0", "end")
+            self.summary_text_display.insert(
+                "0.0",
+                "Case Briefing not yet generated.\n\n"
+                "Case Briefing is generated automatically after document extraction "
+                "if enabled in Settings > Q&A/Briefing > Auto-run."
+            )
+            return
+
+        # Display in textbox
+        self.summary_text_display.grid(row=0, column=0, sticky="nsew")
+        self.summary_text_display.delete("0.0", "end")
+        self.summary_text_display.insert("0.0", briefing_text)
+
+        debug_log(f"[BRIEFING DISPLAY] Showing Case Briefing ({len(briefing_text)} chars)")
 
     def _async_insert_rows(self, data: list, start_idx: int, end_idx: int):
         """
@@ -722,6 +781,8 @@ class DynamicOutputWidget(ctk.CTkFrame):
         current_choice = self.output_selector.get()
         if current_choice == "Meta-Summary":
             return self._outputs.get("Meta-Summary", "")
+        elif current_choice.startswith("Case Briefing"):
+            return self._outputs.get("Case Briefing", "")
         elif current_choice.startswith("Rare Word List"):
             # Convert list of dicts to CSV string
             data = self._outputs.get("Rare Word List (CSV)", [])
@@ -785,6 +846,9 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
         if current_choice == "Meta-Summary":
             default_filename = "meta_summary.txt"
+            filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
+        elif current_choice.startswith("Case Briefing"):
+            default_filename = "case_briefing.txt"
             filetypes = [("Text Files", "*.txt"), ("All Files", "*.*")]
         elif current_choice.startswith("Rare Word List"):
             default_filename = "rare_word_list.csv"
