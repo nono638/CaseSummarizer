@@ -10,6 +10,7 @@
 - [Multi-Document Summarization Pipeline](#multi-document-summarization-pipeline)
 - [AI Integration Layer](#ai-integration-layer)
 - [Q&A System](#qa-system)
+- [Case Briefing Generator](#case-briefing-generator)
 - [Vocabulary Extraction System](#vocabulary-extraction-system)
 - [Parallel Processing Architecture](#parallel-processing-architecture)
 - [Configuration & Settings](#configuration--settings)
@@ -551,6 +552,124 @@ flowchart TB
 
     YAML --> QuestionTypes
     QuestionTypes --> QAOrchestrator["QAOrchestrator<br/>Processes all questions"]
+```
+
+---
+
+## Case Briefing Generator
+
+### Overview (Sessions 36-40)
+
+The Case Briefing Generator extracts structured information from legal documents using a **Map-Reduce pattern** with LLM-based extraction. It produces a formatted "Case Briefing Sheet" with parties, allegations, defenses, and a narrative summary.
+
+```mermaid
+flowchart TB
+    subgraph Input["Document Input"]
+        Docs["Processed Documents<br/>(complaint, answer, transcript, etc.)"]
+    end
+
+    subgraph Phase1["PHASE 1: MAP (Chunking + Extraction)"]
+        Chunker["DocumentChunker<br/>src/briefing/chunker.py"]
+        Extractor["ChunkExtractor<br/>src/briefing/extractor.py"]
+
+        subgraph ChunkingStrategy["Chunking Strategy"]
+            DoubleNL["Double Newlines<br/>(standard paragraphs)"]
+            SingleNL["Single Newlines<br/>(OCR fallback)"]
+            ForceSplit["Force Split<br/>(sentence/word boundaries)"]
+        end
+
+        Chunker --> ChunkingStrategy
+        ChunkingStrategy --> Extractor
+    end
+
+    subgraph LLM["LLM EXTRACTION"]
+        OllamaStructured["Ollama Structured Output<br/>generate_structured()"]
+        JSONSchema["JSON Schema<br/>parties, allegations, defenses, names, facts"]
+        Parallel["ThreadPoolExecutor<br/>2 workers (parallel)"]
+
+        Extractor --> Parallel
+        Parallel --> OllamaStructured
+        OllamaStructured --> JSONSchema
+    end
+
+    subgraph Phase2["PHASE 2: REDUCE (Aggregation + Synthesis)"]
+        Aggregator["DataAggregator<br/>src/briefing/aggregator.py"]
+        FuzzyMatch["Fuzzy Name Matching<br/>rapidfuzz (85% threshold)"]
+        Synthesizer["NarrativeSynthesizer<br/>src/briefing/synthesizer.py"]
+
+        JSONSchema --> Aggregator
+        Aggregator --> FuzzyMatch
+        FuzzyMatch --> Synthesizer
+    end
+
+    subgraph Phase3["PHASE 3: OUTPUT"]
+        Orchestrator["BriefingOrchestrator<br/>src/briefing/orchestrator.py"]
+        Formatter["BriefingFormatter<br/>src/briefing/formatter.py"]
+        Output["Case Briefing Sheet<br/>Plain text or Markdown"]
+    end
+
+    Docs --> Chunker
+    Synthesizer --> Orchestrator
+    Orchestrator --> Formatter
+    Formatter --> Output
+```
+
+### Chunking Architecture Decision
+
+> **Note:** Architecture decision pending (Session 40). Current recommendation: keep separate chunkers.
+
+| Chunker | Location | Purpose | Splitting Strategy |
+|---------|----------|---------|-------------------|
+| `ChunkingEngine` | `src/chunking_engine.py` | Summarization | Semantic gradient (embeddings) |
+| `DocumentChunker` | `src/briefing/chunker.py` | Extraction | Section-aware (legal patterns) |
+
+**Rationale for separate chunkers:**
+- Legal documents have explicit section markers (CAUSES OF ACTION, WHEREFORE)
+- Extraction prompts expect legal structure, not semantic topics
+- Section-aware splitting preserves context for structured extraction
+
+### Case Briefing Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `DocumentChunker` | `src/briefing/chunker.py` | Section-aware document splitting (~1800 chars) |
+| `ChunkExtractor` | `src/briefing/extractor.py` | LLM-based structured extraction |
+| `DataAggregator` | `src/briefing/aggregator.py` | Merge/deduplicate with fuzzy name matching |
+| `NarrativeSynthesizer` | `src/briefing/synthesizer.py` | Generate narrative from aggregated data |
+| `BriefingOrchestrator` | `src/briefing/orchestrator.py` | Pipeline coordinator |
+| `BriefingFormatter` | `src/briefing/formatter.py` | Output formatting (plain text/markdown) |
+| `BriefingWorker` | `src/ui/workers.py` | Background thread for UI integration |
+
+### Three-Tier Splitting (Session 40 Fix)
+
+```mermaid
+flowchart LR
+    Input["Document Text<br/>(43K chars)"]
+
+    subgraph Tier1["Tier 1: Double Newlines"]
+        DoubleNL["Split on \\n\\n"]
+        Check1{"Any paragraph<br/>> 2500 chars?"}
+    end
+
+    subgraph Tier2["Tier 2: Single Newlines"]
+        SingleNL["Split on \\n<br/>Group to ~1800 chars"]
+        Check2{"Any segment<br/>> 2500 chars?"}
+    end
+
+    subgraph Tier3["Tier 3: Force Split"]
+        ForceSplit["Split at sentence/word<br/>boundaries"]
+    end
+
+    Output["Chunks<br/>(~24 chunks, 1750 avg)"]
+
+    Input --> DoubleNL
+    DoubleNL --> Check1
+    Check1 -->|Yes| SingleNL
+    Check1 -->|No| Output
+    SingleNL --> Check2
+    Check2 -->|Yes| ForceSplit
+    Check2 -->|No| Output
+    ForceSplit --> Output
 ```
 
 ---
