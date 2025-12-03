@@ -3,16 +3,16 @@
 ## Project Status
 
 **Current Branch:** `main`
-**Application State:** 🟡 Case Briefing Generator - Architecture decided, needs UI testing
+**Application State:** ✅ Case Briefing Generator complete with few-shot prompting
 **Tests:** 224 passing
 **Sessions:** 42 completed
-**Last Updated:** 2025-12-03 (Session 42)
+**Last Updated:** 2025-12-03 (Session 42 Part 3)
 
 ---
 
-## Latest Session (Session 42 - Architecture + Performance Fix)
+## Latest Session (Session 42 - Architecture + Performance + Prompt Engineering)
 
-**Focus:** Finalize chunking architecture and fix Case Briefing performance.
+**Focus:** Finalize chunking architecture, fix performance, and improve extraction accuracy.
 
 ### Part 1: Architecture Decision ✅
 
@@ -37,10 +37,33 @@
 - Before: 2 workers → After: 6 workers
 - **~3x faster extraction**
 
-### Next Steps
+### Part 3: Prompt Engineering - Preventing Hallucinations 🎯
 
-- [ ] Re-test Case Briefing with dynamic workers (expect ~26 min instead of ~78 min)
-- [ ] Verify speedup in practice
+**Problem:** LLM extracted example names from JSON schema (e.g., "John Smith").
+
+**Research:**
+- Google's Gemma 3 guidance: "Show patterns to follow, not anti-patterns to avoid"
+- Few-shot prompting improves accuracy 10-12% over zero-shot
+- Negative instructions ("don't hallucinate") are ineffective
+
+**Solution:** External prompt file with 3 few-shot examples.
+
+| File | Change |
+|------|--------|
+| `config/briefing_extraction_prompt.txt` | NEW: External prompt with 3 realistic examples |
+| `src/briefing/extractor.py` | Loads prompt from external file (easy iteration) |
+| `src/briefing/aggregator.py` | Added vocabulary aggregation |
+| `src/briefing/formatter.py` | Added vocabulary section to output |
+
+**Key Design:**
+- 3 few-shot examples: complaint, answer/defense, medical records
+- Consistent JSON structure across all examples
+- New "vocabulary" field extracts technical/unusual terms for laypersons
+- External file allows prompt iteration without code changes
+
+### Session 42 Complete ✅
+
+Architecture decided, performance optimized, hallucinations addressed.
 
 ---
 
@@ -230,9 +253,10 @@ src/
 - **TODO.md** - Feature backlog
 
 ### Configuration
-- `config/prompts/` - Prompt templates
+- `config/prompts/` - Summarization prompt templates
 - `config/qa_questions.yaml` - Q&A questions
 - `config/common_medical_legal.txt` - Vocabulary blacklist
+- `config/briefing_extraction_prompt.txt` - Case Briefing few-shot prompt
 
 ---
 

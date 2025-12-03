@@ -27,23 +27,9 @@ from src.logging_config import debug_log
 from .chunker import BriefingChunk
 
 
-# JSON Schema for chunk extraction
-EXTRACTION_SCHEMA = """{
-  "parties": {
-    "plaintiffs": ["John Smith"],
-    "defendants": ["Dr. Wilson", "Memorial Hospital"]
-  },
-  "allegations": ["Defendant failed to diagnose condition", "Defendant was negligent in treatment"],
-  "defenses": ["Standard of care was met", "Plaintiff's injuries were pre-existing"],
-  "names_mentioned": [
-    {"name": "Dr. James Wilson", "role": "defendant physician", "category": "PARTY"},
-    {"name": "Dr. Sarah Chen", "role": "treating physician (not a party)", "category": "MEDICAL"},
-    {"name": "John Smith", "role": "plaintiff/patient", "category": "PARTY"}
-  ],
-  "key_facts": ["Patient presented with chest pain on March 15", "Surgery performed on March 20"],
-  "dates_mentioned": ["March 15, 2023", "March 20, 2023"],
-  "case_type_hints": ["medical malpractice", "negligence"]
-}"""
+# External prompt file path (relative to project root)
+# Edit this file to modify extraction behavior without changing code
+EXTRACTION_PROMPT_FILE = Path("config/briefing_extraction_prompt.txt")
 
 
 @dataclass
@@ -65,6 +51,7 @@ class ChunkExtraction:
         key_facts: List of key fact strings
         dates_mentioned: List of date strings
         case_type_hints: List of case type indicator strings
+        vocabulary: List of unusual/technical terms for layperson reference
         extraction_success: Whether extraction succeeded
         raw_response: Raw JSON response for debugging
     """
@@ -79,6 +66,7 @@ class ChunkExtraction:
     key_facts: list[str] = field(default_factory=list)
     dates_mentioned: list[str] = field(default_factory=list)
     case_type_hints: list[str] = field(default_factory=list)
+    vocabulary: list[str] = field(default_factory=list)
     extraction_success: bool = True
     raw_response: dict | None = None
 
@@ -97,38 +85,6 @@ class ChunkExtractor:
         print(extraction.parties)
     """
 
-    # Prompt template for chunk extraction
-    EXTRACTION_PROMPT = """Extract information from this legal document chunk.
-Return ONLY valid JSON matching the schema below.
-Do not include any commentary, explanation, or text outside the JSON.
-
-IMPORTANT - IDENTIFYING PARTIES:
-- PLAINTIFFS are the people/entities who FILED the lawsuit (the accusing party, the injured party)
-- DEFENDANTS are the people/entities BEING SUED (the accused party)
-- Look for labels like "Plaintiff" or "Defendant" after names
-- In case captions, format is usually: "PLAINTIFF NAME, Plaintiff, v. DEFENDANT NAME, Defendant"
-- In medical malpractice: the patient or injured person is typically the PLAINTIFF; doctors/hospitals being sued are DEFENDANTS
-- In personal injury: the injured person is the PLAINTIFF; the party who caused injury is the DEFENDANT
-
-EXTRACTION RULES:
-- If a field has no relevant information in the chunk, use an empty list []
-- For names_mentioned category:
-  - "PARTY" for plaintiffs/defendants (parties to the lawsuit)
-  - "MEDICAL" for doctors/nurses/medical staff who are NOT defendants
-  - "WITNESS" for witnesses mentioned
-  - "OTHER" for other individuals
-
-EXPECTED JSON SCHEMA:
-{schema}
-
-DOCUMENT TYPE: {doc_type}
-DOCUMENT: {source}
-
-DOCUMENT CHUNK:
-{chunk_text}
-
-JSON OUTPUT:"""
-
     def __init__(
         self,
         ollama_manager: OllamaModelManager | None = None,
@@ -143,8 +99,38 @@ JSON OUTPUT:"""
         """
         self.ollama_manager = ollama_manager or OllamaModelManager()
         self.max_tokens = max_tokens
+        self._prompt_template = self._load_prompt_template()
 
         debug_log(f"[ChunkExtractor] Initialized with max_tokens={max_tokens}")
+
+    def _load_prompt_template(self) -> str:
+        """
+        Load the extraction prompt template from external file.
+
+        Loads from config/briefing_extraction_prompt.txt for easy editing
+        without modifying code. Falls back to a minimal prompt if file missing.
+
+        Returns:
+            Prompt template string with {doc_type}, {source}, {chunk_text} placeholders
+        """
+        try:
+            if EXTRACTION_PROMPT_FILE.exists():
+                template = EXTRACTION_PROMPT_FILE.read_text(encoding="utf-8")
+                debug_log(f"[ChunkExtractor] Loaded prompt from {EXTRACTION_PROMPT_FILE}")
+                return template
+        except Exception as e:
+            debug_log(f"[ChunkExtractor] Error loading prompt file: {e}")
+
+        # Fallback minimal prompt if file not found
+        debug_log("[ChunkExtractor] Using fallback prompt (file not found)")
+        return """Extract information from this legal document. Return valid JSON only.
+
+Document type: {doc_type}
+Source: {source}
+
+{chunk_text}
+
+Output JSON with: parties (plaintiffs/defendants), allegations, defenses, names_mentioned, key_facts, dates_mentioned, case_type_hints, vocabulary"""
 
     def extract(self, chunk: BriefingChunk) -> ChunkExtraction:
         """
@@ -158,9 +144,8 @@ JSON OUTPUT:"""
         """
         debug_log(f"[ChunkExtractor] Processing chunk {chunk.chunk_id} from {chunk.source_document}")
 
-        # Build the prompt
-        prompt = self.EXTRACTION_PROMPT.format(
-            schema=EXTRACTION_SCHEMA,
+        # Build the prompt from template
+        prompt = self._prompt_template.format(
             doc_type=chunk.document_type,
             source=chunk.source_document,
             chunk_text=chunk.text,
@@ -375,6 +360,7 @@ JSON OUTPUT:"""
             key_facts=self._ensure_string_list(response.get("key_facts", [])),
             dates_mentioned=self._ensure_string_list(response.get("dates_mentioned", [])),
             case_type_hints=self._ensure_string_list(response.get("case_type_hints", [])),
+            vocabulary=self._ensure_string_list(response.get("vocabulary", [])),
             extraction_success=True,
             raw_response=response,
         )
@@ -425,4 +411,5 @@ JSON OUTPUT:"""
         count += len(extraction.key_facts)
         count += len(extraction.dates_mentioned)
         count += len(extraction.case_type_hints)
+        count += len(extraction.vocabulary)
         return count

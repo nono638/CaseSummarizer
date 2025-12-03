@@ -72,6 +72,7 @@ class AggregatedBriefingData:
         people_by_category: Dict mapping category to list of PersonEntry
         key_facts: List of unique key facts
         dates: List of unique dates mentioned
+        vocabulary: List of unusual/technical terms for layperson reference
         source_documents: List of all source document names
         extraction_stats: Dict with processing statistics
     """
@@ -84,6 +85,7 @@ class AggregatedBriefingData:
     people_by_category: dict[str, list[PersonEntry]] = field(default_factory=dict)
     key_facts: list[str] = field(default_factory=list)
     dates: list[str] = field(default_factory=list)
+    vocabulary: list[str] = field(default_factory=list)
     source_documents: list[str] = field(default_factory=list)
     extraction_stats: dict = field(default_factory=dict)
 
@@ -151,6 +153,7 @@ class DataAggregator:
         defenses = self._aggregate_text_list(extractions, "defenses")
         key_facts = self._aggregate_text_list(extractions, "key_facts")
         dates = self._aggregate_dates(extractions)
+        vocabulary = self._aggregate_vocabulary(extractions)
         case_type = self._determine_case_type(extractions)
         people_by_category = self._aggregate_names(extractions)
 
@@ -162,6 +165,7 @@ class DataAggregator:
             "total_names_found": sum(len(v) for v in people_by_category.values()),
             "total_allegations": len(allegations),
             "total_defenses": len(defenses),
+            "total_vocabulary_terms": len(vocabulary),
         }
 
         debug_log(f"[DataAggregator] Aggregation complete: {stats}")
@@ -175,6 +179,7 @@ class DataAggregator:
             people_by_category=people_by_category,
             key_facts=key_facts,
             dates=dates,
+            vocabulary=vocabulary,
             source_documents=source_docs,
             extraction_stats=stats,
         )
@@ -248,6 +253,37 @@ class DataAggregator:
                 unique_dates.append(date.strip())
 
         return unique_dates
+
+    def _aggregate_vocabulary(self, extractions: list[ChunkExtraction]) -> list[str]:
+        """
+        Aggregate and deduplicate vocabulary terms.
+
+        Collects unusual/technical terms from all chunks for layperson reference.
+
+        Args:
+            extractions: All chunk extractions
+
+        Returns:
+            List of unique vocabulary terms, sorted alphabetically
+        """
+        all_terms = []
+        for extraction in extractions:
+            all_terms.extend(extraction.vocabulary)
+
+        # Case-insensitive deduplication, keeping original capitalization
+        seen = set()
+        unique_terms = []
+        for term in all_terms:
+            normalized = term.strip().lower()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                unique_terms.append(term.strip())
+
+        # Sort alphabetically for consistent output
+        unique_terms.sort(key=str.lower)
+
+        debug_log(f"[DataAggregator] Vocabulary: {len(all_terms)} raw → {len(unique_terms)} unique terms")
+        return unique_terms
 
     def _determine_case_type(self, extractions: list[ChunkExtraction]) -> str:
         """

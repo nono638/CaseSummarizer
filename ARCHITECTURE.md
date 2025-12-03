@@ -584,11 +584,13 @@ flowchart TB
 
     subgraph LLM["LLM EXTRACTION"]
         OllamaStructured["Ollama Structured Output<br/>generate_structured()"]
-        JSONSchema["JSON Schema<br/>parties, allegations, defenses, names, facts"]
-        Parallel["ThreadPoolExecutor<br/>2 workers (parallel)"]
+        JSONSchema["JSON Schema<br/>parties, allegations, defenses, names, facts, vocabulary"]
+        Parallel["ThreadPoolExecutor<br/>Dynamic workers (auto-scaled)"]
+        PromptFile["External Prompt<br/>config/briefing_extraction_prompt.txt"]
 
         Extractor --> Parallel
         Parallel --> OllamaStructured
+        PromptFile --> OllamaStructured
         OllamaStructured --> JSONSchema
     end
 
@@ -616,7 +618,7 @@ flowchart TB
 
 ### Chunking Architecture Decision
 
-> **Note:** Architecture decision pending (Session 40). Current recommendation: keep separate chunkers.
+> **Decision (Session 42):** Keep separate chunkers - `DocumentChunker` for Case Briefing extraction.
 
 | Chunker | Location | Purpose | Splitting Strategy |
 |---------|----------|---------|-------------------|
@@ -868,6 +870,7 @@ flowchart TB
 | `config/prompts/{model}/` | Model-specific prompt templates |
 | `config/qa_questions.yaml` | Default Q&A questions |
 | `config/common_medical_legal.txt` | Vocabulary blacklist |
+| `config/briefing_extraction_prompt.txt` | Case Briefing extraction prompt (few-shot examples) |
 
 ### User Data Location
 
@@ -1137,4 +1140,4 @@ Mermaid diagrams can be previewed in:
 
 ---
 
-*This document serves as the architectural reference for LocalScribe. Last updated: Session 33 (2025-12-01)*
+*This document serves as the architectural reference for LocalScribe. Last updated: Session 42 (2025-12-03)*

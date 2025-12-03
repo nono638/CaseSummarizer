@@ -52,10 +52,43 @@
 - GPU acceleration NOT worth pursuing for business laptops (iGPU support is fragile)
 - Focus on CPU optimization via dynamic parallelization
 
-### Next Steps
+### Part 3: Prompt Engineering Improvements
 
-- Re-test Case Briefing with dynamic workers
-- Verify ~3x speedup in practice
+**Problem Found:** Fact-checking revealed hallucinations in extraction output:
+- Example names from JSON schema ("John Smith", "Dr. Wilson") appeared in results
+- Some defendants misclassified as plaintiffs
+- Non-parties incorrectly labeled as parties
+
+**Research-Based Solution:** Implemented best practices from Google's Gemma 3 documentation:
+
+1. **Few-shot prompting** (3 concrete examples vs. rules)
+   - Research shows 10-12% accuracy improvement over zero-shot
+   - Google: "Using examples to show the model a pattern to follow is more effective than using examples to show the model an anti-pattern to avoid"
+
+2. **External prompt file** for easy iteration
+   - Prompt moved to `config/briefing_extraction_prompt.txt`
+   - Can modify prompts without changing code
+   - Follows "configuration over hardcoding" principle
+
+3. **Added vocabulary extraction field**
+   - Extracts medical/legal terminology for layperson reference
+   - Aggregated and deduplicated across chunks
+   - Displayed in formatted output
+
+**Files Modified:**
+
+| File | Changes |
+|------|---------|
+| `config/briefing_extraction_prompt.txt` | NEW: External prompt with 3 few-shot examples |
+| `src/briefing/extractor.py` | Loads prompt from file, removed hardcoded prompt |
+| `src/briefing/aggregator.py` | Added `_aggregate_vocabulary()` method |
+| `src/briefing/formatter.py` | Added `_format_vocabulary()` method |
+
+**Prompt Design (based on Gemma 3 research):**
+- 3 diverse examples: complaint, defense document, medical records
+- Consistent JSON format across all examples
+- Positive patterns (show what to do) instead of negative rules
+- Direct and concise (Gemma favors directness over verbosity)
 
 ---
 

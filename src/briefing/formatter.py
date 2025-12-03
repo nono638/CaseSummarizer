@@ -98,6 +98,7 @@ class BriefingFormatter:
         sections["allegations"] = self._format_list_section("ALLEGATIONS", data.allegations)
         sections["defenses"] = self._format_list_section("DEFENSES", data.defenses)
         sections["names"] = self._format_names(data.people_by_category)
+        sections["vocabulary"] = self._format_vocabulary(data.vocabulary)
 
         if self.include_metadata:
             sections["metadata"] = self._format_metadata(result)
@@ -119,6 +120,8 @@ class BriefingFormatter:
             sections["defenses"],
             "",
             sections["names"],
+            "",
+            sections["vocabulary"],
         ]
 
         if self.include_metadata:
@@ -256,6 +259,24 @@ Please check that:
 
         return "\n".join(lines)
 
+    def _format_vocabulary(self, vocabulary: list[str]) -> str:
+        """Format the VOCABULARY section with technical/unusual terms."""
+        lines = [self._make_subheader("VOCABULARY")]
+
+        if not vocabulary:
+            lines.append("No unusual terminology identified.")
+            return "\n".join(lines)
+
+        # Display terms in a compact comma-separated format for easy scanning
+        # Limit to 30 terms for readability
+        display_terms = vocabulary[:30]
+        lines.append("  " + ", ".join(display_terms))
+
+        if len(vocabulary) > 30:
+            lines.append(f"  ... and {len(vocabulary) - 30} more terms")
+
+        return "\n".join(lines)
+
     def _format_metadata(self, result: BriefingResult) -> str:
         """Format processing metadata."""
         lines = [self._make_subheader("PROCESSING INFO")]
@@ -355,6 +376,24 @@ Please check that:
                     lines.append(f"- **{person.canonical_name}**{role_part}")
                 lines.append("")
 
+        # Vocabulary section
+        lines.extend([
+            "---",
+            "",
+            "## Vocabulary",
+            "",
+        ])
+
+        if data.vocabulary:
+            lines.append("*Technical and unusual terms for reference:*")
+            lines.append("")
+            lines.append(", ".join(data.vocabulary[:30]))
+            if len(data.vocabulary) > 30:
+                lines.append("")
+                lines.append(f"*... and {len(data.vocabulary) - 30} more terms*")
+        else:
+            lines.append("*No unusual terminology identified*")
+
         return "\n".join(lines)
 
     def _make_header(self, text: str) -> str:
@@ -380,4 +419,5 @@ Please check that:
             "allegations",
             "defenses",
             "names",
+            "vocabulary",
         ]
