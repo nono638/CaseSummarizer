@@ -1,5 +1,45 @@
 # Development Log
 
+## Session 42 - Architecture Decision Confirmed (2025-12-03)
+
+**Objective:** Finalize chunking architecture decision for Case Briefing Generator.
+
+### Architecture Decision: ✅ Keep DocumentChunker
+
+**Question:** Should Case Briefing use `ChunkingEngine` (semantic gradient) or keep the separate `DocumentChunker`?
+
+**Decision:** Keep `DocumentChunker` for extraction.
+
+**Key Findings from Analysis:**
+
+| Aspect | ChunkingEngine | DocumentChunker |
+|--------|----------------|-----------------|
+| Splitting method | Regex patterns (8) | Regex patterns (45) |
+| Primary unit | Words | Characters |
+| Legal awareness | Generic | Detailed (complaints, answers, transcripts) |
+| OCR handling | Basic | 3-tier fallback |
+
+**Rationale:**
+1. Neither chunker uses true semantic/embedding-based splitting — both are regex-based
+2. Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
+3. `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
+4. 3-tier OCR fallback handles real-world messy documents
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `TODO.md` | Updated architecture decision section |
+| `human_summary.md` | Added Session 42, marked decision confirmed |
+| `development_log.md` | Added Session 42 entry |
+
+### Next Steps
+
+- Test Case Briefing through UI with real documents
+- Verify extraction produces party/allegation data
+
+---
+
 ## Session 40 - Case Briefing Testing, Bug Discovery & Fix (2025-12-03)
 
 **Objective:** Test Case Briefing Generator with real court documents.

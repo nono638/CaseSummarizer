@@ -3,14 +3,37 @@
 ## Project Status
 
 **Current Branch:** `main`
-**Application State:** 🟡 Case Briefing Generator - Bug Fixed, needs UI testing
+**Application State:** 🟡 Case Briefing Generator - Architecture decided, needs UI testing
 **Tests:** 224 passing
-**Sessions:** 40 completed (continued)
-**Last Updated:** 2025-12-03 (Session 40 - continued)
+**Sessions:** 42 completed
+**Last Updated:** 2025-12-03 (Session 42)
 
 ---
 
-## Latest Session (Session 40 - Bug Discovery & Fix)
+## Latest Session (Session 42 - Architecture Decision Confirmed)
+
+**Focus:** Finalize chunking architecture decision for Case Briefing.
+
+### Architecture Decision: ✅ CONFIRMED
+
+**Question:** Should Case Briefing use semantic gradient chunking (`ChunkingEngine`) or keep the separate `DocumentChunker`?
+
+**Decision:** Keep `DocumentChunker` for Case Briefing extraction.
+
+**Rationale:**
+- Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
+- `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
+- 3-tier OCR fallback handles real-world messy documents
+- Neither chunker uses true semantic/embedding-based splitting — both are regex-based
+
+### Next Steps
+
+- [ ] Test Case Briefing through UI with real documents
+- [ ] Verify extraction produces party/allegation data
+
+---
+
+## Previous Session (Session 40 - Bug Discovery & Fix)
 
 **Focus:** Test Case Briefing feature with real documents — found and fixed critical bug.
 
@@ -32,22 +55,6 @@
 - Before fix: 43,262 chars → 1 chunk
 - After fix: 43,262 chars → ~24 chunks (avg 1,750 chars)
 - All 224 tests pass
-
-### Architecture Decision: Chunking Strategy
-
-**Question raised:** Should Case Briefing use semantic gradient chunking (embeddings) like `ChunkingEngine`, or keep the separate `DocumentChunker`?
-
-**Decision:** Keep separate chunkers (pending user confirmation after sleep)
-- `ChunkingEngine` → Summarization (semantic topic coherence)
-- `DocumentChunker` → Extraction (legal section boundaries)
-
-Legal documents have explicit structure (CAUSES OF ACTION, WHEREFORE) that matters more than semantic topic flow for extraction.
-
-### Next Steps
-
-- Re-test Case Briefing through UI with real documents
-- Verify extraction produces party/allegation data
-- Confirm chunking architecture decision
 
 ---
 

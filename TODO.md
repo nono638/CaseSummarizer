@@ -1,7 +1,7 @@
 # LocalScribe TODO
 
 > **Purpose:** Backlog of future features, improvements, and ideas. Items here are not yet implemented.
-> Updated: 2025-12-03 (Session 40 - continued)
+> Updated: 2025-12-03 (Session 42)
 
 ---
 
@@ -36,16 +36,18 @@ The `DocumentChunker._split_into_paragraphs()` method split on double newlines (
 
 - [ ] Re-test Case Briefing with real documents through the UI
 - [ ] Verify extraction produces actual party/allegation data
-- [ ] Consider adding DEBUG_MODE logging for chunk contents
 
-#### Architecture Question (Sleep On It)
+#### Architecture Decision (RESOLVED - Session 42)
 
-Should Case Briefing use semantic gradient chunking (from `ChunkingEngine`) instead of character-based splitting?
+**Question:** Should Case Briefing use semantic gradient chunking (from `ChunkingEngine`) instead of character-based `DocumentChunker`?
 
-**Current recommendation:** Keep separate chunkers
-- Legal docs have explicit section markers → section-aware splitting is better
-- Embedding overhead not justified for extraction task
-- See plan file: `C:\Users\noahc\.claude\plans\sparkling-wondering-turtle.md`
+**Decision:** ✅ Keep `DocumentChunker` for Case Briefing extraction.
+
+**Rationale:**
+- Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
+- `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
+- 3-tier OCR fallback handles real-world messy documents
+- Neither chunker uses true semantic/embedding-based splitting — both are regex-based
 
 ---
 
