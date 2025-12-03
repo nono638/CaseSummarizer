@@ -10,26 +10,37 @@
 
 ---
 
-## Latest Session (Session 42 - Architecture Decision Confirmed)
+## Latest Session (Session 42 - Architecture + Performance Fix)
 
-**Focus:** Finalize chunking architecture decision for Case Briefing.
+**Focus:** Finalize chunking architecture and fix Case Briefing performance.
 
-### Architecture Decision: ✅ CONFIRMED
-
-**Question:** Should Case Briefing use semantic gradient chunking (`ChunkingEngine`) or keep the separate `DocumentChunker`?
+### Part 1: Architecture Decision ✅
 
 **Decision:** Keep `DocumentChunker` for Case Briefing extraction.
-
-**Rationale:**
-- Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
+- Neither chunker uses true semantic chunking — both are regex-based
 - `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
-- 3-tier OCR fallback handles real-world messy documents
-- Neither chunker uses true semantic/embedding-based splitting — both are regex-based
+
+### Part 2: Performance Fix 🚀
+
+**Problem:** Case Briefing was intolerably slow (7 minutes for 7/155 chunks).
+**Root Cause:** Hardcoded `max_workers=2` regardless of system resources.
+
+**Solution:** Dynamic worker scaling based on CPU/RAM:
+
+| File | Change |
+|------|--------|
+| `src/system_resources.py` | NEW: Calculates optimal workers |
+| Settings slider | Resource usage (25-100%, default 75%) |
+| `src/briefing/extractor.py` | Uses dynamic workers |
+
+**Result on 12-core/16GB machine:**
+- Before: 2 workers → After: 6 workers
+- **~3x faster extraction**
 
 ### Next Steps
 
-- [ ] Test Case Briefing through UI with real documents
-- [ ] Verify extraction produces party/allegation data
+- [ ] Re-test Case Briefing with dynamic workers (expect ~26 min instead of ~78 min)
+- [ ] Verify speedup in practice
 
 ---
 

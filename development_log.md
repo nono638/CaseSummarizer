@@ -1,42 +1,61 @@
 # Development Log
 
-## Session 42 - Architecture Decision Confirmed (2025-12-03)
+## Session 42 - Architecture Decision + Performance Fix (2025-12-03)
 
-**Objective:** Finalize chunking architecture decision for Case Briefing Generator.
+**Objective:** Finalize chunking architecture decision and fix Case Briefing performance.
 
-### Architecture Decision: ✅ Keep DocumentChunker
+### Part 1: Architecture Decision ✅
 
 **Question:** Should Case Briefing use `ChunkingEngine` (semantic gradient) or keep the separate `DocumentChunker`?
 
 **Decision:** Keep `DocumentChunker` for extraction.
 
-**Key Findings from Analysis:**
+**Key Findings:**
+- Neither chunker uses true semantic/embedding-based splitting — both are regex-based
+- `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
+- Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
 
-| Aspect | ChunkingEngine | DocumentChunker |
-|--------|----------------|-----------------|
-| Splitting method | Regex patterns (8) | Regex patterns (45) |
-| Primary unit | Words | Characters |
-| Legal awareness | Generic | Detailed (complaints, answers, transcripts) |
-| OCR handling | Basic | 3-tier fallback |
+### Part 2: Performance Fix - Dynamic Worker Scaling
 
-**Rationale:**
-1. Neither chunker uses true semantic/embedding-based splitting — both are regex-based
-2. Legal section structure matters for extraction (PARTIES vs. ALLEGATIONS have different legal meaning)
-3. `DocumentChunker` has 45 legal-specific patterns vs. 8 in `ChunkingEngine`
-4. 3-tier OCR fallback handles real-world messy documents
+**Problem Found:** User tested Case Briefing with real documents:
+- 155 chunks generated from legal documents
+- Processing 7/155 chunks took 7 minutes (~1 min/chunk)
+- Root cause: Hardcoded `max_workers=2` regardless of system resources
+
+**Solution:** Dynamic worker calculation based on system resources.
+
+| Component | Change |
+|-----------|--------|
+| `src/system_resources.py` | **NEW** - Calculates optimal workers based on CPU/RAM |
+| Settings slider | Changed from dropdown (25/50/75%) to slider (25-100%) |
+| `src/briefing/extractor.py` | Uses `get_optimal_workers()` instead of hardcoded 2 |
+
+**Performance Impact (12-core, 16GB RAM machine):**
+- Before: 2 workers (hardcoded)
+- After: 6 workers at 75% usage setting
+- Result: **~3x faster Case Briefing extraction**
+
+**User-Configurable:** Settings → Performance → "System resource usage" slider
 
 ### Files Modified
 
 | File | Changes |
 |------|---------|
-| `TODO.md` | Updated architecture decision section |
-| `human_summary.md` | Added Session 42, marked decision confirmed |
-| `development_log.md` | Added Session 42 entry |
+| `src/system_resources.py` | NEW: `get_optimal_workers()`, `get_resource_summary()` |
+| `src/briefing/extractor.py` | Dynamic worker calculation |
+| `src/ui/settings/settings_registry.py` | Slider for resource usage (25-100%) |
+| `src/user_preferences.py` | Validation for `resource_usage_pct` |
+
+### Research Findings
+
+- Ollama context window defaults to 2048 tokens (we're passing `num_ctx` correctly)
+- GPU acceleration NOT worth pursuing for business laptops (iGPU support is fragile)
+- Focus on CPU optimization via dynamic parallelization
 
 ### Next Steps
 
-- Test Case Briefing through UI with real documents
-- Verify extraction produces party/allegation data
+- Re-test Case Briefing with dynamic workers
+- Verify ~3x speedup in practice
 
 ---
 
