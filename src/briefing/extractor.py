@@ -193,19 +193,20 @@ JSON OUTPUT:"""
         chunks: list[BriefingChunk],
         progress_callback: Callable[[int, int], None] | None = None,
         parallel: bool = True,
-        max_workers: int = 2,
+        max_workers: int | None = None,
     ) -> list[ChunkExtraction]:
         """
         Extract structured data from multiple chunks.
 
-        Supports parallel processing for improved performance. Default is 2
-        workers to balance speed vs Ollama resource usage.
+        Supports parallel processing for improved performance. Worker count
+        is automatically calculated based on system resources and user's
+        resource usage setting (configurable in Settings → Performance).
 
         Args:
             chunks: List of BriefingChunk objects
             progress_callback: Optional callback(current, total) for progress
             parallel: Whether to use parallel processing (default True)
-            max_workers: Max concurrent extractions (default 2)
+            max_workers: Max concurrent extractions (None = auto-detect)
 
         Returns:
             List of ChunkExtraction objects, ordered by chunk_id
@@ -214,6 +215,12 @@ JSON OUTPUT:"""
             return []
 
         total = len(chunks)
+
+        # Auto-calculate workers if not specified
+        if max_workers is None:
+            from src.system_resources import get_optimal_workers
+            # Each Ollama extraction uses ~2GB RAM
+            max_workers = get_optimal_workers(task_ram_gb=2.0, max_workers=8)
 
         # Use sequential processing if parallel is disabled or only one chunk
         if not parallel or total <= 1 or max_workers <= 1:

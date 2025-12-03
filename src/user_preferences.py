@@ -204,6 +204,11 @@ class UserPreferencesManager:
                 raise ValueError(
                     f"summary_words must be 50-2000, got {value}"
                 )
+        elif key == "resource_usage_pct":
+            if not isinstance(value, int) or value < 25 or value > 100:
+                raise ValueError(
+                    f"resource_usage_pct must be 25-100, got {value}"
+                )
 
         self._preferences[key] = value
         self._save_preferences()

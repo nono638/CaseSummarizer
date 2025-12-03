@@ -220,23 +220,24 @@ def _register_all_settings():
     ))
 
     SettingsRegistry.register(SettingDefinition(
-        key="cpu_fraction",
-        label="CPU allocation",
+        key="resource_usage_pct",
+        label="System resource usage",
         category="Performance",
-        setting_type=SettingType.DROPDOWN,
+        setting_type=SettingType.SLIDER,
         tooltip=(
-            "Fraction of CPU cores to use for document processing. "
-            "Lower values reduce system impact. Higher values process "
-            "faster but may slow other applications."
+            "Percentage of system resources (CPU and RAM) to use for processing. "
+            "Higher values process faster but may slow your computer during processing.\n\n"
+            "• 25%: Minimal impact - computer stays responsive\n"
+            "• 50%: Moderate - some slowdown during processing\n"
+            "• 75%: Recommended - good balance of speed and responsiveness\n"
+            "• 100%: Maximum speed - computer may be slow during processing"
         ),
-        default=0.5,
-        options=[
-            ("1/4 cores (Low impact)", 0.25),
-            ("1/2 cores (Balanced)", 0.5),
-            ("3/4 cores (Maximum speed)", 0.75),
-        ],
-        getter=prefs.get_cpu_fraction,
-        setter=prefs.set_cpu_fraction,
+        default=75,
+        min_value=25,
+        max_value=100,
+        step=5,
+        getter=lambda: prefs.get("resource_usage_pct", 75),
+        setter=lambda v: prefs.set("resource_usage_pct", int(v)),
     ))
 
     # ===================================================================
