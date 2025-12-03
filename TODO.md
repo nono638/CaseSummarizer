@@ -1,11 +1,53 @@
 # LocalScribe TODO
 
 > **Purpose:** Backlog of future features, improvements, and ideas. Items here are not yet implemented.
-> Updated: 2025-12-01 (Session 34)
+> Updated: 2025-12-03 (Session 40 - continued)
 
 ---
 
 ## High Priority
+
+### ✅ Case Briefing Generator - Empty Extraction Bug (FIXED - Session 40)
+
+**Status:** FIXED - Root cause identified and resolved
+**Resolution:** DocumentChunker paragraph splitting bug
+
+#### Root Cause (Identified Session 40 continuation)
+
+The `DocumentChunker._split_into_paragraphs()` method split on double newlines (`\n\s*\n`), but:
+1. OCR/PDF extracted text often uses **single newlines** only
+2. When no double newlines exist, the entire 43,262-char document became ONE "paragraph"
+3. The chunking logic couldn't split an oversized first paragraph (empty `current_text_parts` check failed)
+4. LLM couldn't process 43K chars → returned empty JSON arrays
+
+#### Fix Applied (src/briefing/chunker.py)
+
+1. **Line-based fallback**: If any paragraph > max_chars, re-split using single newlines
+2. **Force-split oversized**: Last-resort splitting at sentence/word boundaries for any remaining large segments
+3. **Three-tier splitting**: Double newlines → Single newlines → Character-based
+
+#### Test Results
+
+- Before fix: 43,262 chars → 1 chunk
+- After fix: 43,262 chars → ~24 chunks (avg 1,750 chars each)
+- All 224 tests pass
+
+#### Next Steps
+
+- [ ] Re-test Case Briefing with real documents through the UI
+- [ ] Verify extraction produces actual party/allegation data
+- [ ] Consider adding DEBUG_MODE logging for chunk contents
+
+#### Architecture Question (Sleep On It)
+
+Should Case Briefing use semantic gradient chunking (from `ChunkingEngine`) instead of character-based splitting?
+
+**Current recommendation:** Keep separate chunkers
+- Legal docs have explicit section markers → section-aware splitting is better
+- Embedding overhead not justified for extraction task
+- See plan file: `C:\Users\noahc\.claude\plans\sparkling-wondering-turtle.md`
+
+---
 
 ### 🟡 Session 30-31 Bug Fixes (In Progress)
 

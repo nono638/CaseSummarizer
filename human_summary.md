@@ -3,14 +3,55 @@
 ## Project Status
 
 **Current Branch:** `main`
-**Application State:** 🟡 Case Briefing Generator - Work in Progress (UI integrated, needs testing)
+**Application State:** 🟡 Case Briefing Generator - Bug Fixed, needs UI testing
 **Tests:** 224 passing
-**Sessions:** 39 completed
-**Last Updated:** 2025-12-02 (Session 39)
+**Sessions:** 40 completed (continued)
+**Last Updated:** 2025-12-03 (Session 40 - continued)
 
 ---
 
-## Latest Session (Session 39 - UI Integration + Phase 4 Optimizations)
+## Latest Session (Session 40 - Bug Discovery & Fix)
+
+**Focus:** Test Case Briefing feature with real documents — found and fixed critical bug.
+
+### Bug Found & Fixed: DocumentChunker Paragraph Splitting
+
+- **Symptom:** 5 docs → 5 chunks → 0 data extracted
+- **Root Cause:** `_split_into_paragraphs()` split on double newlines, but OCR output uses single newlines
+- **Result:** 43,262-char document became 1 chunk (too large for LLM)
+- **Fix:** Added line-based fallback + force-split for oversized paragraphs
+
+### Changes Made
+
+| File | Changes |
+|------|---------|
+| `src/briefing/chunker.py` | Added `_split_on_lines()`, `_force_split_oversized()`, updated `_split_into_paragraphs()` |
+
+### Test Results
+
+- Before fix: 43,262 chars → 1 chunk
+- After fix: 43,262 chars → ~24 chunks (avg 1,750 chars)
+- All 224 tests pass
+
+### Architecture Decision: Chunking Strategy
+
+**Question raised:** Should Case Briefing use semantic gradient chunking (embeddings) like `ChunkingEngine`, or keep the separate `DocumentChunker`?
+
+**Decision:** Keep separate chunkers (pending user confirmation after sleep)
+- `ChunkingEngine` → Summarization (semantic topic coherence)
+- `DocumentChunker` → Extraction (legal section boundaries)
+
+Legal documents have explicit structure (CAUSES OF ACTION, WHEREFORE) that matters more than semantic topic flow for extraction.
+
+### Next Steps
+
+- Re-test Case Briefing through UI with real documents
+- Verify extraction produces party/allegation data
+- Confirm chunking architecture decision
+
+---
+
+## Previous Session (Session 39 - UI Integration + Phase 4 Optimizations)
 
 **Focus:** Integrate Case Briefing Generator into the UI and add performance optimizations.
 

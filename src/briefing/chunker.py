@@ -310,8 +310,8 @@ class DocumentChunker:
         Split text into paragraphs.
 
         Handles various paragraph break patterns:
-        - Double newlines
-        - Single newlines followed by uppercase (common in legal docs)
+        - Double newlines (standard paragraphs)
+        - Single newlines (fallback for OCR/PDF documents)
         - Page breaks
 
         Args:
@@ -323,13 +323,133 @@ class DocumentChunker:
         # Normalize line endings
         text = text.replace('\r\n', '\n').replace('\r', '\n')
 
-        # Split on double newlines (standard paragraph breaks)
+        # First try: Split on double newlines (standard paragraph breaks)
         paragraphs = re.split(r'\n\s*\n', text)
 
         # Filter empty paragraphs and strip whitespace
         paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
-        return paragraphs
+        # Check if we got reasonable paragraph sizes
+        # If any paragraph is too large, try splitting on single newlines
+        max_para_len = max(len(p) for p in paragraphs) if paragraphs else 0
+
+        if max_para_len > self.max_chars:
+            debug_log(f"[DocumentChunker] Large paragraph detected ({max_para_len} chars), using line-based splitting")
+            # Re-split using single newlines for documents without proper paragraph breaks
+            paragraphs = self._split_on_lines(text)
+
+        # Final safety pass: force-split any remaining oversized paragraphs
+        final_paragraphs = []
+        for para in paragraphs:
+            if len(para) > self.max_chars:
+                # Force-split this oversized paragraph
+                final_paragraphs.extend(self._force_split_oversized(para))
+            else:
+                final_paragraphs.append(para)
+
+        if len(final_paragraphs) != len(paragraphs):
+            debug_log(f"[DocumentChunker] Force-split applied: {len(paragraphs)} → {len(final_paragraphs)} paragraphs")
+
+        return final_paragraphs
+
+    def _split_on_lines(self, text: str) -> list[str]:
+        """
+        Split text on single newlines, grouping short lines together.
+
+        Used as fallback when documents don't have proper paragraph breaks.
+        Groups consecutive short lines into paragraph-sized units.
+
+        Args:
+            text: Document text
+
+        Returns:
+            List of grouped text segments
+        """
+        lines = text.split('\n')
+        lines = [line.strip() for line in lines if line.strip()]
+
+        if not lines:
+            return []
+
+        # Group lines into paragraph-sized chunks
+        result = []
+        current_group = []
+        current_len = 0
+
+        for line in lines:
+            line_len = len(line)
+
+            # If adding this line would exceed target, save current group
+            if current_len + line_len > self.target_chars and current_group:
+                result.append('\n'.join(current_group))
+                current_group = []
+                current_len = 0
+
+            current_group.append(line)
+            current_len += line_len + 1  # +1 for newline
+
+        # Don't forget the last group
+        if current_group:
+            result.append('\n'.join(current_group))
+
+        debug_log(f"[DocumentChunker] Line-based split: {len(lines)} lines → {len(result)} segments")
+        return result
+
+    def _force_split_oversized(self, text: str) -> list[str]:
+        """
+        Force-split oversized text at word boundaries.
+
+        Last resort for text with no paragraph or line breaks.
+        Splits at spaces or punctuation near the target size.
+
+        Args:
+            text: Oversized text to split
+
+        Returns:
+            List of text segments, each <= max_chars
+        """
+        if len(text) <= self.max_chars:
+            return [text]
+
+        result = []
+        remaining = text
+
+        while remaining:
+            if len(remaining) <= self.max_chars:
+                result.append(remaining)
+                break
+
+            # Find a good break point near target_chars
+            search_start = min(self.target_chars, len(remaining) - 1)
+            search_end = min(self.max_chars, len(remaining))
+
+            # Look for sentence boundary first (. ! ?)
+            best_break = -1
+            for i in range(search_end - 1, search_start - 200, -1):
+                if i < 0:
+                    break
+                if remaining[i] in '.!?' and (i + 1 >= len(remaining) or remaining[i + 1].isspace()):
+                    best_break = i + 1
+                    break
+
+            # Fall back to space
+            if best_break == -1:
+                for i in range(search_end - 1, search_start - 200, -1):
+                    if i < 0:
+                        break
+                    if remaining[i].isspace():
+                        best_break = i
+                        break
+
+            # Last resort: hard break at max_chars
+            if best_break == -1:
+                best_break = self.max_chars
+
+            result.append(remaining[:best_break].strip())
+            remaining = remaining[best_break:].strip()
+
+        debug_log(f"[DocumentChunker] Force-split: {len(text)} chars → {len(result)} segments")
+        return result
 
     def _detect_section(self, text: str) -> str | None:
         """

@@ -1,5 +1,65 @@
 # Development Log
 
+## Session 40 - Case Briefing Testing, Bug Discovery & Fix (2025-12-03)
+
+**Objective:** Test Case Briefing Generator with real court documents.
+
+### Part 1: Bug Discovery
+
+**Input:** 5 legal documents (complaint, answers, bill of particulars, transcript)
+**Output:**
+- Case Type: "Not determined"
+- Parties: "Not identified"
+- Allegations: "None identified"
+- Processing Time: 316 seconds
+
+| Check | Result |
+|-------|--------|
+| LLM with clean input | ✅ Correctly extracts parties/allegations |
+| Actual document extraction | ❌ Returns empty arrays |
+| Chunk count | ⚠️ 5 docs → 5 chunks (1 per doc) |
+
+### Part 2: Root Cause Identified
+
+**The Bug:** `DocumentChunker._split_into_paragraphs()` only split on double newlines (`\n\s*\n`).
+
+**Why It Failed:**
+1. OCR/PDF extracted text uses single newlines throughout
+2. When no double newlines exist, entire 43,262-char document → 1 "paragraph"
+3. Chunking logic couldn't split an oversized first paragraph (empty list check failed)
+4. LLM couldn't process 43K chars → returned empty JSON arrays
+
+### Part 3: Fix Applied
+
+**File Modified:** `src/briefing/chunker.py`
+
+| Method | Change |
+|--------|--------|
+| `_split_into_paragraphs()` | Added fallback to line-based splitting when paragraphs exceed max_chars |
+| `_split_on_lines()` | NEW - Groups single-newline lines into target-sized segments |
+| `_force_split_oversized()` | NEW - Last-resort split at sentence/word boundaries |
+
+**Three-Tier Splitting Strategy:**
+1. Double newlines (standard paragraphs) → if any > max_chars...
+2. Single newlines (OCR fallback) → if still > max_chars...
+3. Character-based at sentence/word boundaries
+
+### Test Results
+
+```
+Before fix: 43,262 chars → 1 chunk
+After fix:  43,262 chars → 24 chunks (avg 1,753 chars, max 1,802 chars)
+```
+
+All 224 tests pass.
+
+### Next Steps
+
+- Re-test Case Briefing through UI with real documents
+- Verify extraction produces party/allegation data
+
+---
+
 ## Session 39 - Case Briefing UI Integration + Phase 4 Optimizations (2025-12-02)
 
 **Objective:** Integrate Case Briefing Generator into the UI and add Phase 4 optimizations.
