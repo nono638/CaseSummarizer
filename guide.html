@@ -6,7 +6,7 @@
   <title>CasePrepd — User Guide</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <meta name="description" content="User guide for CasePrepd — how to use the Vocabulary, Search, and Key Excerpts features, build reference libraries, and get the most out of the app.">
+  <meta name="description" content="User guide for CasePrepd — how to use the Vocabulary, Search, and Key Excerpts features, build a corpus, and get the most out of the app.">
 </head>
 <body>
 
@@ -18,7 +18,7 @@
       <a href="index.html">Home</a>
       <a href="#tabs">The Tabs</a>
       <a href="#vocabulary">Vocabulary</a>
-      <a href="#libraries">Reference Libraries</a>
+      <a href="#corpus">Corpus</a>
       <a href="#search">Search Tips</a>
       <a href="#excerpts">Key Excerpts</a>
       <a href="#files">Files &amp; Logs</a>
@@ -137,42 +137,48 @@
   </p>
 </section>
 
-<section id="libraries">
-  <h2>Reference Libraries</h2>
+<section id="corpus">
+  <h2>Corpus</h2>
   <p>
-    A reference library is a saved collection of past job documents
+    The app calls this feature a <strong>corpus</strong> &mdash; the
+    <strong>Corpus...</strong> button in the top-left of the main window
+    opens the manager. A corpus is a saved collection of past job documents
     (transcripts, exhibits, medical records, anything) that CasePrepd uses
     as a baseline for comparison. When you process a new job, terms that
-    appear in your reference library are <em>de-emphasized</em> &mdash;
+    appear in your active corpus are <em>de-emphasized</em> &mdash;
     they're "things you already know" &mdash; while terms unique to the
     current job float to the top.
   </p>
   <p>
     The point: legal boilerplate ("court", "objection", "deposition") is
     common in every transcript you'll ever read. You don't need it in your
-    job dictionary. A reference library teaches the app what counts as
-    background noise for <em>your</em> line of work.
+    job dictionary. A corpus teaches the app what counts as background
+    noise for <em>your</em> line of work.
   </p>
 
   <h3 style="margin-top: 2rem; color: var(--text);">Building One</h3>
   <p>
-    Use the reference library button in the top-left of the app (callout 1
-    on the homepage screenshot). You can create as many libraries as you
-    want &mdash; one for med-mal, one for criminal work, one for patent
-    cases, etc. Each library is a folder of documents you add over time.
+    Click <strong>Corpus...</strong> in the top-left of the app (callout 1
+    on the homepage screenshot), then <strong>+ New Corpus</strong>. You can
+    create as many corpora as you want &mdash; one for med-mal, one for
+    criminal work, one for patent cases, etc. Each corpus is a folder of
+    documents you add over time, and you pick which one is active in the
+    <strong>Corpus:</strong> dropdown at the top of the main window.
   </p>
   <p>
     Practical starting point: add 5&ndash;10 past transcripts from similar
-    cases. That's usually enough for the effect to kick in. Adding more
-    refines it; you don't need hundreds.
+    cases to a new corpus. That's usually enough for the effect to kick in.
+    Adding more refines it; you don't need hundreds. The app shows a
+    "5+ docs required for corpus functionality" hint when the active corpus
+    is too small to help yet.
   </p>
 
   <h3 style="margin-top: 1.5rem; color: var(--text);">When It Helps Most</h3>
   <p>
-    Reference libraries shine when your case has a lot of standard
-    courtroom/medical/technical boilerplate that's pulling attention from
-    the things that actually matter. If your terms list is dominated by
-    junk like "the witness testified," a reference library will fix that.
+    A corpus shines when your case has a lot of standard courtroom,
+    medical, or technical boilerplate pulling attention from the things
+    that actually matter. If your terms list is dominated by junk like
+    "the witness testified," loading a corpus will fix that.
   </p>
 </section>
 
@@ -249,7 +255,7 @@
       <code>%APPDATA%\CasePrepd\feedback\user_feedback.csv</code>
     </li>
     <li style="margin-bottom: 0.7rem;">
-      <strong>Reference libraries:</strong><br>
+      <strong>Saved corpora:</strong><br>
       <code>%APPDATA%\CasePrepd\corpus\</code>
     </li>
     <li style="margin-bottom: 0.7rem;">
@@ -295,9 +301,8 @@
     <summary>The Vocabulary list has too much junk</summary>
     <p>
       Two things help: (1) Mark the junk with thumbs-down aggressively
-      &mdash; the model learns fast. (2) Build a reference library from
-      a few past transcripts so boilerplate gets de-emphasized
-      automatically.
+      &mdash; the model learns fast. (2) Build a corpus from a few past
+      transcripts so boilerplate gets de-emphasized automatically.
     </p>
   </details>
 
