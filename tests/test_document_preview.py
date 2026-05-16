@@ -52,8 +52,9 @@ def _make_table(on_remove=None, on_select=None):
         "pages": ("Pages", 50),
         "size": ("Size", 80),
     }
-    table.file_item_map = {"test.pdf": "item1"}
+    table.file_item_map = {r"C:\docs\test.pdf": "item1"}
     table._result_data = {}
+    table._item_to_path = {"item1": r"C:\docs\test.pdf"}
     table._hovered_row = None
     table._tooltip_window = None
     table._remove_icon = MagicMock()
@@ -67,6 +68,7 @@ def _sample_result(filename="report.pdf", **overrides):
     """Build a processing result dict with optional overrides."""
     result = {
         "filename": filename,
+        "file_path": rf"C:\docs\{filename}",
         "status": "success",
         "confidence": 91,
         "method": "pdfplumber",
@@ -163,36 +165,34 @@ class TestFileTableSelect:
     """Tests for FileReviewTable click → on_select callback."""
 
     def test_click_data_column_fires_on_select(self):
-        """Clicking a data column (not #0) fires the on_select callback."""
+        """Clicking a data column (not #0) fires on_select with the file_path."""
         callback = MagicMock()
         table = _make_table(on_select=callback)
         table.tree.identify_row.return_value = "item1"
         table.tree.identify_column.return_value = "#1"
-        table.tree.item.return_value = ("test.pdf", "Ready", "Digital")
 
         event = MagicMock()
         event.x = 100
         event.y = 20
         table._on_click(event)
 
-        callback.assert_called_once_with("test.pdf")
+        callback.assert_called_once_with(r"C:\docs\test.pdf")
         table.tree.selection_set.assert_called_once_with("item1")
 
     def test_click_remove_column_does_not_fire_on_select(self):
-        """Clicking column #0 (✕) fires on_remove, not on_select."""
+        """Clicking column #0 (✕) fires on_remove (with file_path), not on_select."""
         select_cb = MagicMock()
         remove_cb = MagicMock()
         table = _make_table(on_remove=remove_cb, on_select=select_cb)
         table.tree.identify_row.return_value = "item1"
         table.tree.identify_column.return_value = "#0"
-        table.tree.item.return_value = ("test.pdf",)
 
         event = MagicMock()
         event.x = 10
         event.y = 20
         table._on_click(event)
 
-        remove_cb.assert_called_once_with("test.pdf")
+        remove_cb.assert_called_once_with(r"C:\docs\test.pdf")
         select_cb.assert_not_called()
 
     def test_click_empty_row_fires_nothing(self):
@@ -221,14 +221,15 @@ class TestFileSelectedFlow:
     """Tests for MainWindow._on_file_selected and remove guards."""
 
     def test_file_selected_finds_result(self):
-        """_on_file_selected looks up result and calls show_document_preview."""
+        """_on_file_selected looks up result by file_path and calls show_document_preview."""
         from src.ui.main_window import MainWindow
 
         stub = MagicMock()
         stub.processing_results = [_sample_result("a.pdf"), _sample_result("b.pdf")]
         stub.output_display = MagicMock()
 
-        MainWindow._on_file_selected(stub, "b.pdf")
+        # _on_file_selected now matches by file_path (basename collision fix May 2026)
+        MainWindow._on_file_selected(stub, r"C:\docs\b.pdf")
 
         stub.output_display.show_document_preview.assert_called_once()
         passed_result = stub.output_display.show_document_preview.call_args[0][0]

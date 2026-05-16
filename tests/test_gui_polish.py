@@ -36,6 +36,7 @@ class TestFileReviewTableEmptyState:
         }
         table.file_item_map = {}
         table._result_data = {}
+        table._item_to_path = {}
         table._hovered_row = None
         table._tooltip_window = None
         table._remove_icon = MagicMock()
@@ -127,6 +128,7 @@ class TestHoverPreviews:
         }
         table.file_item_map = {}
         table._result_data = {}
+        table._item_to_path = {}
         table._hovered_row = None
         table._tooltip_window = None
         table._remove_icon = MagicMock()
@@ -152,8 +154,9 @@ class TestHoverPreviews:
         }
 
         table.add_result(result)
-        assert "test.pdf" in table._result_data
-        assert table._result_data["test.pdf"]["word_count"] == 12345
+        # FileReviewTable keys on full path (basename collision fix May 2026)
+        assert "C:\\Cases\\test.pdf" in table._result_data
+        assert table._result_data["C:\\Cases\\test.pdf"]["word_count"] == 12345
 
     def test_result_data_cleared_on_clear(self):
         """clear() should reset result data."""
@@ -194,9 +197,9 @@ class TestHoverPreviews:
         table = self._make_table()
         table._hovered_row = None
         table.tree.identify_row.return_value = "row1"
-        # tree.item(row_id, "values") returns the values tuple directly
-        table.tree.item.return_value = ("test.pdf", "Ready")
-        table._result_data["test.pdf"] = {
+        # _on_hover now looks up by file_path via _item_to_path[row_id]
+        table._item_to_path["row1"] = "C:\\Cases\\test.pdf"
+        table._result_data["C:\\Cases\\test.pdf"] = {
             "filename": "test.pdf",
             "file_path": "C:\\Cases\\test.pdf",
             "word_count": 5000,
@@ -224,8 +227,8 @@ class TestHoverPreviews:
         """Tooltip should show case numbers if available."""
         table = self._make_table()
         table.tree.identify_row.return_value = "row1"
-        table.tree.item.return_value = ("motion.pdf", "Ready")
-        table._result_data["motion.pdf"] = {
+        table._item_to_path["row1"] = "C:\\docs\\motion.pdf"
+        table._result_data["C:\\docs\\motion.pdf"] = {
             "filename": "motion.pdf",
             "case_numbers": ["21-CV-1234", "22-CV-5678"],
         }
@@ -286,6 +289,7 @@ class TestTooltipManagerIntegration:
         table._hovered_row = None
         table._result_data = {}
         table.file_item_map = {}
+        table._item_to_path = {}
         table._drop_zone = MagicMock()
         table._drop_zone.winfo_ismapped.return_value = False
         table.tree = MagicMock()
@@ -708,6 +712,7 @@ class TestDropZoneStructure:
         }
         table.file_item_map = {}
         table._result_data = {}
+        table._item_to_path = {}
         table._hovered_row = None
         table._tooltip_window = None
         table._remove_icon = MagicMock()
@@ -846,6 +851,7 @@ class TestAddPendingFile:
         }
         table.file_item_map = {}
         table._result_data = {}
+        table._item_to_path = {}
         table._hovered_row = None
         table._tooltip_window = None
         table._remove_icon = MagicMock()
@@ -894,11 +900,13 @@ class TestAddPendingFile:
             os.unlink(tmp_path)
 
     def test_registers_in_file_item_map(self):
-        """add_pending_file should register filename in file_item_map."""
+        """add_pending_file should register file_path in file_item_map."""
         table = self._make_table()
         table.add_pending_file("report.pdf", "/nonexistent/report.pdf")
-        assert "report.pdf" in table.file_item_map
-        assert table.file_item_map["report.pdf"] == "item1"
+        # Keys on full path so same-basename files from different folders
+        # are tracked independently (basename collision fix May 2026)
+        assert "/nonexistent/report.pdf" in table.file_item_map
+        assert table.file_item_map["/nonexistent/report.pdf"] == "item1"
 
     def test_hides_drop_zone_on_first_file(self):
         """add_pending_file should hide drop zone overlay on first file."""
@@ -907,9 +915,9 @@ class TestAddPendingFile:
         table._drop_zone.place_forget.assert_called_once()
 
     def test_updates_existing_row(self):
-        """add_pending_file with same filename should update in-place."""
+        """add_pending_file with same file_path should update in-place."""
         table = self._make_table()
-        table.file_item_map["test.pdf"] = "existing_item"
+        table.file_item_map["/fake/test.pdf"] = "existing_item"
         table._drop_zone.winfo_ismapped.return_value = False
 
         table.add_pending_file("test.pdf", "/fake/test.pdf")
@@ -924,13 +932,15 @@ class TestAddPendingFile:
         table = self._make_table()
         table._drop_zone.winfo_ismapped.return_value = True
 
-        # First: pending
+        # First: pending (keys on file_path)
         table.add_pending_file("test.pdf", "/fake/test.pdf")
-        assert "test.pdf" in table.file_item_map
+        assert "/fake/test.pdf" in table.file_item_map
 
-        # Then: real result arrives
+        # Then: real result arrives — must include file_path to match the
+        # pending row's key, otherwise add_result inserts a new row.
         result = {
             "filename": "test.pdf",
+            "file_path": "/fake/test.pdf",
             "status": "success",
             "confidence": 90,
             "method": "digital",
@@ -942,7 +952,7 @@ class TestAddPendingFile:
         # Should update existing item, not insert new
         call_kwargs = table.tree.item.call_args[1]
         assert call_kwargs["tags"] == ("green",)
-        assert "test.pdf" in table.file_item_map
+        assert "/fake/test.pdf" in table.file_item_map
 
     def test_oserror_on_file_size(self):
         """add_pending_file should show '—' for size when file doesn't exist."""
