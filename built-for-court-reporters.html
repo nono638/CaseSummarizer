@@ -127,8 +127,13 @@
     </ul>
     <p style="margin: 1rem 0 0.5rem; color: var(--text-muted);">CasePrepd:</p>
     <ul style="margin-left: 1.5rem; font-family: monospace; font-size: 0.95rem;">
-      <li><strong>Arthur Jenkins</strong> &nbsp;<span style="color: var(--text-muted);">(38 occurrences, 3 variants merged)</span></li>
+      <li><strong>Arthur Jenkins</strong> &nbsp;<span style="color: var(--text-muted);">(38 occurrences)</span></li>
     </ul>
+    <p style="margin: 0.7rem 0 0; color: var(--text-muted); font-size: 0.9rem;">
+      The merged variants and the reason each was rejected are visible by
+      right-clicking the row &mdash; see
+      <a href="#transparency" style="color: var(--accent);">"You Can See What Got Merged"</a> below.
+    </p>
   </div>
 
   <h3 style="margin-top: 1.5rem; color: var(--text);">How It Picks the Right Spelling</h3>
@@ -163,15 +168,16 @@
     DI LEO: Objection<br>
     DI LEO 17<br>
     Mr. Di Leo<br>
-    THE WITNESS DI LEO<br>
     Di Leo:
   </div>
   <p>
-    A generic vocabulary tool gives you all six as separate entries.
+    A generic vocabulary tool gives you all five as separate entries.
     CasePrepd recognizes the patterns &mdash; line numbers attached
     to speaker labels, Q/A notation, colon-suffix speech attribution,
-    "THE WITNESS" prefix &mdash; and folds them into one entry for
-    <strong>Mr. Di Leo</strong>.
+    and common title prefixes ("Mr.", "Mrs.", "Dr.") &mdash; and folds
+    them into one entry for <strong>Di Leo</strong>. Variants like
+    "THE WITNESS DI LEO" that don't match a pattern are caught
+    separately by the fuzzy-match canonicalizer above.
   </p>
 </section>
 
@@ -200,55 +206,62 @@
     automatically in its preprocessing pipeline:
   </p>
   <ul style="margin-left: 1.5rem; margin-top: 1rem;">
-    <li style="margin-bottom: 0.7rem;"><strong>Line numbers in the left
-      margin</strong> &mdash; the 1-25 line numbers on every transcript
-      page are detected and removed. Without this, every page produces 25
+    <li style="margin-bottom: 0.7rem;"><strong>Remove line numbers</strong>
+      &mdash; the 1&ndash;25 margin line numbers on every transcript page
+      are detected and removed. Without this, every page produces 25
       spurious "terms" that are just integers.</li>
-    <li style="margin-bottom: 0.7rem;"><strong>Repeating page headers and
-      footers</strong> &mdash; case caption, deposition title, page number
-      lines that repeat on every page. Detected by pattern recognition,
-      not hard-coded, so it works on transcripts from any reporting firm.</li>
-    <li style="margin-bottom: 0.7rem;"><strong>Title page boilerplate</strong>
-      &mdash; the first page of a deposition (case caption, attorney
-      appearances, court info) is automatically skipped so it doesn't
-      pollute vocabulary counts with one-shot mentions of every name in
-      the case caption.</li>
-    <li style="margin-bottom: 0.7rem;"><strong>Inline citations and
-      time stamps</strong> &mdash; references like "p. 14, line 7"
-      and "10:32 a.m." are scrubbed from the text fed to the
-      vocabulary extractor.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Remove headers/footers</strong>
+      &mdash; repeating case caption, deposition title, and page number
+      lines. Detected by frequency analysis (text that repeats on most
+      pages), so it works on transcripts from any reporting firm.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Remove index pages</strong>
+      &mdash; the alphabetical concordance/index pages at the end of
+      transcripts are stripped so the index terms don't dominate the
+      vocabulary list.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Clean page boundary
+      artifacts</strong> &mdash; when PDF extraction collapses page
+      breaks, line numbers and reporter initials can merge into body
+      text. This cleaner detects and removes them.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Clean transcript artifacts</strong>
+      &mdash; standalone page numbers and inline page:line citations
+      embedded in some transcript formats are scrubbed.</li>
   </ul>
   <p style="margin-top: 1rem;">
-    Each of these can be turned off individually in Settings &rarr; Text
-    Preprocessing if you're working with documents where they misfire
-    (e.g., a non-transcript exhibit), but they're on by default for the
-    common case.
+    Each of these is a separate checkbox in Settings &rarr; Text
+    Preprocessing, on by default, and can be turned off individually if
+    you're working with documents where one misfires (e.g., a
+    non-transcript exhibit).
   </p>
 </section>
 
 <section id="roles">
   <h2>Role Detection</h2>
   <p>
-    For every person CasePrepd extracts, it tries to figure out who
-    they are in the context of the case &mdash; not just their name.
-    The current role profile is tuned for court reporting and looks at
-    the language around each mention to tag:
+    For every person CasePrepd extracts, it looks at the language
+    around each mention to figure out their role in the case.
+    The current role tags are:
   </p>
   <ul style="margin-left: 1.5rem; margin-top: 1rem;">
-    <li style="margin-bottom: 0.4rem;"><strong>Party roles</strong> &mdash;
-      plaintiff, defendant, claimant, petitioner</li>
-    <li style="margin-bottom: 0.4rem;"><strong>Medical roles</strong>
-      &mdash; treating physician, expert witness, examining doctor</li>
-    <li style="margin-bottom: 0.4rem;"><strong>Legal roles</strong>
-      &mdash; attorney, counsel, opposing counsel</li>
-    <li style="margin-bottom: 0.4rem;"><strong>Court personnel</strong>
-      &mdash; judge, court reporter, bailiff</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Plaintiff</strong> and
+      <strong>Defendant</strong> &mdash; matched on context like
+      "plaintiff Smith" or "defendant Jones"</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Plaintiff attorney</strong>
+      and <strong>Defendant attorney</strong> &mdash; matched on
+      "plaintiff's counsel" / "defendant's lawyer" patterns</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Treating physician</strong>
+      &mdash; matched on the explicit "treating physician" / "treating
+      doctor" phrasing</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Medical professional</strong>
+      &mdash; "Dr. X" titles and "X, a nurse/physician/surgeon" phrasing</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Witness</strong> &mdash;
+      "witness X", "X testified", "X was called to testify"</li>
   </ul>
   <p style="margin-top: 1rem;">
-    The role appears alongside each name in the Vocabulary table. When
-    you're scanning a list of 80 people from a multi-witness case,
-    knowing that "Dr. Martinez" is a treating physician (vs. an expert
-    witness, vs. a defendant) saves real time during prep.
+    The role appears in the Role/Relevance column of the Vocabulary
+    table. When you're scanning a list of 80 people from a multi-witness
+    case, knowing that "Dr. Martinez" is a treating physician saves real
+    time during prep. The role-tag list is intentionally narrow &mdash;
+    only patterns that fire reliably on real transcripts make it in.
   </p>
 </section>
 

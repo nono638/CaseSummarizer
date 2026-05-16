@@ -111,11 +111,14 @@
     is almost certainly someone you need to know.
   </p>
 
-  <h3 style="margin-top: 1.5rem; color: var(--text);">Sources</h3>
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Found By</h3>
   <p>
-    Which extraction methods picked up this term &mdash; named-entity
-    recognition, statistical, medical-specific, etc. Terms found by multiple
-    methods are usually higher confidence.
+    Which extraction algorithms picked up this term: <strong>NER</strong>
+    (general-purpose name detection), <strong>MedicalNER</strong> (medical
+    terms), <strong>RAKE</strong>, <strong>YAKE</strong>, and
+    <strong>TopicRank</strong> (statistical keyword extractors), and
+    <strong>BM25</strong> (corpus-based rarity). Terms found by multiple
+    algorithms are usually higher confidence.
   </p>
 
   <p style="margin-top: 1.5rem; padding: 0.8rem 1rem; background: var(--bg-light); border-left: 3px solid var(--accent); border-radius: 4px;">
@@ -147,8 +150,8 @@
       the rating goes back to neutral.</li>
   </ul>
   <p style="margin-top: 1rem;">
-    The model starts contributing after about 30 ratings and gets noticeably
-    better around 100. Don't worry about being perfect early on &mdash;
+    The model starts contributing after about 30 ratings and keeps improving
+    as you add more. Don't worry about being perfect early on &mdash;
     later ratings can override earlier ones.
   </p>
 </section>
@@ -237,9 +240,11 @@
     actually loaded.
   </p>
   <p>
-    The threshold is the <strong>Relevance Floor</strong> setting
-    (Settings &rarr; Search). Lowering it makes the app show weaker
-    matches; raising it makes it stricter about what counts as a hit.
+    The threshold isn't exposed in the Settings dialog, but power users
+    can adjust the <code>retrieval_relevance_gate</code> value in
+    <code>%APPDATA%\CasePrepd\config\user_preferences.json</code>
+    (default is 0.50). Lower it for weaker matches; raise it for
+    stricter "no match" behavior.
   </p>
 </section>
 
@@ -259,9 +264,10 @@
     save you real reading time.
   </p>
   <p>
-    For longer cases, increase the excerpt count in Settings &rarr;
-    Key Excerpts. Default is reasonable for transcripts under a few
-    hundred pages; bigger cases benefit from 20&ndash;30 excerpts.
+    The excerpt count auto-scales with the document length &mdash;
+    roughly one excerpt per five pages, capped at 5&ndash;15 total. There's
+    no manual count setting; if you want more for a very large case, the
+    cap can be raised by editing <code>user_preferences.json</code>.
   </p>
 </section>
 
@@ -335,9 +341,9 @@
       If a real passage is returned but it isn't on point, the question
       probably needs to be more specific. If the search couldn't find
       anything confident enough to return, you'll see <em>"No relevant
-      excerpts found in documents."</em> instead &mdash; that means try
-      a different phrasing, or lower the Relevance Floor in Settings
-      &rarr; Search if you want to see weaker matches too.
+      excerpts found in documents."</em> instead &mdash; try rephrasing
+      the question more specifically, or check that the relevant
+      document is loaded.
     </p>
   </details>
 

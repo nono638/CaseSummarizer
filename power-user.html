@@ -259,7 +259,7 @@
         <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Import-time failures (very early crashes that never reach the GUI).</td>
       </tr>
       <tr>
-        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\user_preferences.json</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\config\user_preferences.json</code></td>
         <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">All your settings. Safe to back up or copy between machines.</td>
       </tr>
       <tr>
@@ -303,17 +303,26 @@
     because the score is high enough.
   </p>
 
-  <h3 style="margin-top: 1.5rem; color: var(--text);">Search &rarr; Relevance Floor</h3>
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Export &rarr; Search relevance floor</h3>
   <p>
-    Search results below this score don't appear. Default is conservative
-    &mdash; you'll see a few weakly-matching results to give context.
-    Raise it if you only want strong matches.
+    Minimum relevance score (0&ndash;1) for a search result to be included
+    in an export. Doesn't affect what you see in the Search tab, only what
+    ends up in exported reports.
+  </p>
+  <p style="margin-top: 0.7rem; color: var(--text-muted); font-style: italic;">
+    There's a separate, non-UI threshold called
+    <code>retrieval_relevance_gate</code> (default 0.50) that controls
+    when the Search tab gives up and shows
+    <em>"No relevant excerpts found in documents."</em> Editable in
+    <code>%APPDATA%\CasePrepd\config\user_preferences.json</code>.
   </p>
 
-  <h3 style="margin-top: 1.5rem; color: var(--text);">Key Excerpts &rarr; Excerpt Count</h3>
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Key Excerpts &mdash; Auto-Scaled</h3>
   <p>
-    How many key excerpts to surface. Default works for typical
-    transcripts. Bump to 20&ndash;30 for very large cases (500+ pages).
+    There's no manual excerpt-count setting. The number of excerpts
+    auto-scales with document length (roughly 1 per 5 pages, capped at
+    5&ndash;15 total). Power users can adjust the cap by editing
+    <code>user_preferences.json</code>.
   </p>
 
   <h3 style="margin-top: 1.5rem; color: var(--text);">Text Preprocessing toggles</h3>
