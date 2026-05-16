@@ -7,6 +7,24 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.35] - 2026-05-16
+
+### Fixed
+- Two files with the same basename from different folders are now tracked independently in the file table — previously, removing one silently dropped the other from internal state while leaving the row visible
+- Integrity check for the FAISS index now raises a clear `FileNotFoundError` when either `index.faiss` or `index.pkl` is missing, instead of silently computing a partial hash and surfacing later as a misleading "tampered" error
+- Semantic excerpt selection no longer returns an arbitrary window when the question has zero or negative similarity to every candidate — falls back to a deterministic sentence-truncated excerpt so nonsense queries don't get confident-looking but irrelevant citations
+- Worker subprocess rejects a second follow-up search while the first is still running, preventing two `SemanticOrchestrator` instances from loading the thread-unsafe sentencepiece tokenizer concurrently
+
+### Changed
+- Settings registry split: `settings_registry.py` (1671 lines) now a 239-line orchestrator that delegates to per-tab modules in `src/ui/settings/registry/` (appearance, vocabulary, preprocessing, corpus, search, export, logging_tab, advanced)
+- Shared HTML construction extracted from `html_builder.py` and `combined_html_builder.py` into a new `html_fragments.py` module: vocab table toggles/headers/rows + Q&A item HTML now live in one place
+
+### Removed
+- Dead `SUMMARY_RESULT` / `MULTI_DOC_RESULT` / `META_SUMMARY_GENERATED` enum values and factory methods from `queue_messages.py` — leftovers from the removed Ollama summarization flow
+
+### Added
+- 12 regression tests covering the four robustness fixes (basename collision, integrity check, similarity floor, follow-up serialization)
+
 ## [1.0.34] - 2026-05-16
 
 ### Fixed
