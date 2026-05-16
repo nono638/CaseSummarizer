@@ -585,7 +585,6 @@ class TestQueueMessageFactory:
             QueueMessage.file_processed({"filename": "test.pdf"}),
             QueueMessage.processing_finished([]),
             QueueMessage.vocab_csv_generated([{"term": "test"}]),
-            QueueMessage.summary_result("Summary text"),
             QueueMessage.semantic_progress(1, 5, "Question?"),
             QueueMessage.semantic_complete([]),
             QueueMessage.semantic_error("Error"),

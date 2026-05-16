@@ -300,14 +300,14 @@ class TestSettingsTooltipUpdate:
 
     def test_tooltip_mentions_table_rows(self):
         """font_size_offset tooltip mentions table rows are affected."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         idx = source.index('key="font_size_offset"')
         block = source[idx : idx + 600]
         assert "table rows" in block.lower()
 
     def test_tooltip_mentions_specific_tables(self):
         """Tooltip lists the specific table types affected."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         idx = source.index('key="font_size_offset"')
         block = source[idx : idx + 600]
         # Should mention vocabulary, search, and documents tables

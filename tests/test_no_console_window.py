@@ -158,6 +158,8 @@ class TestSourceCodeAudit:
         "splash.py",  # Uses CREATE_NO_WINDOW (just fixed)
         "export_service.py",  # Uses os.startfile on Windows
         "settings_registry.py",  # Uses os.startfile on Windows
+        "vocabulary.py",  # registry/vocabulary.py — uses os.startfile for Open Corpus Folder
+        "logging_tab.py",  # registry/logging_tab.py — uses os.startfile for Open Log Folder
         "corpus_dialog.py",  # Uses os.startfile on Windows
         "worker_process.py",  # Patches subprocess.Popen globally
     }

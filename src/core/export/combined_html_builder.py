@@ -11,10 +11,17 @@ JavaScript is scoped to prevent cross-tab interference.
 import json
 import logging
 
-from src.config import NUMERIC_COLUMNS, PROTECTED_COLUMNS, SORT_WARNING_COLUMNS
+from src.config import NUMERIC_COLUMNS, SORT_WARNING_COLUMNS
 
 logger = logging.getLogger(__name__)
-from src.core.export.html_builder import VOCAB_HTML_COLUMNS, _escape
+from src.core.export.html_fragments import (
+    VOCAB_HTML_COLUMNS,
+    _escape,
+    build_qa_item,
+    build_vocab_headers,
+    build_vocab_rows,
+    build_vocab_toggles,
+)
 from src.core.vocab_schema import VF
 
 
@@ -121,46 +128,18 @@ def _build_vocab_section(vocab_data: list[dict], visible_columns: list[str] | No
 
     total, person_count, term_count = vocab_summary_counts(vocab_data)
 
-    # Controls
-    toggle_parts = []
-    for col_name, _ in VOCAB_HTML_COLUMNS:
-        col_id = col_name.replace(" ", "").replace("#", "").replace("/", "")
-        is_visible = col_name in visible_columns
-        if col_name in PROTECTED_COLUMNS:
-            toggle_parts.append(
-                f'<label><input type="checkbox" id="col-{col_id}" '
-                f"checked disabled> {col_name}</label>"
-            )
-        else:
-            checked = " checked" if is_visible else ""
-            toggle_parts.append(
-                f'<label><input type="checkbox" id="col-{col_id}" '
-                f"onchange=\"toggleColumn('{col_name}')\"{checked}> {col_name}</label>"
-            )
-    column_toggles = "\n                    ".join(toggle_parts)
+    # Controls (combined builder does NOT append '(required)' to protected col toggles)
+    column_toggles = "\n                    ".join(
+        build_vocab_toggles(visible_columns, protected_required=False)
+    )
 
-    # Table headers
-    header_parts = []
-    for i, (col_name, _) in enumerate(VOCAB_HTML_COLUMNS):
-        hidden_class = "" if col_name in visible_columns else ' class="col-hidden"'
-        header_parts.append(
-            f'                    <th onclick="sortTable({i})"{hidden_class}>'
-            f'{col_name} <span class="sort-arrow">&#x25BC;</span></th>'
-        )
-    table_headers = "\n".join(header_parts)
+    # Table headers — combined uses 4-level indent + HTML-entity arrow glyph
+    table_headers = build_vocab_headers(
+        visible_columns, indent="                    ", arrow_glyph="&#x25BC;"
+    )
 
-    # Table rows
-    rows = []
-    for v in vocab_data:
-        is_person = v.get(VF.IS_PERSON, "") == VF.YES
-        row_class = ' class="person"' if is_person else ""
-        cells = []
-        for col_name, data_key in VOCAB_HTML_COLUMNS:
-            hidden_class = "" if col_name in visible_columns else ' class="col-hidden"'
-            value = v.get(data_key, "")
-            cells.append(f"<td{hidden_class}>{_escape(value)}</td>")
-        rows.append(f"                <tr{row_class}>{''.join(cells)}</tr>")
-    table_rows = "\n".join(rows)
+    # Table rows — combined uses 16-space indent
+    table_rows = build_vocab_rows(vocab_data, visible_columns, indent="                ")
 
     return f"""        <div class="section-controls">
             <input type="text" id="vocab-search" placeholder="Search terms..."
@@ -205,37 +184,11 @@ def _build_search_section(semantic_results: list) -> str:
     Returns:
         HTML fragment for the search section
     """
-    items = []
-
-    for i, result in enumerate(semantic_results, 1):
-        citation = _escape(result.citation) if result.citation else "(no citation)"
-        source = _escape(result.source_summary) if result.source_summary else "(source unknown)"
-        q_truncated = _escape(result.question[:80])
-        ellipsis = "..." if len(result.question) > 80 else ""
-
-        # Only render Answer div if there's actual content
-        answer_block = ""
-        if result.quick_answer:
-            answer_html = _escape(result.quick_answer)
-            answer_block = (
-                f'                <div class="label">Answer</div>\n'
-                f'                <div class="answer">{answer_html}</div>'
-            )
-
-        items.append(f"""        <div class="qa-item">
-            <div class="qa-header" onclick="toggleQAItem(this)">
-                <span>Q{i}: {q_truncated}{ellipsis}</span>
-                <span class="toggle">&#x25BC; Hide</span>
-            </div>
-            <div class="qa-content">
-                <div class="question">{_escape(result.question)}</div>
-{answer_block}
-                <div class="label">Citation</div>
-                <div class="citation">{citation}</div>
-                <div class="label">Source</div>
-                <div class="source">{source}</div>
-            </div>
-        </div>""")
+    # Combined builder uses 'toggleQAItem' onclick + HTML-entity glyph
+    items = [
+        build_qa_item(r, i, onclick_fn="toggleQAItem", hide_glyph="&#x25BC; Hide")
+        for i, r in enumerate(semantic_results, 1)
+    ]
 
     items_html = "\n".join(items)
 

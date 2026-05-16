@@ -8,38 +8,27 @@ Supports configurable columns matching GUI settings, shared column_config
 for consistency with GUI, sort warnings, and Term column protection.
 """
 
-import html
 import json
 import logging
 from pathlib import Path
 
-from src.config import (
-    COLUMN_DEFINITIONS,
-    NUMERIC_COLUMNS,
-    PROTECTED_COLUMNS,
-    SORT_WARNING_COLUMNS,
+from src.config import NUMERIC_COLUMNS, SORT_WARNING_COLUMNS
+from src.core.export.html_fragments import (
+    VOCAB_HTML_COLUMNS,
+    _escape,
+    build_qa_item,
+    build_vocab_headers,
+    build_vocab_rows,
+    build_vocab_toggles,
 )
 from src.core.vocab_schema import VF
 
 logger = logging.getLogger(__name__)
 
 
-def _escape(text: str) -> str:
-    """Escape HTML special characters."""
-    return html.escape(str(text)) if text is not None and text != "" else ""
-
-
 # ============================================================================
 # Vocabulary HTML Builder (configurable columns)
 # ============================================================================
-
-# Build column list from shared config (name, data_key tuples)
-# Excludes Keep/Skip feedback columns which are GUI-only
-VOCAB_HTML_COLUMNS = [
-    (c.name, c.data_key)
-    for c in COLUMN_DEFINITIONS
-    if c.name not in (VF.KEEP, VF.SKIP)  # Feedback columns are GUI-only
-]
 
 VOCAB_HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -372,52 +361,16 @@ def build_vocabulary_html(
         f"{total} entries ({person_count} persons, {term_count} terms) — Generated {timestamp}"
     )
 
-    # Build column toggle checkboxes
-    # Protected columns (like Term) have disabled checkbox
-    toggle_parts = []
-    for col_name, _ in VOCAB_HTML_COLUMNS:
-        col_id = col_name.replace(" ", "").replace("#", "").replace("/", "")
-        is_visible = col_name in visible_columns
-
-        if col_name in PROTECTED_COLUMNS:
-            # Protected column: always visible, checkbox disabled
-            toggle_parts.append(
-                f'<label><input type="checkbox" id="col-{col_id}" '
-                f"checked disabled> {col_name} (required)</label>"
-            )
-        else:
-            checked = " checked" if is_visible else ""
-            toggle_parts.append(
-                f'<label><input type="checkbox" id="col-{col_id}" '
-                f"onchange=\"toggleColumn('{col_name}')\"{checked}> {col_name}</label>"
-            )
-    column_toggles = "\n                ".join(toggle_parts)
+    # Build column toggle checkboxes (standalone has '(required)' suffix on protected cols)
+    column_toggles = "\n                ".join(
+        build_vocab_toggles(visible_columns, protected_required=True)
+    )
 
     # Build table headers
-    header_parts = []
-    for i, (col_name, _) in enumerate(VOCAB_HTML_COLUMNS):
-        hidden_class = "" if col_name in visible_columns else ' class="col-hidden"'
-        header_parts.append(
-            f'                <th onclick="sortTable({i})"{hidden_class}>'
-            f'{col_name} <span class="sort-arrow">▼</span></th>'
-        )
-    table_headers = "\n".join(header_parts)
+    table_headers = build_vocab_headers(visible_columns, indent="                ", arrow_glyph="▼")
 
     # Build table rows with all columns
-    rows = []
-    for v in vocab_data:
-        is_person = v.get(VF.IS_PERSON, "") == VF.YES
-        row_class = ' class="person"' if is_person else ""
-
-        cells = []
-        for col_name, data_key in VOCAB_HTML_COLUMNS:
-            hidden_class = "" if col_name in visible_columns else ' class="col-hidden"'
-            value = v.get(data_key, "")
-            cells.append(f"<td{hidden_class}>{_escape(value)}</td>")
-
-        rows.append(f"            <tr{row_class}>{''.join(cells)}</tr>")
-
-    table_rows = "\n".join(rows)
+    table_rows = build_vocab_rows(vocab_data, visible_columns, indent="            ")
 
     # Generate HTML with JSON data for JavaScript
     # Include sort warning columns for confirm dialog
@@ -714,38 +667,11 @@ def export_semantic_html(
         timestamp = format_export_timestamp()
         summary = f"{len(results)} Q&A pairs — Generated {timestamp}"
 
-        # Build Q&A items
-        items = []
-        for i, result in enumerate(results, 1):
-            # Build Q&A item
-            citation = _escape(result.citation) if result.citation else "(no citation)"
-            source = _escape(result.source_summary) if result.source_summary else "(source unknown)"
-
-            # Only render Answer div if there's actual content
-            answer_block = ""
-            if result.quick_answer:
-                answer_html = _escape(result.quick_answer)
-                answer_block = (
-                    f'                <div class="label">Answer</div>\n'
-                    f'                <div class="answer">{answer_html}</div>'
-                )
-
-            item = f"""        <div class="qa-item">
-            <div class="qa-header" onclick="toggleItem(this)">
-                <span>Q{i}: {_escape(result.question[:80])}{"..." if len(result.question) > 80 else ""}</span>
-                <span class="toggle">▼ Hide</span>
-            </div>
-            <div class="qa-content">
-                <div class="question">{_escape(result.question)}</div>
-{answer_block}
-                <div class="label">Citation</div>
-                <div class="citation">{citation}</div>
-                <div class="label">Source</div>
-                <div class="source">{source}</div>
-            </div>
-        </div>"""
-            items.append(item)
-
+        # Build Q&A items (standalone builder uses 'toggleItem' onclick + plain '▼ Hide' glyph)
+        items = [
+            build_qa_item(r, i, onclick_fn="toggleItem", hide_glyph="▼ Hide")
+            for i, r in enumerate(results, 1)
+        ]
         search_items = "\n".join(items)
         legend = ""
 

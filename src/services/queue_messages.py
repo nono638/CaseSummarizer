@@ -43,11 +43,6 @@ class MessageType:
     # Vocabulary extraction
     VOCAB_CSV_GENERATED = "vocab_csv_generated"
 
-    # Summarization (legacy — feature removed Mar 2026; the message types and helpers remain only because test_worker_process.py exercises queue round-tripping).
-    SUMMARY_RESULT = "summary_result"
-    MULTI_DOC_RESULT = "multi_doc_result"
-    META_SUMMARY_GENERATED = "meta_summary_generated"
-
     # Vector Store
     VECTOR_STORE_READY = "vector_store_ready"
     VECTOR_STORE_ERROR = "vector_store_error"
@@ -190,40 +185,6 @@ class QueueMessage:
             vocab_data: List of vocabulary term dictionaries
         """
         return (MessageType.VOCAB_CSV_GENERATED, vocab_data)
-
-    # =========================================================================
-    # Summarization
-    # =========================================================================
-
-    @staticmethod
-    def summary_result(summary: str) -> tuple[str, dict]:
-        """
-        Create single-document summary result message.
-
-        Args:
-            summary: Generated summary text
-        """
-        return (MessageType.SUMMARY_RESULT, {"summary": summary})
-
-    @staticmethod
-    def multi_doc_result(result: Any) -> tuple[str, Any]:
-        """
-        Create multi-document summary result message.
-
-        Args:
-            result: MultiDocumentSummaryResult object
-        """
-        return (MessageType.MULTI_DOC_RESULT, result)
-
-    @staticmethod
-    def meta_summary_generated(summary: str) -> tuple[str, str]:
-        """
-        Create meta-summary generated message.
-
-        Args:
-            summary: Meta-summary text
-        """
-        return (MessageType.META_SUMMARY_GENERATED, summary)
 
     # =========================================================================
     # Vector Store

@@ -1014,7 +1014,7 @@ class TestSettingsRegistryChanges:
 
     def test_font_size_offset_spinbox_registered(self):
         """font_size_offset is registered as a SPINBOX."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         assert 'key="font_size_offset"' in source
         # Check it's in the SPINBOX type
         idx = source.index('key="font_size_offset"')
@@ -1023,7 +1023,7 @@ class TestSettingsRegistryChanges:
 
     def test_ui_scale_pct_slider_registered(self):
         """ui_scale_pct is registered as a SLIDER."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         assert 'key="ui_scale_pct"' in source
         idx = source.index('key="ui_scale_pct"')
         nearby = source[max(0, idx - 200) : idx + 200]
@@ -1031,7 +1031,7 @@ class TestSettingsRegistryChanges:
 
     def test_font_size_offset_range(self):
         """font_size_offset range is -4 to 10."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         idx = source.index('key="font_size_offset"')
         nearby = source[idx : idx + 700]
         assert "min_value=-4" in nearby
@@ -1039,7 +1039,7 @@ class TestSettingsRegistryChanges:
 
     def test_ui_scale_pct_range(self):
         """ui_scale_pct range is 75 to 200, step 25."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
         idx = source.index('key="ui_scale_pct"')
         nearby = source[idx : idx + 900]
         assert "min_value=75" in nearby
@@ -1048,7 +1048,7 @@ class TestSettingsRegistryChanges:
 
     def test_both_settings_in_appearance_category(self):
         """Both scaling settings are in the Appearance category."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
 
         idx1 = source.index('key="font_size_offset"')
         nearby1 = source[max(0, idx1 - 100) : idx1 + 100]
@@ -1060,7 +1060,7 @@ class TestSettingsRegistryChanges:
 
     def test_ui_scale_tooltip_mentions_restart(self):
         """UI scale setting mentions restart (font applies immediately)."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
 
         idx2 = source.index('key="ui_scale_pct"')
         block2 = source[idx2 : idx2 + 900]
@@ -1068,7 +1068,7 @@ class TestSettingsRegistryChanges:
 
     def test_font_applies_immediately(self):
         """Font size setting applies live (no restart mention)."""
-        source = _read_source("src/ui/settings/settings_registry.py")
+        source = _read_source("src/ui/settings/registry/appearance.py")
 
         idx1 = source.index('key="font_size_offset"')
         block1 = source[idx1 : idx1 + 600]
