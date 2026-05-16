@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CasePrepd — Built for Court Reporters</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <meta name="description" content="The court-reporting-specific logic inside CasePrepd: name canonicalization, transcript artifact stripping, line number removal, role detection, and more.">
+  <meta property="og:title" content="CasePrepd — Built for Court Reporters">
+  <meta property="og:description" content="What makes CasePrepd different from a generic AI tool: court-reporting-specific features built by a court reporter.">
+  <meta property="og:url" content="https://caseprepd-app.github.io/CaseSummarizer/built-for-court-reporters.html">
+  <meta property="og:type" content="website">
+</head>
+<body>
+
+<header>
+  <nav>
+    <a href="index.html" class="logo">CasePrepd</a>
+    <button class="hamburger" aria-label="Menu" aria-expanded="false">&#9776;</button>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="#why">Why This Matters</a>
+      <a href="#names">Name Canonicalizer</a>
+      <a href="#artifacts">Transcript Artifacts</a>
+      <a href="#sections">Section Awareness</a>
+      <a href="#cleanup">Page Cleanup</a>
+      <a href="#roles">Role Detection</a>
+      <a href="#transparency">Transparency</a>
+      <a href="guide.html">User Guide</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero" style="padding: 3rem 0 2rem;">
+  <h1 style="font-size: 2.2rem;">Built for Court Reporters</h1>
+  <p class="subtitle">
+    CasePrepd isn't a generic AI tool with a court-reporting label slapped
+    on it. The logic inside was built by a working court reporter to handle
+    the things that actually go wrong when you point an AI at a deposition
+    transcript. Here's what that looks like in practice.
+  </p>
+</section>
+
+<section id="why">
+  <h2>Why "Generic AI" Falls Short on Transcripts</h2>
+  <p>
+    If you've tried feeding a deposition into ChatGPT or a generic NLP tool,
+    you've probably seen these problems:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 1rem;">
+    <li style="margin-bottom: 0.5rem;">The same witness shows up under five
+      spellings (one for each OCR error) and you can't tell which is right.</li>
+    <li style="margin-bottom: 0.5rem;">Your vocabulary list is half "Q",
+      "A", page numbers, and "DIRECT EXAMINATION".</li>
+    <li style="margin-bottom: 0.5rem;">The tool thinks "Di Leo: Objection"
+      and "DI LEO 1 Q" are two different people.</li>
+    <li style="margin-bottom: 0.5rem;">Names get listed alphabetically with
+      no sense of who's actually a key witness vs. who's a passing mention.</li>
+    <li style="margin-bottom: 0.5rem;">When the tool decides to "merge"
+      similar terms, there's no way to see what it merged or undo a mistake.</li>
+  </ul>
+  <p style="margin-top: 1rem;">
+    CasePrepd was designed around fixing each of these specifically. The
+    features below are the result.
+  </p>
+</section>
+
+<section id="names">
+  <h2>The Name Canonicalizer</h2>
+  <p>
+    OCR'd transcripts produce name variants. Lots of them. A single witness
+    might appear ten different ways across a deposition &mdash; sometimes
+    with letters swapped, sometimes with extra punctuation, sometimes
+    truncated by a scanning artifact. CasePrepd collapses these into one
+    entry and picks the most likely correct spelling.
+  </p>
+
+  <h3 style="margin-top: 2rem; color: var(--text);">Example</h3>
+  <div style="background: var(--bg-light); padding: 1.5rem; border-radius: var(--radius); margin: 1rem 0;">
+    <p style="margin-bottom: 0.7rem; color: var(--text-muted);">A generic
+      vocabulary extractor on a single transcript:</p>
+    <ul style="margin-left: 1.5rem; font-family: monospace; font-size: 0.95rem;">
+      <li>Arthur Jenkins &nbsp;<span style="color: var(--text-muted);">(31 occurrences)</span></li>
+      <li>Anhur Jenkins &nbsp;<span style="color: var(--text-muted);">(4 occurrences)</span></li>
+      <li>Arthur Jenidns &nbsp;<span style="color: var(--text-muted);">(2 occurrences)</span></li>
+      <li>Arlhur Jenkins &nbsp;<span style="color: var(--text-muted);">(1 occurrence)</span></li>
+    </ul>
+    <p style="margin: 1rem 0 0.5rem; color: var(--text-muted);">CasePrepd:</p>
+    <ul style="margin-left: 1.5rem; font-family: monospace; font-size: 0.95rem;">
+      <li><strong>Arthur Jenkins</strong> &nbsp;<span style="color: var(--text-muted);">(38 occurrences, 3 variants merged)</span></li>
+    </ul>
+  </div>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">How It Picks the Right Spelling</h3>
+  <p>
+    The canonicalizer doesn't just pick the most frequent variant &mdash;
+    that would be wrong when one variant is in the dictionary and the
+    others aren't. It uses a tiered strategy:
+  </p>
+  <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+    <li style="margin-bottom: 0.5rem;"><strong>If exactly one variant is
+      a known name</strong> (dictionary or name dataset), that variant wins.
+      "Arthur" is in the dictionary; "Anhur" isn't.</li>
+    <li style="margin-bottom: 0.5rem;"><strong>If none of the variants are
+      known</strong> (rare or exotic name), a weighted score decides &mdash;
+      combining document confidence (OCR quality), frequency, and an OCR
+      artifact penalty.</li>
+    <li style="margin-bottom: 0.5rem;"><strong>If multiple variants are
+      known</strong> ("Smith" vs "Smyth", both real names), the weighted
+      score breaks the tie based on which appears more confidently in your
+      documents.</li>
+  </ol>
+</section>
+
+<section id="artifacts">
+  <h2>Transcript Artifact Stripping</h2>
+  <p>
+    Court transcripts have format conventions that generic NLP doesn't
+    understand. The name "Di Leo" might appear in a transcript as any of:
+  </p>
+  <div style="background: var(--bg-light); padding: 1.5rem; border-radius: var(--radius); margin: 1rem 0; font-family: monospace; font-size: 0.95rem;">
+    DI LEO 1 Q<br>
+    DI LEO: Objection<br>
+    DI LEO 17<br>
+    Mr. Di Leo<br>
+    THE WITNESS DI LEO<br>
+    Di Leo:
+  </div>
+  <p>
+    A generic vocabulary tool gives you all six as separate entries.
+    CasePrepd recognizes the patterns &mdash; line numbers attached
+    to speaker labels, Q/A notation, colon-suffix speech attribution,
+    "THE WITNESS" prefix &mdash; and folds them into one entry for
+    <strong>Mr. Di Leo</strong>.
+  </p>
+</section>
+
+<section id="sections">
+  <h2>Transcript Section Awareness</h2>
+  <p>
+    Depositions and trial transcripts have standard section headings:
+    DIRECT EXAMINATION, CROSS-EXAMINATION, REDIRECT, RECROSS, and so on.
+    A naive vocabulary extractor latches onto these because they're
+    high-frequency and look important &mdash; you end up with vocabulary
+    rows like "Di Leo Direct" or "Smith Cross-Examination" that aren't
+    really terms at all.
+  </p>
+  <p>
+    CasePrepd knows the standard section keywords and filters out
+    spurious combinations of names + section words before they ever
+    reach your vocabulary list.
+  </p>
+</section>
+
+<section id="cleanup">
+  <h2>Automatic Page Cleanup</h2>
+  <p>
+    Stenotype-formatted transcripts have features that need to be
+    stripped before any NLP can work on them. CasePrepd handles these
+    automatically in its preprocessing pipeline:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 1rem;">
+    <li style="margin-bottom: 0.7rem;"><strong>Line numbers in the left
+      margin</strong> &mdash; the 1-25 line numbers on every transcript
+      page are detected and removed. Without this, every page produces 25
+      spurious "terms" that are just integers.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Repeating page headers and
+      footers</strong> &mdash; case caption, deposition title, page number
+      lines that repeat on every page. Detected by pattern recognition,
+      not hard-coded, so it works on transcripts from any reporting firm.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Title page boilerplate</strong>
+      &mdash; the first page of a deposition (case caption, attorney
+      appearances, court info) is automatically skipped so it doesn't
+      pollute vocabulary counts with one-shot mentions of every name in
+      the case caption.</li>
+    <li style="margin-bottom: 0.7rem;"><strong>Inline citations and
+      time stamps</strong> &mdash; references like "p. 14, line 7"
+      and "10:32 a.m." are scrubbed from the text fed to the
+      vocabulary extractor.</li>
+  </ul>
+  <p style="margin-top: 1rem;">
+    Each of these can be turned off individually in Settings &rarr; Text
+    Preprocessing if you're working with documents where they misfire
+    (e.g., a non-transcript exhibit), but they're on by default for the
+    common case.
+  </p>
+</section>
+
+<section id="roles">
+  <h2>Role Detection</h2>
+  <p>
+    For every person CasePrepd extracts, it tries to figure out who
+    they are in the context of the case &mdash; not just their name.
+    The current role profile is tuned for court reporting and looks at
+    the language around each mention to tag:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 1rem;">
+    <li style="margin-bottom: 0.4rem;"><strong>Party roles</strong> &mdash;
+      plaintiff, defendant, claimant, petitioner</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Medical roles</strong>
+      &mdash; treating physician, expert witness, examining doctor</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Legal roles</strong>
+      &mdash; attorney, counsel, opposing counsel</li>
+    <li style="margin-bottom: 0.4rem;"><strong>Court personnel</strong>
+      &mdash; judge, court reporter, bailiff</li>
+  </ul>
+  <p style="margin-top: 1rem;">
+    The role appears alongside each name in the Vocabulary table. When
+    you're scanning a list of 80 people from a multi-witness case,
+    knowing that "Dr. Martinez" is a treating physician (vs. an expert
+    witness, vs. a defendant) saves real time during prep.
+  </p>
+</section>
+
+<section id="transparency">
+  <h2>You Can See What Got Merged</h2>
+  <p>
+    Most AI tools are black boxes. They merge similar terms, and you
+    have no way to confirm they merged the right things &mdash; or
+    notice when they merged two different people who happened to share
+    a similar spelling.
+  </p>
+  <p>
+    CasePrepd shows its work. Any name row that resulted from a merge
+    is marked, and right-clicking it opens the <strong>Alternatives</strong>
+    dialog. You see every variant that was rolled into the canonical entry,
+    each variant's count, and a human-readable reason for why it was
+    accepted or rejected. Examples:
+  </p>
+  <div style="background: var(--bg-light); padding: 1.5rem; border-radius: var(--radius); margin: 1rem 0; font-size: 0.95rem;">
+    <p style="margin-bottom: 0.5rem;"><strong style="color: var(--accent);">Arthur Jenkins</strong> &mdash; canonical</p>
+    <p style="margin-bottom: 0.3rem; color: var(--text-muted);">Picked because "Arthur" appears in the name dictionary; the others don't.</p>
+    <p style="margin-top: 1rem; margin-bottom: 0.5rem;">Rejected variants:</p>
+    <ul style="margin-left: 1.5rem;">
+      <li style="margin-bottom: 0.3rem;"><code>Anhur Jenkins</code> &nbsp;&mdash;&nbsp; "Anhur" not a known name; likely OCR artifact (h&rarr;hn)</li>
+      <li style="margin-bottom: 0.3rem;"><code>Arthur Jenidns</code> &nbsp;&mdash;&nbsp; "Jenidns" not a known surname; likely OCR artifact (k&rarr;id)</li>
+      <li style="margin-bottom: 0.3rem;"><code>Arlhur Jenkins</code> &nbsp;&mdash;&nbsp; "Arlhur" not a known name; likely OCR artifact (t&rarr;l)</li>
+    </ul>
+  </div>
+  <p>
+    If the canonicalizer ever picks the wrong winner &mdash; or merges
+    two genuinely different people &mdash; you can see exactly what
+    happened and override it with a Skip rating. The model learns from
+    that, so the same mistake gets less likely on future jobs.
+  </p>
+</section>
+
+<section id="more">
+  <h2>The Things You'd Expect from a Generic Tool, Done Better</h2>
+  <p>
+    Beyond the court-reporting-specific features, the everyday
+    capabilities are tuned for legal work too:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 1rem;">
+    <li style="margin-bottom: 0.5rem;"><strong>Medical terminology</strong>
+      &mdash; a specialized model recognizes drugs, diseases, anatomy
+      terms, and medical procedures. Med-mal and personal-injury cases
+      surface the medical vocabulary that generic tools miss.</li>
+    <li style="margin-bottom: 0.5rem;"><strong>Multi-document
+      awareness</strong> &mdash; a name appearing in 6 of 8 transcripts is
+      flagged as more important than one appearing in just one. Helps you
+      build a unified job dictionary across multi-deposition cases.</li>
+    <li style="margin-bottom: 0.5rem;"><strong>Per-user learning</strong>
+      &mdash; the Keep/Skip thumbs train a model on your preferences. After
+      a few jobs, it gets noticeably better at flagging what <em>you</em>
+      personally care about &mdash; not what some generic dataset thinks
+      is important.</li>
+    <li style="margin-bottom: 0.5rem;"><strong>Per-practice-area
+      tuning</strong> &mdash; via Corpus, you can teach the app what's
+      "background" for your line of work. A med-mal corpus de-emphasizes
+      medical boilerplate; a patent corpus de-emphasizes patent boilerplate.
+      Same engine, different signal-to-noise.</li>
+  </ul>
+</section>
+
+<section id="author">
+  <h2>Built by a Court Reporter</h2>
+  <p>
+    CasePrepd was built by Noah Collin, a working court reporter, for
+    his own prep workflow. Every feature on this page exists because the
+    author hit the underlying problem on a real job and decided to fix it.
+    It's also open source, free, and runs entirely on your computer
+    &mdash; nothing about your case documents ever leaves your machine.
+  </p>
+  <p style="margin-top: 2rem; text-align: center;">
+    <a href="index.html#download" class="cta-button">Download CasePrepd</a>
+  </p>
+  <p style="margin-top: 1.5rem; text-align: center;">
+    Already installed? See the
+    <a href="guide.html" style="color: var(--accent); font-weight: 600;">User
+    Guide</a> for how to use each tab, or the
+    <a href="power-user.html" style="color: var(--accent); font-weight: 600;">Power
+    User Guide</a> for the command line and advanced settings.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    CasePrepd is open source &mdash;
+    <a href="https://github.com/caseprepd-app/CaseSummarizer">view on GitHub</a>.
+    Built with <a href="https://claude.ai/claude-code">Claude Code</a>.
+  </p>
+</footer>
+
+<script>
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks = document.querySelector('.nav-links');
+  hamburger.addEventListener('click', () => {
+    const open = navLinks.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', open);
+  });
+  navLinks.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') {
+      navLinks.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  });
+</script>
+
+</body>
+</html>
