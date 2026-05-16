@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CasePrepd — Power User Guide</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <meta name="description" content="Advanced CasePrepd usage: command-line interface, batch processing, debug mode, log inspection, and settings worth tweaking.">
+</head>
+<body>
+
+<header>
+  <nav>
+    <a href="index.html" class="logo">CasePrepd</a>
+    <button class="hamburger" aria-label="Menu" aria-expanded="false">&#9776;</button>
+    <div class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="guide.html">&laquo; User Guide</a>
+      <a href="#cli">CLI</a>
+      <a href="#examples">Examples</a>
+      <a href="#flags">Flags</a>
+      <a href="#outputs">Outputs</a>
+      <a href="#debug">Debug Mode</a>
+      <a href="#logs">Logs</a>
+      <a href="#settings">Advanced Settings</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero" style="padding: 3rem 0 2rem;">
+  <h1 style="font-size: 2.2rem;">Power User Guide</h1>
+  <p class="subtitle">
+    Running CasePrepd from the command line, batch processing, and the
+    settings worth knowing about. For everyday GUI use, see the
+    <a href="guide.html" style="color: var(--accent);">main User Guide</a>.
+  </p>
+</section>
+
+<section id="cli">
+  <h2>The Command-Line Interface</h2>
+  <p>
+    CasePrepd ships with a headless CLI that runs the full pipeline
+    (extraction &rarr; preprocessing &rarr; vocabulary &rarr; semantic indexing
+    &rarr; key excerpts) without launching the GUI. Useful when you want to:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+    <li style="margin-bottom: 0.4rem;">Batch-process many cases overnight without
+      babysitting the GUI.</li>
+    <li style="margin-bottom: 0.4rem;">Script a workflow that combines CasePrepd
+      with other tools (spreadsheets, court-reporting software, etc.).</li>
+    <li style="margin-bottom: 0.4rem;">Pipe machine-readable JSON output into
+      something else.</li>
+    <li style="margin-bottom: 0.4rem;">Run from a remote desktop / server without
+      the GUI overhead.</li>
+  </ul>
+  <p style="margin-top: 1rem;">
+    The CLI uses the same code and the same on-device AI models as the GUI.
+    Privacy guarantees are identical &mdash; no network calls.
+  </p>
+</section>
+
+<section id="examples">
+  <h2>Quick Examples</h2>
+  <p>
+    The CLI lives in the installed app folder. From an installed CasePrepd,
+    you can either invoke <code>CasePrepd.exe</code> with CLI flags (if you
+    built that wrapper) or use the Python entry point from a developer
+    install:
+  </p>
+  <pre style="background: var(--bg-light); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 1rem 0;"><code style="color: var(--text);">python -m src.cli --input docs/ --output out/</code></pre>
+  <p>That single command runs the full pipeline on every supported file in
+    <code>docs/</code> and writes vocabulary, key excerpts, and a combined
+    report to <code>out/</code>.</p>
+
+  <h3 style="margin-top: 2rem; color: var(--text);">Vocabulary only, specific files</h3>
+  <pre style="background: var(--bg-light); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 1rem 0;"><code style="color: var(--text);">python -m src.cli --input case1.pdf case2.pdf --output out/ --only vocab</code></pre>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Run a single search, JSON output</h3>
+  <pre style="background: var(--bg-light); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 1rem 0;"><code style="color: var(--text);">python -m src.cli --input docs/ --output out/ \
+  --query "knee injury timeline" --format json</code></pre>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Both human and machine outputs</h3>
+  <pre style="background: var(--bg-light); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 1rem 0;"><code style="color: var(--text);">python -m src.cli --input docs/ --output out/ --format both</code></pre>
+</section>
+
+<section id="flags">
+  <h2>Flag Reference</h2>
+  <div style="overflow-x: auto;">
+  <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+    <thead>
+      <tr style="background: var(--bg-light);">
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">Flag</th>
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">Required?</th>
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;"><code>--input</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;">Yes</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">One or more files, or a single directory (recursively scanned for supported types).</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;"><code>--output</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;">Yes</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Directory where outputs are written. Created if it doesn't exist.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;"><code>--only</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;">No</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Repeatable. Limit outputs to <code>vocab</code>, <code>excerpts</code>, and/or <code>combined</code>. Default: all three.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;"><code>--query</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;">No</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Run a single semantic search with this phrase. Default: no search.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;"><code>--format</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top;">No</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>human</code> (default), <code>json</code>, or <code>both</code>.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; vertical-align: top;"><code>--verbose</code> / <code>-v</code></td>
+        <td style="padding: 0.6rem; vertical-align: top;">No</td>
+        <td style="padding: 0.6rem;">Enable debug-level logging to stderr.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin-top: 1.5rem;">
+    Supported input file types: <code>.pdf</code>, <code>.docx</code>,
+    <code>.txt</code>, <code>.rtf</code>, <code>.png</code>, <code>.jpg</code>,
+    <code>.jpeg</code>.
+  </p>
+</section>
+
+<section id="outputs">
+  <h2>Output Files</h2>
+  <p>What gets written depends on which <code>--only</code> filters and
+    <code>--format</code> you pass:</p>
+  <div style="overflow-x: auto;">
+  <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+    <thead>
+      <tr style="background: var(--bg-light);">
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">File</th>
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">When written</th>
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">Format</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>vocabulary.docx</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>--only vocab</code> (or default), if vocab not empty</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Word</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>key_excerpts.txt</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>--only excerpts</code> (or default)</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Plain text</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>combined.docx</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>--only combined</code> (or default)</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Word</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>vocabulary.json</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>--format json</code>/<code>both</code>, if vocab not empty</td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">JSON</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>excerpts.json</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>--format json</code>/<code>both</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">JSON</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem;"><code>search.json</code></td>
+        <td style="padding: 0.6rem;"><code>--format json</code>/<code>both</code> and <code>--query</code> given</td>
+        <td style="padding: 0.6rem;">JSON</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin-top: 1.5rem;">
+    First run is slow because the embedding models have to load from disk.
+    Subsequent runs in the same process reuse the loaded models. If you're
+    batch-processing many cases, run them all in a single CLI invocation
+    rather than one per case.
+  </p>
+</section>
+
+<section id="debug">
+  <h2>Debug Mode (Developers Only)</h2>
+  <p>
+    Running the GUI with <code>--debug</code> routes vocabulary feedback to
+    the developer training CSV instead of your personal one. The window
+    title shows <code>CasePrepd [DEBUG]</code> so it's obvious which mode
+    you're in.
+  </p>
+  <pre style="background: var(--bg-light); padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 1rem 0;"><code style="color: var(--text);">CasePrepd.exe --debug</code></pre>
+  <p>
+    Use this <strong>only</strong> if you're contributing training data to
+    the shipped developer baseline. Regular users should never use this
+    flag &mdash; you'd be polluting the baseline with case-specific ratings
+    that don't generalize.
+  </p>
+  <p>
+    Two separate CSV files are involved:
+  </p>
+  <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+    <li style="margin-bottom: 0.4rem;"><code>config/default_feedback.csv</code>
+      &mdash; the developer baseline that ships with the installer.</li>
+    <li style="margin-bottom: 0.4rem;"><code>%APPDATA%\CasePrepd\feedback\user_feedback.csv</code>
+      &mdash; your personal ratings.</li>
+  </ul>
+  <p style="margin-top: 1rem;">
+    At training time, both are combined with source-based weighting: when
+    you have few ratings, the developer baseline dominates; as you add
+    your own ratings, your preferences gradually take over.
+  </p>
+</section>
+
+<section id="logs">
+  <h2>Logs and Data Folders</h2>
+  <p>Useful when something goes wrong, or when you want to back up your
+    settings and reference libraries:</p>
+  <div style="overflow-x: auto;">
+  <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+    <thead>
+      <tr style="background: var(--bg-light);">
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">Path</th>
+        <th style="text-align: left; padding: 0.6rem; border-bottom: 2px solid var(--accent);">What's in it</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\logs\caseprepd.log</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Structured rolling log. The main source of truth when debugging.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\logs\main_log_YYYYMMDD_HHMMSS.txt</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Captured stdout/stderr per session. Useful for crashes that happen before logging is fully set up.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\crash.log</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Import-time failures (very early crashes that never reach the GUI).</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\user_preferences.json</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">All your settings. Safe to back up or copy between machines.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);"><code>%APPDATA%\CasePrepd\feedback\user_feedback.csv</code></td>
+        <td style="padding: 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.1);">Your Keep/Skip vocabulary ratings &mdash; the model's training data. Worth backing up.</td>
+      </tr>
+      <tr>
+        <td style="padding: 0.6rem;"><code>%APPDATA%\CasePrepd\corpus\</code></td>
+        <td style="padding: 0.6rem;">Your reference libraries (one folder per library). Worth backing up.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="margin-top: 1.5rem;">
+    To get to <code>%APPDATA%\CasePrepd</code> quickly: open File Explorer,
+    paste that string into the address bar, hit Enter.
+  </p>
+</section>
+
+<section id="settings">
+  <h2>Settings Worth Tweaking</h2>
+  <p>
+    Settings &rarr; opens a dialog with dozens of tunables. Most defaults
+    are reasonable. These are the ones that meaningfully change output
+    quality or performance.
+  </p>
+
+  <h3 style="margin-top: 2rem; color: var(--text);">Vocabulary &rarr; Occurrence Floor</h3>
+  <p>
+    Minimum number of times a term must appear before it's eligible for
+    the vocabulary list. Default catches single-mention rarities while
+    filtering OCR noise. Bump up (3&ndash;5) for huge document sets where
+    the list is too long; drop to 1 if you're worried about missing
+    something rare in a small case.
+  </p>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Vocabulary &rarr; Exception Score</h3>
+  <p>
+    Terms with a quality score above this threshold bypass the occurrence
+    floor. Useful for: a key witness mentioned only twice still shows up
+    because the score is high enough.
+  </p>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Search &rarr; Relevance Floor</h3>
+  <p>
+    Search results below this score don't appear. Default is conservative
+    &mdash; you'll see a few weakly-matching results to give context.
+    Raise it if you only want strong matches.
+  </p>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Key Excerpts &rarr; Excerpt Count</h3>
+  <p>
+    How many key excerpts to surface. Default works for typical
+    transcripts. Bump to 20&ndash;30 for very large cases (500+ pages).
+  </p>
+
+  <h3 style="margin-top: 1.5rem; color: var(--text);">Text Preprocessing toggles</h3>
+  <p>
+    Each toggle controls a cleanup step (page-number stripping,
+    header/footer removal, line-number stripping, etc.). All on by default,
+    which is right for transcripts. If you're processing unusual document
+    types where cleanup is misfiring, you can turn individual steps off.
+  </p>
+</section>
+
+<section id="back">
+  <h2>Back to Basics</h2>
+  <p>
+    The everyday GUI features are covered in the
+    <a href="guide.html" style="color: var(--accent); font-weight: 600;">main
+    User Guide</a>: the four tabs, the Vocabulary table, reference libraries,
+    search phrasing tips, and common troubleshooting.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    CasePrepd is open source &mdash;
+    <a href="https://github.com/caseprepd-app/CaseSummarizer">view on GitHub</a>.
+    Built with <a href="https://claude.ai/claude-code">Claude Code</a>.
+  </p>
+</footer>
+
+<script>
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks = document.querySelector('.nav-links');
+  hamburger.addEventListener('click', () => {
+    const open = navLinks.classList.toggle('open');
+    hamburger.setAttribute('aria-expanded', open);
+  });
+  navLinks.addEventListener('click', (e) => {
+    if (e.target.tagName === 'A') {
+      navLinks.classList.remove('open');
+      hamburger.setAttribute('aria-expanded', 'false');
+    }
+  });
+</script>
+
+</body>
+</html>
