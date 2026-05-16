@@ -228,11 +228,18 @@
 
   <h2 style="margin-top: 3rem;">When You Get No Match</h2>
   <p>
-    If your question doesn't match anything in the loaded documents,
-    CasePrepd shows a clearly-truncated passage rather than pretending
-    to have found a real answer. That's intentional. If you see something
-    that looks like a partial sentence cut off mid-thought, treat it as
-    "no real match found" &mdash; try rephrasing.
+    If your question doesn't match anything in the loaded documents
+    above a confidence threshold, the result reads:
+    <em>"No relevant excerpts found in documents."</em> That's the app
+    being honest about not finding anything, rather than picking the
+    least-bad passage and showing it as an answer. Try rephrasing the
+    question more specifically, or check that the relevant document is
+    actually loaded.
+  </p>
+  <p>
+    The threshold is the <strong>Relevance Floor</strong> setting
+    (Settings &rarr; Search). Lowering it makes the app show weaker
+    matches; raising it makes it stricter about what counts as a hit.
   </p>
 </section>
 
@@ -325,10 +332,12 @@
   <details>
     <summary>Search gave me a citation that doesn't seem right</summary>
     <p>
-      Check whether the citation looks like a complete passage or like
-      a sentence truncated mid-thought. The latter is CasePrepd's way of
-      saying "I didn't find a real match." Try rephrasing your question
-      to be more specific.
+      If a real passage is returned but it isn't on point, the question
+      probably needs to be more specific. If the search couldn't find
+      anything confident enough to return, you'll see <em>"No relevant
+      excerpts found in documents."</em> instead &mdash; that means try
+      a different phrasing, or lower the Relevance Floor in Settings
+      &rarr; Search if you want to see weaker matches too.
     </p>
   </details>
 
