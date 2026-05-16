@@ -76,8 +76,11 @@ class TestValidateRegex:
         from src.core.vocabulary.indicator_patterns import validate_regex
 
         result = validate_regex("[invalid")
-        assert result is not None
+        # Must return a descriptive non-empty error string the UI can display
         assert isinstance(result, str)
+        assert len(result) > 0
+        # Error message should describe the actual problem
+        assert "[" in result or "bracket" in result.lower() or "unterminated" in result.lower()
 
     def test_empty_string(self):
         from src.core.vocabulary.indicator_patterns import validate_regex

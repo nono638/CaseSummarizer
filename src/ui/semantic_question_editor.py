@@ -13,6 +13,7 @@ Features:
 """
 
 import logging
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 import customtkinter as ctk

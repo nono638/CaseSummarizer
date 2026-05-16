@@ -95,9 +95,14 @@ class TestFileReadersTextFile:
         assert result["confidence"] == 95
 
     def test_missing_file_returns_error(self, tmp_path):
-        result = self._make().read_text_file(tmp_path / "nonexistent.txt")
+        missing = tmp_path / "nonexistent.txt"
+        result = self._make().read_text_file(missing)
         assert result["status"] == "error"
-        assert result["error_message"] is not None
+        # error_message must be a non-empty descriptive string
+        assert isinstance(result["error_message"], str)
+        assert len(result["error_message"]) > 0
+        # No partial/garbage text on failure (None or empty both acceptable)
+        assert result.get("text") in (None, "")
 
     def test_empty_file(self, tmp_path):
         f = tmp_path / "empty.txt"
@@ -162,13 +167,22 @@ class TestPDFExtractorInit:
         return PDFExtractor(dictionary=DictionaryTextValidator())
 
     def test_creates_with_dictionary(self):
+        from src.core.extraction.pdf_extractor import PDFExtractor
+
         ext = self._make()
-        assert ext is not None
+        assert isinstance(ext, PDFExtractor)
+        # Dictionary dependency must be retained on the instance
+        assert ext.dictionary is not None
 
     def test_has_extract_method(self):
         ext = self._make()
         assert hasattr(ext, "extract")
         assert callable(ext.extract)
+        # extract must accept at minimum a file path argument
+        import inspect
+
+        sig = inspect.signature(ext.extract)
+        assert len(sig.parameters) >= 1
 
 
 class TestPDFExtractorExtract:
@@ -209,7 +223,9 @@ class TestDictionaryTextValidator:
         from src.core.extraction.dictionary_utils import DictionaryTextValidator
 
         helpers = DictionaryTextValidator()
-        assert helpers is not None
+        assert isinstance(helpers, DictionaryTextValidator)
+        # Must expose calculate_confidence — the only public method PDFExtractor uses
+        assert callable(getattr(helpers, "calculate_confidence", None))
 
     def test_calculate_confidence(self):
         """Real English text produces a valid confidence percentage."""

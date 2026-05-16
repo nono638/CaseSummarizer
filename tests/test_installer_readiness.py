@@ -503,10 +503,12 @@ class TestOCRDialog:
     """Tests for OCR dialog result handling (no GUI instantiation)."""
 
     def test_dialog_module_importable(self):
-        """ocr_dialog module can be imported without errors."""
+        """ocr_dialog exposes OCRDialog as a class with the public methods used by callers."""
         from src.ui.ocr_dialog import OCRDialog
 
-        assert OCRDialog is not None
+        assert isinstance(OCRDialog, type)
+        # Public surface used by main_window
+        assert hasattr(OCRDialog, "__init__")
 
     def test_dialog_default_result_is_skip(self):
         """OCRDialog.result defaults to 'skip' before user interaction."""

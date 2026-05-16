@@ -387,6 +387,7 @@ class TestOnFileDropDedup:
         stub.selected_files = [r"C:\docs\a.pdf"]
         stub._check_ocr_availability = MagicMock(return_value=False)
         stub._reset_drop_zone_border = MagicMock()
+        stub.tk.splitlist.return_value = [r"C:\docs\b.pdf"]
 
         event = MagicMock()
         event.data = r"C:\docs\b.pdf"
@@ -408,6 +409,7 @@ class TestOnFileDropDedup:
         stub = _make_window_stub()
         stub.selected_files = [r"C:\docs\a.pdf"]
         stub._reset_drop_zone_border = MagicMock()
+        stub.tk.splitlist.return_value = [r"C:\docs\a.pdf"]
 
         event = MagicMock()
         event.data = r"C:\docs\a.pdf"

@@ -313,8 +313,13 @@ class TestLayoutSafetyCheck:
             ):
                 text, page_count, error = extractor._extract_pymupdf_layout(MagicMock())
 
+        # Clipped extraction kept >70%, so layout result is accepted
         assert text is not None
         assert error is None
+        # And the returned text must actually be the clipped variant (100 words),
+        # not the flat fallback (110 words)
+        assert text.count("word") == 100
+        assert page_count == 1
 
     def test_clipping_loses_too_much_falls_back(self):
         """Clipping keeps <70% of text → returns None to fall back to flat."""

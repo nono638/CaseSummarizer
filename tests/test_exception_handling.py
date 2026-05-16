@@ -408,20 +408,28 @@ class TestNoImportViolations:
     """Verify our logging additions don't introduce import violations."""
 
     def test_tooltip_manager_import(self):
-        """tooltip_manager should import logging without violations."""
+        """tooltip_manager exposes a logger whose name matches its module."""
+        import logging as _logging
+
         from src.ui.tooltip_manager import logger
 
-        assert logger is not None
+        assert isinstance(logger, _logging.Logger)
         assert logger.name == "src.ui.tooltip_manager"
 
     def test_document_service_import(self):
-        """document_service should import cleanly."""
+        """document_service exposes _get_preprocessing_settings as a class method."""
         from src.services.document_service import DocumentService
 
-        assert DocumentService is not None
+        # DocumentService is the class itself
+        assert isinstance(DocumentService, type)
+        # Verify _get_preprocessing_settings is callable (static/class method)
+        assert callable(DocumentService._get_preprocessing_settings)
 
     def test_corpus_widget_has_logger(self):
-        """corpus_widget should have logger available."""
+        """corpus_widget logger is bound to its own module namespace."""
+        import logging as _logging
+
         from src.ui.settings.corpus_widget import logger
 
-        assert logger is not None
+        assert isinstance(logger, _logging.Logger)
+        assert logger.name == "src.ui.settings.corpus_widget"

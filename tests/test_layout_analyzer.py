@@ -43,9 +43,7 @@ def _make_mock_page(
         Mock page object
     """
     page = MagicMock()
-    page.get_text.side_effect = lambda fmt=None: (
-        {"blocks": blocks or []} if fmt == "dict" else text
-    )
+    page.get_text.side_effect = lambda fmt=None: {"blocks": blocks or []} if fmt == "dict" else text
 
     # Mock rect property
     rect = MagicMock()
@@ -190,9 +188,17 @@ class TestLayoutAnalyzerInit:
     """Tests for LayoutAnalyzer initialization."""
 
     def test_creates_instance(self):
-        """Should create LayoutAnalyzer instance."""
+        """LayoutAnalyzer instantiates with the documented detection methods."""
         analyzer = LayoutAnalyzer()
-        assert analyzer is not None
+        assert isinstance(analyzer, LayoutAnalyzer)
+        for method in (
+            "detect_zones",
+            "_find_content_start",
+            "_select_sample_pages",
+            "_detect_hf_zones",
+            "_detect_line_number_margin",
+        ):
+            assert callable(getattr(analyzer, method, None)), f"missing {method}"
 
 
 class TestDetectZones:
@@ -210,52 +216,83 @@ class TestDetectZones:
 
         assert result is None
 
-    def test_returns_none_when_no_repeating_blocks(self):
-        """Should return None if no repeating header/footer blocks found."""
+    def test_returns_full_zone_when_no_repeating_blocks(self):
+        """No repeating blocks => zone spans full page (no clipping)."""
         analyzer = LayoutAnalyzer()
+        page_height = 792.0
+        page_width = 612.0
 
-        # Create pages with unique blocks (no repetition)
+        # Create pages with unique content blocks at different positions
         pages = []
         for i in range(5):
             blocks = [
-                _make_text_block(f"Unique content {i}", 100, 400, 500, 420),
+                _make_text_block(f"Unique content {i}", 100, 400 + i * 10, 500, 420 + i * 10),
             ]
-            pages.append(_make_mock_page(text=f"Content page {i}", blocks=blocks))
+            pages.append(
+                _make_mock_page(
+                    text=f"Content page {i}",
+                    blocks=blocks,
+                    width=page_width,
+                    height=page_height,
+                )
+            )
 
         doc = _make_mock_doc(pages)
         result = analyzer.detect_zones(doc)
 
-        # Should return a zone (even if default bounds)
-        assert result is not None
+        assert isinstance(result, ContentZone)
+        # With no repeating headers/footers, top is 0 and bottom is full page height
+        assert result.top == 0.0
+        assert result.bottom == page_height
+        assert result.page_width == page_width
+        assert result.page_height == page_height
 
     def test_detects_header_zone(self):
-        """Should detect repeating header blocks and set top boundary."""
+        """Detected header pushes top boundary down past the header block."""
         analyzer = LayoutAnalyzer()
         page_height = 792.0
+        page_width = 612.0
         header_y = 30.0  # In top 8% zone (< 63.36)
+        header_height = 15.0
 
         # Create pages with repeating header at same Y position
         pages = []
         for i in range(5):
             blocks = [
                 # Header block at consistent Y position
-                _make_text_block("Case No. 123", 100, header_y, 200, header_y + 15),
+                _make_text_block("Case No. 123", 100, header_y, 200, header_y + header_height),
                 # Content block in middle of page
                 _make_text_block(f"Content {i}", 100, 400, 500, 420),
             ]
-            pages.append(_make_mock_page(text="Q. Question", blocks=blocks))
+            pages.append(
+                _make_mock_page(
+                    text="Q. Question",
+                    blocks=blocks,
+                    width=page_width,
+                    height=page_height,
+                )
+            )
 
         doc = _make_mock_doc(pages)
         result = analyzer.detect_zones(doc)
 
-        assert result is not None
-        # Header bottom should be below the detected header block
-        assert result.top > 0
+        assert isinstance(result, ContentZone)
+        # Header detection uses 5pt buckets on block midpoint; top should sit
+        # within ~one bucket (10pt) of the header block's bottom edge
+        bottom_of_header = header_y + header_height
+        assert bottom_of_header - 15 <= result.top <= bottom_of_header + 15
+        # And must not push past the actual content (y=400)
+        assert result.top < 400
+        # Detection actually moved the top down from page origin
+        assert result.top > 0.0
+        # Footer wasn't present, so bottom stays at page height
+        assert result.bottom == page_height
 
     def test_detects_footer_zone(self):
-        """Should detect repeating footer blocks and set bottom boundary."""
+        """Detected footer raises bottom boundary above the footer block."""
         analyzer = LayoutAnalyzer()
         page_height = 792.0
+        page_width = 612.0
         footer_y = 760.0  # In bottom 8% zone (> 728.64)
 
         # Create pages with repeating footer at same Y position
@@ -267,40 +304,74 @@ class TestDetectZones:
                 # Footer block at consistent Y position
                 _make_text_block(f"Page {i}", 100, footer_y, 200, footer_y + 15),
             ]
-            pages.append(_make_mock_page(text="Q. Question", blocks=blocks))
+            pages.append(
+                _make_mock_page(
+                    text="Q. Question",
+                    blocks=blocks,
+                    width=page_width,
+                    height=page_height,
+                )
+            )
 
         doc = _make_mock_doc(pages)
         result = analyzer.detect_zones(doc)
 
-        assert result is not None
-        # Footer top should be above the detected footer block
+        assert isinstance(result, ContentZone)
+        # Footer detection uses 5pt buckets on block midpoint; bottom should sit
+        # within ~one bucket (10pt) above the footer block's y0
+        assert footer_y - 15 <= result.bottom <= footer_y + 15
+        # And must not crowd out actual content at y=420
+        assert result.bottom > 420
+        # Header wasn't present, so top stays at 0
+        assert result.top == 0.0
+        # Detection actually moved the bottom up from the page edge
         assert result.bottom < page_height
 
     def test_skips_title_pages(self):
-        """Should skip title pages when selecting sample pages."""
+        """Title pages are skipped and zones come from content pages."""
         analyzer = LayoutAnalyzer()
+        page_width = 612.0
+        page_height = 792.0
+        header_y = 30.0
 
-        # Page 0: Title page
+        # Page 0: Title page (no usable header/footer; should be excluded)
         title_text = """
         SUPREME COURT OF THE STATE OF NEW YORK
         DEPOSITION OF JOHN DOE
         Plaintiff, Defendant
         """
-        title_page = _make_mock_page(text=title_text, blocks=[])
+        title_page = _make_mock_page(
+            text=title_text, blocks=[], width=page_width, height=page_height
+        )
 
-        # Pages 1-5: Content pages
+        # Pages 1-5: Content pages with a repeating header — should drive detection
         content_pages = []
         for i in range(1, 6):
-            blocks = [_make_text_block(f"Content {i}", 100, 400, 500, 420)]
-            content_pages.append(_make_mock_page(text="Q. Question\nA. Answer", blocks=blocks))
+            blocks = [
+                _make_text_block("Case Header", 100, header_y, 200, header_y + 15),
+                _make_text_block(f"Content {i}", 100, 400, 500, 420),
+            ]
+            content_pages.append(
+                _make_mock_page(
+                    text="Q. Question\nA. Answer",
+                    blocks=blocks,
+                    width=page_width,
+                    height=page_height,
+                )
+            )
 
         pages = [title_page] + content_pages
         doc = _make_mock_doc(pages)
 
         result = analyzer.detect_zones(doc)
 
-        # Should successfully detect zones (didn't crash on title page)
-        assert result is not None
+        assert isinstance(result, ContentZone)
+        # Crucial assertion: detection ran and used the repeating header.
+        # Top should be at or just past the header block (within 1 bucket tolerance).
+        bottom_of_header = header_y + 15
+        assert bottom_of_header - 15 <= result.top <= bottom_of_header + 15
+        assert result.top > 0.0
+        assert result.top < 400
 
 
 class TestFindContentStart:

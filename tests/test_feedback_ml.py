@@ -409,18 +409,26 @@ class TestIntegration:
             get_meta_learner,
         )
 
-        # Just verify imports work
-        assert VocabularyExtractor is not None
-        assert get_feedback_manager is not None
-        assert get_meta_learner is not None
+        # Verify imports surface the expected public interface
+        assert isinstance(VocabularyExtractor, type)
+        assert callable(get_feedback_manager)
+        assert callable(get_meta_learner)
+        # Factories should return usable singletons (not raise)
+        fm = get_feedback_manager()
+        ml = get_meta_learner()
+        assert fm is get_feedback_manager(), "feedback manager must be a singleton"
+        assert ml is get_meta_learner(), "meta learner must be a singleton"
 
     def test_extractor_has_meta_learner(self):
-        """Test that VocabularyExtractor has meta-learner integration."""
-        from src.core.vocabulary import VocabularyExtractor
+        """VocabularyExtractor instance must expose a ready meta-learner."""
+        from src.core.vocabulary import VocabularyExtractor, get_meta_learner
 
         extractor = VocabularyExtractor()
         assert hasattr(extractor, "_meta_learner")
-        assert extractor._meta_learner is not None
+        # The bound learner should be the same singleton returned by the factory
+        assert extractor._meta_learner is get_meta_learner()
+        # And expose the predict_preference API used by the scoring pipeline
+        assert callable(getattr(extractor._meta_learner, "predict_preference", None))
 
 
 class TestConfidenceWeightedBlend:

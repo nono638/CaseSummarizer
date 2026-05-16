@@ -396,6 +396,13 @@ class TestLoadNamesDatasets:
         forenames, surnames = _load_names_datasets()
         assert isinstance(forenames, set)
         assert isinstance(surnames, set)
+        # Sets must be disjoint enough to be distinct datasets (not the same object)
+        assert forenames is not surnames
+        # And contain widely-known names so downstream is_person checks work
+        sample_forenames = {n.lower() for n in forenames}
+        assert "john" in sample_forenames or "mary" in sample_forenames
+        sample_surnames = {n.lower() for n in surnames}
+        assert "smith" in sample_surnames or "jones" in sample_surnames
 
     def test_forenames_not_empty(self):
         from src.core.vocabulary.preference_learner_text_analysis import _load_names_datasets

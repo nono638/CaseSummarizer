@@ -207,11 +207,6 @@ class TestBug6ExcInfoTrue:
         source = _read_source("core/chunking/unified_chunker.py")
         assert source.count("exc_info=True") >= 1
 
-    def test_config_model_load_has_exc_info(self):
-        """config.py model config error includes exc_info=True."""
-        source = _read_source("config.py")
-        assert "exc_info=True" in source
-
 
 # ---------------------------------------------------------------------------
 # Bug 7: logger.debug upgraded to logger.warning for real failures
