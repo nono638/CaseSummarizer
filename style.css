@@ -8,7 +8,7 @@
    Without this, clicking a nav link scrolls the section's top to viewport top,
    where the sticky header overlays it. */
 html {
-  scroll-padding-top: 80px;
+  scroll-padding-top: 90px;
 }
 
 :root {
