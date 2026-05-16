@@ -25,7 +25,6 @@ def export_combined(
     semantic_results: list,
     builder: DocumentBuilder,
     include_vocab_details: bool = False,
-    include_verification: bool = True,
     title: str = "Document Analysis Report",
     summary_text: str = "",
 ) -> None:
@@ -37,7 +36,6 @@ def export_combined(
         semantic_results: List of SemanticResult objects
         builder: DocumentBuilder instance (Word or PDF)
         include_vocab_details: Include algorithm columns in vocabulary table
-        include_verification: Include verification coloring
         title: Document title
         summary_text: Summary text to include (empty string to skip)
     """
@@ -65,7 +63,7 @@ def export_combined(
 
     # Section 3: Search Results
     if semantic_results:
-        export_semantic_results(semantic_results, builder, include_verification)
+        export_semantic_results(semantic_results, builder)
 
     # Footer note
     builder.add_paragraph("")

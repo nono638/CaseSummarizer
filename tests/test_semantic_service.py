@@ -415,7 +415,7 @@ class TestSemanticServiceHelpers:
             assert result is mock_cls.return_value
 
     def test_create_orchestrator_ignores_legacy_kwargs(self, tmp_path):
-        """create_orchestrator absorbs unknown kwargs without raising."""
+        """create_orchestrator delegates to SemanticOrchestrator with passed args."""
         from src.services.semantic_service import SemanticService
 
         with patch("src.core.semantic.SemanticOrchestrator") as mock_cls:
@@ -423,7 +423,6 @@ class TestSemanticServiceHelpers:
             SemanticService().create_orchestrator(
                 vector_store_path=tmp_path,
                 embeddings=MagicMock(),
-                answer_mode="extraction",  # legacy param, should be ignored
             )
             mock_cls.assert_called_once()
 

@@ -154,16 +154,13 @@ class ExportService:
             f"{len(vocab_data)} terms to PDF", file_path, "vocabulary to PDF", do_export
         )
 
-    def export_semantic_to_word(
-        self, results: list, file_path: str, include_verification: bool = True
-    ) -> tuple[bool, str | None]:
+    def export_semantic_to_word(self, results: list, file_path: str) -> tuple[bool, str | None]:
         """
         Export semantic search results to Word document.
 
         Args:
             results: List of SemanticResult objects
             file_path: Output file path (.docx)
-            include_verification: Unused (kept for API compatibility)
 
         Returns:
             (True, None) if successful, (False, error_detail) otherwise
@@ -171,23 +168,20 @@ class ExportService:
 
         def do_export():
             builder = WordDocumentBuilder()
-            export_semantic_results(results, builder, include_verification)
+            export_semantic_results(results, builder)
             builder.save(file_path)
 
         return _run_export(
             f"{len(results)} search results to Word", file_path, "search to Word", do_export
         )
 
-    def export_semantic_to_pdf(
-        self, results: list, file_path: str, include_verification: bool = True
-    ) -> tuple[bool, str | None]:
+    def export_semantic_to_pdf(self, results: list, file_path: str) -> tuple[bool, str | None]:
         """
         Export semantic search results to PDF document.
 
         Args:
             results: List of SemanticResult objects
             file_path: Output file path (.pdf)
-            include_verification: Unused (kept for API compatibility)
 
         Returns:
             (True, None) if successful, (False, error_detail) otherwise
@@ -195,7 +189,7 @@ class ExportService:
 
         def do_export():
             builder = PdfDocumentBuilder()
-            export_semantic_results(results, builder, include_verification)
+            export_semantic_results(results, builder)
             builder.save(file_path)
 
         return _run_export(
@@ -264,16 +258,13 @@ class ExportService:
 
         return build_vocabulary_html(vocab_data, visible_columns)
 
-    def export_semantic_to_html(
-        self, results: list, file_path: str, include_verification: bool = True
-    ) -> tuple[bool, str | None]:
+    def export_semantic_to_html(self, results: list, file_path: str) -> tuple[bool, str | None]:
         """
         Export semantic search results to interactive HTML.
 
         Args:
             results: List of SemanticResult objects
             file_path: Output file path (.html)
-            include_verification: Unused (kept for API compatibility)
 
         Returns:
             (True, None) if successful, (False, error_detail) otherwise
@@ -282,7 +273,7 @@ class ExportService:
             f"{len(results)} search results to HTML",
             file_path,
             "search to HTML",
-            lambda: export_semantic_html(results, file_path, include_verification),
+            lambda: export_semantic_html(results, file_path),
         )
 
     def export_combined_html(
@@ -292,7 +283,6 @@ class ExportService:
         summary_text: str,
         file_path: str,
         visible_columns: list[str] | None = None,
-        include_verification: bool = True,
     ) -> tuple[bool, str | None]:
         """
         Export vocabulary and search results to a single tabbed HTML file.
@@ -303,7 +293,6 @@ class ExportService:
             summary_text: Summary text string
             file_path: Output file path (.html)
             visible_columns: Columns to show initially in vocab table
-            include_verification: Unused (kept for API compatibility)
 
         Returns:
             (True, None) if successful, (False, error_detail) otherwise
@@ -316,7 +305,6 @@ class ExportService:
                 semantic_results,
                 summary_text,
                 visible_columns,
-                include_verification,
             )
             from pathlib import Path
 
@@ -337,7 +325,6 @@ class ExportService:
         semantic_results: list,
         file_path: str,
         include_vocab_details: bool = False,
-        include_verification: bool = True,
         summary_text: str = "",
     ) -> tuple[bool, str | None]:
         """
@@ -348,7 +335,6 @@ class ExportService:
             semantic_results: List of SemanticResult objects
             file_path: Output file path (.docx)
             include_vocab_details: Include algorithm columns
-            include_verification: Unused (kept for API compatibility)
             summary_text: Summary text to include (empty string to skip)
 
         Returns:
@@ -362,7 +348,6 @@ class ExportService:
                 semantic_results,
                 builder,
                 include_vocab_details,
-                include_verification,
                 summary_text=summary_text,
             )
             builder.save(file_path)
@@ -380,7 +365,6 @@ class ExportService:
         semantic_results: list,
         file_path: str,
         include_vocab_details: bool = False,
-        include_verification: bool = True,
         summary_text: str = "",
     ) -> tuple[bool, str | None]:
         """
@@ -391,7 +375,6 @@ class ExportService:
             semantic_results: List of SemanticResult objects
             file_path: Output file path (.pdf)
             include_vocab_details: Include algorithm columns
-            include_verification: Unused (kept for API compatibility)
             summary_text: Summary text to include (empty string to skip)
 
         Returns:
@@ -405,7 +388,6 @@ class ExportService:
                 semantic_results,
                 builder,
                 include_vocab_details,
-                include_verification,
                 summary_text=summary_text,
             )
             builder.save(file_path)

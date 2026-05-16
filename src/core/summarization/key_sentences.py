@@ -12,28 +12,11 @@ No new dependencies — uses scikit-learn KMeans already in the venv.
 """
 
 import logging
-import re
 from dataclasses import dataclass
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
-
-# Boilerplate patterns common in legal documents
-_BOILERPLATE_PATTERNS = [
-    re.compile(r"^\s*page\s+\d+", re.IGNORECASE),
-    re.compile(r"^\s*exhibit\s+[a-z0-9]+\s*$", re.IGNORECASE),
-    re.compile(r"^\s*table\s+of\s+contents\s*$", re.IGNORECASE),
-    re.compile(r"^\s*\d+\s*$"),  # Just a number
-    re.compile(r"^\s*[ivxlcdm]+\.\s*$", re.IGNORECASE),  # Roman numeral only
-    re.compile(r"^\s*cc:\s", re.IGNORECASE),
-    re.compile(r"^\s*bcc:\s", re.IGNORECASE),
-    re.compile(r"^\s*re:\s", re.IGNORECASE),
-    re.compile(r"^\s*dated?\s*:\s*\w", re.IGNORECASE),
-]
-
-_MIN_WORDS = 5
-_MAX_WORDS = 150
 
 
 @dataclass
@@ -135,33 +118,6 @@ def extract_key_passages(
 
     logger.debug("Key passages: returning %d passages", len(results))
     return results
-
-
-def _filter_sentences(sentences: list[dict]) -> list[dict]:
-    """
-    Remove short, long, and boilerplate sentences.
-
-    Args:
-        sentences: List of sentence dicts with 'text' key.
-
-    Returns:
-        Filtered list of sentence dicts.
-    """
-    filtered = []
-    for sent in sentences:
-        text = sent["text"]
-        word_count = len(text.split())
-
-        if word_count < _MIN_WORDS:
-            continue
-        if word_count > _MAX_WORDS:
-            continue
-        if any(pat.search(text) for pat in _BOILERPLATE_PATTERNS):
-            continue
-
-        filtered.append(sent)
-
-    return filtered
 
 
 def _cluster_and_select(embeddings: np.ndarray, n: int) -> list[int]:

@@ -9,7 +9,6 @@ import numpy as np
 
 from src.core.summarization.key_sentences import (
     _cluster_and_select,
-    _filter_sentences,
     compute_sentence_count,
 )
 
@@ -41,65 +40,6 @@ class TestComputeSentenceCount:
     def test_zero_pages(self):
         """Zero pages still returns minimum."""
         assert compute_sentence_count(0) == 5
-
-
-# =========================================================================
-# _filter_sentences
-# =========================================================================
-
-
-class TestFilterSentences:
-    """Tests for sentence filtering."""
-
-    def test_removes_short_sentences(self):
-        """Sentences with < 5 words are filtered out."""
-        sentences = [
-            {"text": "Too short."},
-            {"text": "This sentence has enough words to pass the filter."},
-        ]
-        result = _filter_sentences(sentences)
-        assert len(result) == 1
-        assert "enough words" in result[0]["text"]
-
-    def test_removes_long_sentences(self):
-        """Sentences with > 150 words are filtered out."""
-        short = {"text": "This is a normal length sentence with several words."}
-        long_text = " ".join(["word"] * 160)
-        long_sent = {"text": long_text}
-        result = _filter_sentences([short, long_sent])
-        assert len(result) == 1
-
-    def test_removes_boilerplate_page_numbers(self):
-        """Page number lines are filtered."""
-        sentences = [
-            {"text": "Page 42 of the document reference."},
-            {"text": "The plaintiff filed a motion on March 15 seeking damages."},
-        ]
-        result = _filter_sentences(sentences)
-        assert len(result) == 1
-        assert "plaintiff" in result[0]["text"]
-
-    def test_removes_boilerplate_exhibit_labels(self):
-        """Exhibit labels are filtered."""
-        sentences = [
-            {"text": "Exhibit A"},
-            {"text": "The defendant responded with a denial of all allegations."},
-        ]
-        result = _filter_sentences(sentences)
-        assert len(result) == 1
-
-    def test_keeps_valid_sentences(self):
-        """Normal legal sentences pass through."""
-        sentences = [
-            {"text": "The court found that the defendant was liable for damages."},
-            {"text": "Medical records indicate a herniated disc at L4-L5 level."},
-        ]
-        result = _filter_sentences(sentences)
-        assert len(result) == 2
-
-    def test_empty_input(self):
-        """Empty list returns empty list."""
-        assert _filter_sentences([]) == []
 
 
 # =========================================================================

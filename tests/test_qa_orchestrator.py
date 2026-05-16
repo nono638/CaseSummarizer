@@ -306,10 +306,8 @@ class TestSemanticWorker:
             vector_store_path=Path("."),
             embeddings=MagicMock(),
             ui_queue=queue,
-            answer_mode="extraction",
         )
 
-        assert worker.answer_mode == "extraction"
         assert worker.custom_questions is None
 
     def test_worker_accepts_custom_questions(self):

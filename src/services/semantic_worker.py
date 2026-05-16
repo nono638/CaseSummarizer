@@ -33,7 +33,6 @@ class SemanticWorker(BaseWorker):
             vector_store_path=Path("./vector_stores/case_123"),
             embeddings=embeddings_model,
             ui_queue=ui_queue,
-            answer_mode="extraction"
         )
         worker.start()
     """
@@ -43,7 +42,6 @@ class SemanticWorker(BaseWorker):
         vector_store_path: Path,
         embeddings,
         ui_queue: Queue,
-        answer_mode: str = "extraction",
         questions: list[str] | None = None,
         use_default_questions: bool = False,
     ):
@@ -54,14 +52,12 @@ class SemanticWorker(BaseWorker):
             vector_store_path: Path to FAISS index directory
             embeddings: HuggingFaceEmbeddings model
             ui_queue: Queue for UI communication
-            answer_mode: Deprecated — always overridden to "extraction".
             questions: Custom questions to ask (None = use defaults from YAML)
             use_default_questions: If True, load questions from semantic_default_questions.txt
         """
         super().__init__(ui_queue)
         self.vector_store_path = Path(vector_store_path)
         self.embeddings = embeddings
-        self.answer_mode = "extraction"
         self.custom_questions = questions
         self.use_default_questions = use_default_questions
         self.results: list = []

@@ -385,7 +385,7 @@ class TestQAExportViaBuilder:
             )
         ]
         builder = WordDocumentBuilder()
-        export_semantic_results(results, builder, include_verification_colors=True)
+        export_semantic_results(results, builder)
         path = tmp_path / "verified.docx"
         builder.save(str(path))
         assert path.exists()

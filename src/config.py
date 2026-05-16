@@ -8,8 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-import yaml
-
 from src.config_defaults import get_default as _factory_default
 from src.core.config import load_yaml_with_fallback  # noqa: F401 — re-exported for UI layer
 from src.core.paths import get_base_dir, get_config_dir
@@ -123,9 +121,6 @@ VOCAB_MODEL_PATH = MODELS_ML_DIR / "vocab_meta_learner.pkl"
 # - User feedback is collected during normal use
 DEFAULT_FEEDBACK_CSV = BUNDLED_CONFIG_DIR / "default_feedback.csv"
 USER_FEEDBACK_CSV = FEEDBACK_DIR / "user_feedback.csv"
-
-# Legacy path - kept for backward compatibility detection only
-VOCAB_FEEDBACK_CSV = FEEDBACK_DIR / "vocab_feedback.csv"
 
 # ML Training Thresholds
 # Don't train until we have enough samples to matter.
@@ -322,38 +317,6 @@ OCR_ENABLE_CLAHE = _d("ocr_enable_clahe")
 
 # Queue timeout for multiprocessing operations
 QUEUE_TIMEOUT_SECONDS = 2.0  # Timeout for multiprocessing queue operations
-
-
-# --- New Model Configuration System ---
-MODEL_CONFIG_FILE = BUNDLED_CONFIG_DIR / "models.yaml"
-MODEL_CONFIGS = {}
-
-
-def load_model_configs():
-    """Loads model configurations from config/models.yaml."""
-    global MODEL_CONFIGS
-    try:
-        with open(MODEL_CONFIG_FILE, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-            MODEL_CONFIGS = data.get("models", {})
-        if MODEL_CONFIGS:
-            logger.debug(
-                "Loaded %d model configurations from %s",
-                len(MODEL_CONFIGS),
-                MODEL_CONFIG_FILE,
-            )
-    except FileNotFoundError:
-        logger.warning(
-            "Model config file not found at %s. Using fallback values.",
-            MODEL_CONFIG_FILE,
-        )
-        MODEL_CONFIGS = {}
-    except Exception as e:
-        logger.error("Failed to load or parse model config file: %s", e, exc_info=True)
-        MODEL_CONFIGS = {}
-
-
-# --- End New Model Configuration System ---
 
 
 # Default Processing Settings
@@ -553,11 +516,6 @@ DEFAULT_POSITIVE_REGEX_OVERRIDE = r"[A-Z][a-z]+\s[A-Z]\.\s[A-Z][a-z]+"
 # Controls timeout behavior during automatic spaCy model downloads
 SPACY_DOWNLOAD_TIMEOUT_SEC = 3600  # Overall timeout: 1 hour (slow connections)
 SPACY_SOCKET_TIMEOUT_SEC = 10  # Socket timeout per request
-SPACY_THREAD_TIMEOUT_SEC = 15  # Thread termination timeout
-
-# Document Chunking
-# Overlap fraction prevents context loss at chunk boundaries
-CHUNK_OVERLAP_FRACTION = 0.1  # 10% overlap between chunks
 
 
 # Vocabulary Extraction Performance Settings
@@ -609,23 +567,11 @@ _user_workers = max(1, min(8, USER_DEFINED_MAX_WORKER_COUNT))
 # Compute actual max workers based on settings
 PARALLEL_MAX_WORKERS = _user_workers if USER_PICKS_MAX_WORKER_COUNT else min(os.cpu_count() or 4, 4)
 
-# Logging Configuration
-LOG_FILE = LOGS_DIR / "processing.log"
-LOG_FORMAT = "[%(levelname)s %(asctime)s] %(message)s"
-LOG_DATE_FORMAT = "%H:%M:%S"
-
-# Debug Mode Default File (for streamlined testing)
-DEBUG_DEFAULT_FILE = BUNDLED_BASE_DIR / "tests" / "sample_docs" / "test_complaint.pdf"
-
 # ============================================================================
 # UI Timing Constants
 # ============================================================================
 # Queue polling interval in milliseconds (~30 FPS equivalent for UI updates)
 QUEUE_POLL_INTERVAL_MS = 33
-# Debounce delay for resize events to prevent excessive redraws
-RESIZE_DEBOUNCE_MS = 100
-# Maximum characters to show in error messages before truncation
-ERROR_DISPLAY_MAX_CHARS = 200
 
 # ============================================================================
 # Semantic Search / Vector Store Configuration

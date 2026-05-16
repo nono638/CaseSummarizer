@@ -68,7 +68,7 @@ After extraction, show summary statistics (total word count, page count, documen
 - Multi-format extraction (PDF, DOCX, TXT, RTF, OCR)
 - 6 vocabulary algorithms with ML preference learning
 - Hybrid retrieval (FAISS + BM25) with follow-up questions
-- 5 export formats per tab (TXT, CSV, Word, PDF, HTML)
+- 4 export formats per tab (TXT, Word, PDF, HTML)
 - Settings with 30+ tunable parameters
 - Subprocess IPC architecture with crash recovery
 - Preprocessing pipeline (7 modular steps)

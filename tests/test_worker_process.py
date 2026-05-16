@@ -346,7 +346,7 @@ class TestCommandDispatch:
             "worker_lock": threading.Lock(),
         }
 
-        _dispatch_command("run_qa", {"answer_mode": "extraction"}, internal_q, state)
+        _dispatch_command("run_qa", {}, internal_q, state)
 
         msg = internal_q.get_nowait()
         assert msg[0] == "error"

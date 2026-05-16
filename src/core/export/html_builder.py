@@ -694,7 +694,6 @@ SEMANTIC_HTML_TEMPLATE = """<!DOCTYPE html>
 def export_semantic_html(
     results: list,
     file_path: str,
-    include_verification: bool = True,
     title: str = "Questions & Answers",
 ) -> bool:
     """
@@ -703,7 +702,6 @@ def export_semantic_html(
     Args:
         results: List of SemanticResult objects
         file_path: Output file path (.html)
-        include_verification: Unused (kept for API compatibility)
         title: Document title
 
     Returns:

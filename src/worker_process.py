@@ -74,7 +74,6 @@ def _summarize_command_args(cmd_type, args):
         parts.append(f"docs={len(args.get('documents', []))}")
         parts.append(f"doc_confidence={args.get('doc_confidence', '?')}")
     elif cmd_type == "run_qa":
-        parts.append(f"answer_mode={args.get('answer_mode', '?')}")
         qs = args.get("questions")
         parts.append(f"questions={len(qs) if qs else 'default'}")
     elif cmd_type == "followup":
@@ -293,7 +292,6 @@ def _run_qa(args, internal_queue, state):
         vector_store_path=vector_store_path,
         embeddings=embeddings,
         ui_queue=internal_queue,
-        answer_mode=args.get("answer_mode", "extraction"),
         questions=args.get("questions"),
         use_default_questions=args.get("use_default_questions", True),
     )

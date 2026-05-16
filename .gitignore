@@ -40,7 +40,6 @@ config/user_preferences.json  # User settings - never commit (defaults in code)
 
 # User data (never commit)
 AppData/
-data/keywords/*.txt
 data/frequency/*.txt
 !data/frequency/Word_rarity-count_1w.txt  # Shipped data file - keep tracked
 

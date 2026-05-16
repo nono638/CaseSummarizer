@@ -151,27 +151,27 @@ def write_human(out: Path, vocab, key_excerpts, search_result, only: set):
         )
     if "combined" in only:
         results = [search_result] if search_result else []
+        summary_text = "\n".join(e["text"] for e in key_excerpts) if key_excerpts else ""
         b = WordDocumentBuilder()
         export_combined(
             vocab,
             results,
             b,
             include_vocab_details=False,
-            include_verification=False,
-            summary_text="",
+            summary_text=summary_text,
         )
         b.save(str(out / "combined.docx"))
 
 
 def write_json(out: Path, vocab, key_excerpts, search_result, only: set):
     """Write machine-readable JSON outputs."""
-    if "vocab" in only:
+    if "vocab" in only and vocab:
         (out / "vocabulary.json").write_text(
             json.dumps(vocab, indent=2, default=str), encoding="utf-8"
         )
     if "excerpts" in only:
         (out / "excerpts.json").write_text(json.dumps(key_excerpts, indent=2), encoding="utf-8")
-    if "combined" in only and search_result is not None:
+    if search_result is not None:
         payload = {
             "question": search_result.question,
             "citation": search_result.citation,

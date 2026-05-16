@@ -75,8 +75,6 @@ class TestFrozenModePathResolution:
             "LEGAL_EXCLUDE_LIST_PATH",
             "MEDICAL_TERMS_LIST_PATH",
             "GOOGLE_WORD_FREQUENCY_FILE",
-            "MODEL_CONFIG_FILE",
-            "DEBUG_DEFAULT_FILE",
         ],
     )
     def test_all_parent_parent_constants_under_bundled_base(self, constant_name):
@@ -103,7 +101,6 @@ class TestFrozenModePathResolution:
             "DEFAULT_FEEDBACK_CSV",
             "LEGAL_EXCLUDE_LIST_PATH",
             "MEDICAL_TERMS_LIST_PATH",
-            "MODEL_CONFIG_FILE",
         ]
         fragile = []
         for name in config_file_constants:
@@ -542,7 +539,6 @@ class TestPostBuildDistVerification:
             "config/app_name.txt",
             "config/legal_exclude.txt",
             "config/medical_terms.txt",
-            "config/models.yaml",
         ],
     )
     def test_config_files_in_dist(self, config_file):
@@ -739,8 +735,6 @@ class TestMaxPathSafety:
             "LEGAL_EXCLUDE_LIST_PATH",
             "MEDICAL_TERMS_LIST_PATH",
             "GOOGLE_WORD_FREQUENCY_FILE",
-            "MODEL_CONFIG_FILE",
-            "DEBUG_DEFAULT_FILE",
         ]
         for name in constants:
             value = getattr(config, name)

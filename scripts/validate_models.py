@@ -86,7 +86,6 @@ REQUIRED_CONFIG = [
     "app_name.txt",
     "categories.json",
     "default_feedback.csv",
-    "models.yaml",
     "silly_messages.txt",
     "transcript_patterns.json",
     "vocab_exclude_patterns.txt",

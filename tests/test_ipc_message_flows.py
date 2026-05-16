@@ -663,7 +663,7 @@ class TestSubprocessRoundTrip:
         manager.start()
         try:
             self._wait_for_ready(manager)
-            manager.send_command("run_qa", {"answer_mode": "extraction"})
+            manager.send_command("run_qa", {})
             # Error goes internal_queue -> forwarder -> result_queue, needs extra time
             messages = self._wait_for_messages(manager, expected_type="error", timeout=10.0)
             error_msgs = [m for m in messages if m[0] == "error"]
@@ -860,7 +860,7 @@ class TestCommandDispatchIntegration:
 
             _dispatch_command(
                 "run_qa",
-                {"answer_mode": "extraction", "use_default_questions": True},
+                {"use_default_questions": True},
                 internal_q,
                 state,
             )

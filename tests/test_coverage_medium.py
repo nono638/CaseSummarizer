@@ -3,7 +3,7 @@ Tests for 6 MEDIUM-priority coverage gaps.
 
 Covers:
 1. (removed — prompting deprecated)
-2. src/config.py — get_count_bin(), get_count_bin_features(), load_model_configs()
+2. src/config.py — get_count_bin(), get_count_bin_features()
 3. src/core/extraction/ocr_processor.py — process_image(), Tesseract path detection
 4. src/services/workers.py — worker execute() signatures, QueueMessage generation
 5. src/core/retrieval/algorithms/faiss_semantic.py — FAISSRetriever index/retrieve
@@ -23,7 +23,7 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# 2. config.py: get_count_bin / get_count_bin_features / load_model_configs
+# 2. config.py: get_count_bin / get_count_bin_features
 # ---------------------------------------------------------------------------
 
 
@@ -144,55 +144,6 @@ class TestGetCountBinFeatures:
         for count in [1, 5, 15, 50]:
             features = get_count_bin_features(count)
             assert len(features) == 5
-
-
-class TestLoadModelConfigs:
-    """Tests for load_model_configs() with mocked YAML file."""
-
-    def test_load_valid_yaml(self, tmp_path):
-        """load_model_configs loads models from valid YAML file."""
-        import src.config as config_module
-
-        yaml_content = "models:\n  llama3: {context_size: 8192}\n  mistral: {context_size: 4096}\n"
-        yaml_file = tmp_path / "models.yaml"
-        yaml_file.write_text(yaml_content, encoding="utf-8")
-
-        original_configs = config_module.MODEL_CONFIGS
-        try:
-            with patch.object(config_module, "MODEL_CONFIG_FILE", yaml_file):
-                config_module.load_model_configs()
-                assert "llama3" in config_module.MODEL_CONFIGS
-                assert "mistral" in config_module.MODEL_CONFIGS
-                assert config_module.MODEL_CONFIGS["llama3"]["context_size"] == 8192
-        finally:
-            config_module.MODEL_CONFIGS = original_configs
-
-    def test_load_missing_file_returns_empty(self, tmp_path):
-        """load_model_configs sets MODEL_CONFIGS to {} when file is missing."""
-        import src.config as config_module
-
-        original_configs = config_module.MODEL_CONFIGS
-        try:
-            with patch.object(config_module, "MODEL_CONFIG_FILE", tmp_path / "missing.yaml"):
-                config_module.load_model_configs()
-                assert config_module.MODEL_CONFIGS == {}
-        finally:
-            config_module.MODEL_CONFIGS = original_configs
-
-    def test_load_corrupted_yaml_returns_empty(self, tmp_path):
-        """load_model_configs sets MODEL_CONFIGS to {} when YAML is invalid."""
-        import src.config as config_module
-
-        bad_file = tmp_path / "bad.yaml"
-        bad_file.write_text("{{{{invalid yaml", encoding="utf-8")
-
-        original_configs = config_module.MODEL_CONFIGS
-        try:
-            with patch.object(config_module, "MODEL_CONFIG_FILE", bad_file):
-                config_module.load_model_configs()
-                assert config_module.MODEL_CONFIGS == {}
-        finally:
-            config_module.MODEL_CONFIGS = original_configs
 
 
 # ---------------------------------------------------------------------------

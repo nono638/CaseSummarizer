@@ -329,7 +329,7 @@ class TestQAExporter:
         result.source_summary = "complaint.pdf"
         result.verification = None
 
-        export_semantic_results([result], mock_builder, include_verification_colors=False)
+        export_semantic_results([result], mock_builder)
         # builder should have been called for title, Q&A content
         assert mock_builder.add_heading.called or mock_builder.add_paragraph.called
 

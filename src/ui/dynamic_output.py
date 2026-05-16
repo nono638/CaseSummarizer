@@ -1793,9 +1793,12 @@ class DynamicOutputWidget(ctk.CTkFrame):
                 )
 
             # Always update command to use current data (fixes stale closure)
+            # state="normal" re-enables the button after a load completes —
+            # _load_more_rows disables it while inserting to prevent overlap.
             self._load_more_btn.configure(
                 text=f"Load More ({remaining} remaining)",
                 command=lambda d=data: self._load_more_rows(d),
+                state="normal",
             )
             self._load_more_btn.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
             logger.debug("Load More button shown (%s remaining)", remaining)
@@ -1834,11 +1837,29 @@ class DynamicOutputWidget(ctk.CTkFrame):
         """
         Load more rows when "Load More" button is clicked.
 
+        While a load is in progress, the Load More button is disabled
+        so users can't accidentally queue overlapping inserts. The
+        button is re-enabled in _update_pagination_ui after completion.
+
         Args:
             data: Full vocabulary data list
         """
         if self._is_loading:
+            # Provide feedback rather than failing silently.
+            if self._load_more_btn is not None:
+                try:
+                    self._load_more_btn.configure(state="disabled")
+                except Exception as e:
+                    logger.debug("Could not disable Load More button: %s", e)
             return
+
+        # Disable button immediately to avoid duplicate triggers while async
+        # batch insertion is in flight.
+        if self._load_more_btn is not None:
+            try:
+                self._load_more_btn.configure(state="disabled")
+            except Exception as e:
+                logger.debug("Could not disable Load More button: %s", e)
 
         start_idx = self._vocab_display_offset
         end_idx = min(start_idx + ROWS_PER_PAGE, len(data))

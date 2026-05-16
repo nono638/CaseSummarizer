@@ -244,8 +244,6 @@ import csv
 import importlib
 import re
 
-import yaml
-
 from src.config import BUNDLED_BASE_DIR, BUNDLED_CONFIG_DIR
 
 
@@ -255,12 +253,6 @@ class TestBundledConfigFiles:
     def test_app_name_txt_exists(self):
         """config/app_name.txt must exist and be non-empty."""
         path = BUNDLED_CONFIG_DIR / "app_name.txt"
-        assert path.is_file(), f"Missing: {path}"
-        assert path.stat().st_size > 0, f"Empty: {path}"
-
-    def test_models_yaml_exists(self):
-        """config/models.yaml must exist and be non-empty."""
-        path = BUNDLED_CONFIG_DIR / "models.yaml"
         assert path.is_file(), f"Missing: {path}"
         assert path.stat().st_size > 0, f"Empty: {path}"
 
@@ -304,15 +296,6 @@ class TestBundledConfigFiles:
 
 class TestConfigFileParsing:
     """Verify key config files are valid and contain expected structure."""
-
-    def test_models_yaml_parses(self):
-        """models.yaml must parse and contain a 'models' key with entries."""
-        path = BUNDLED_CONFIG_DIR / "models.yaml"
-        with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        assert isinstance(data, dict), "models.yaml root must be a dict"
-        assert "models" in data, "models.yaml must have a 'models' key"
-        assert len(data["models"]) > 0, "models.yaml 'models' must have entries"
 
     def test_default_questions_json_parses(self):
         """default_questions.json must parse and contain a 'questions' list."""

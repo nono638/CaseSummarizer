@@ -23,7 +23,6 @@ def build_combined_html(
     semantic_results: list,
     summary_text: str,
     visible_columns: list[str] | None = None,
-    include_verification: bool = True,
 ) -> str:
     """
     Build a tabbed HTML document combining Vocabulary, Search, and Key Excerpts.
@@ -36,7 +35,6 @@ def build_combined_html(
         semantic_results: List of SemanticResult objects (already filtered to answered only)
         summary_text: Summary text string
         visible_columns: Columns to show initially in vocab table
-        include_verification: Whether to show verification badges in search results
 
     Returns:
         Complete HTML document as string
@@ -51,7 +49,7 @@ def build_combined_html(
     if has_vocab:
         tabs.append(("vocab", "Vocabulary", _build_vocab_section(vocab_data, visible_columns)))
     if has_search:
-        tabs.append(("qa", "Search", _build_search_section(semantic_results, include_verification)))
+        tabs.append(("qa", "Search", _build_search_section(semantic_results)))
     if has_summary:
         tabs.append(("summary", "Summary", _build_summary_section(summary_text)))
 
@@ -197,13 +195,12 @@ def _build_vocab_section(vocab_data: list[dict], visible_columns: list[str] | No
         </table>"""
 
 
-def _build_search_section(semantic_results: list, include_verification: bool) -> str:
+def _build_search_section(semantic_results: list) -> str:
     """
     Build the Search tab HTML content.
 
     Args:
         semantic_results: List of SemanticResult objects
-        include_verification: Unused (verification removed), kept for API compat
 
     Returns:
         HTML fragment for the search section

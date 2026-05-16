@@ -69,7 +69,6 @@ def mock_orchestrator():
         orch = SemanticOrchestrator(
             vector_store_path="fake_path",
             embeddings=mock_embeddings,
-            answer_mode="extraction",
         )
 
         yield orch, mock_retriever, None
@@ -267,7 +266,6 @@ class TestFollowupThreadMessages:
                 orchestrator = semantic_service.create_orchestrator(
                     vector_store_path="fake",
                     embeddings=MagicMock(),
-                    answer_mode=prefs.get("semantic_answer_mode", "extraction"),
                 )
                 p = semantic_service.retrieve_for_followup(orchestrator, "test")
                 result_queue.put(("retrieval_done", p))

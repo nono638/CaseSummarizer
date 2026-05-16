@@ -120,14 +120,6 @@ class WindowLayoutMixin:
         )
         self.manage_corpus_btn.pack(side="left", padx=(5, 0))
 
-    def _create_pipeline_indicator(self):
-        """Create the pipeline step indicator between header and main panels."""
-        from src.ui.pipeline_indicator import PipelineIndicator
-
-        self.pipeline_indicator = PipelineIndicator(self)
-        # Hidden initially - shown when processing starts
-        self._pipeline_indicator_visible = False
-
     def _create_main_panels(self):
         """Create the two-panel main content area."""
         self.main_frame = ctk.CTkFrame(self, **FRAME_STYLES["transparent"])

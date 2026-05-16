@@ -30,7 +30,6 @@ def load_yaml(
     - vector_store/question_flow.py
     - semantic/semantic_orchestrator.py
     - ui/semantic_question_editor.py (2 locations)
-    - config.py (load_model_configs)
 
     Args:
         config_path: Path to the YAML file

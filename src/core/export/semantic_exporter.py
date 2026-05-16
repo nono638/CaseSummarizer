@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 def export_semantic_results(
     results: list,  # list[SemanticResult] - avoid circular import
     builder: DocumentBuilder,
-    include_verification_colors: bool = True,
     title: str = "Semantic Search Results",
 ) -> None:
     """
@@ -23,7 +22,6 @@ def export_semantic_results(
     Args:
         results: List of SemanticResult objects
         builder: Word or PDF builder instance
-        include_verification_colors: Unused (kept for API compatibility)
         title: Document title
     """
     builder.add_heading(title, level=1)

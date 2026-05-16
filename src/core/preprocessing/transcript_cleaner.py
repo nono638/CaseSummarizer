@@ -249,7 +249,7 @@ class TranscriptCleaner(BasePreprocessor):
                     )
                     total_count += count
             except re.error as e:
-                logger.debug(
+                logger.warning(
                     "Invalid regex in pattern '%s': %s",
                     pattern_config.get("name", "unnamed"),
                     e,

@@ -264,7 +264,7 @@ class SemanticService:
 
         return get_default_questions_manager()
 
-    def create_orchestrator(self, vector_store_path=None, embeddings=None, **kwargs):
+    def create_orchestrator(self, vector_store_path=None, embeddings=None):
         """
         Create a new SemanticOrchestrator instance.
 
@@ -273,7 +273,6 @@ class SemanticService:
         Args:
             vector_store_path: Path to vector store directory.
             embeddings: Embeddings model instance.
-            **kwargs: Ignored (absorbs legacy answer_mode param).
 
         Returns:
             SemanticOrchestrator instance.

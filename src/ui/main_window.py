@@ -178,7 +178,6 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
 
         # Build UI
         self._create_header()
-        self._create_pipeline_indicator()
         self._create_main_panels()
         self._create_status_bar()
 
@@ -369,35 +368,15 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
             self.set_status("Cannot add files during active processing")
             return
 
-        # Parse the dropped file paths
-        # tkinterdnd2 provides paths as a space-separated string or Tcl list
+        # Parse the dropped file paths.
+        # tkinterdnd2 yields a Tcl list string; tk.splitlist handles brace
+        # quoting (used for paths with spaces) correctly per the standard
+        # tkinterdnd2 recipe, replacing our hand-rolled brace parser.
         raw_data = event.data
-
-        # Handle Tcl list format (paths with spaces are enclosed in braces)
-        if "{" in raw_data:
-            # Parse as Tcl list - paths with spaces are in braces
-            paths = []
-            i = 0
-            while i < len(raw_data):
-                if raw_data[i] == "{":
-                    # Find closing brace
-                    try:
-                        end = raw_data.index("}", i)
-                    except ValueError:
-                        break
-                    paths.append(raw_data[i + 1 : end])
-                    i = end + 1
-                elif raw_data[i] == " ":
-                    i += 1
-                else:
-                    # Find next space or end
-                    end = raw_data.find(" ", i)
-                    if end == -1:
-                        end = len(raw_data)
-                    paths.append(raw_data[i:end])
-                    i = end
-        else:
-            # Simple space-separated paths (no spaces in filenames)
+        try:
+            paths = list(self.tk.splitlist(raw_data))
+        except Exception as e:
+            logger.warning("Failed to parse drag-drop payload %r: %s", raw_data, e)
             paths = raw_data.split()
 
         # Filter to supported file types
@@ -768,8 +747,16 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
 
         if msg_type == "progress":
             _percentage, message = data
-            # Don't overwrite completion status with stale progress messages
-            if not self._processing_active:
+            # Don't overwrite completion status with stale progress messages.
+            # Accept progress while any phase is active (preprocessing, main
+            # processing, or semantic answering) — previously a "not
+            # _processing_active" guard silently dropped messages during the
+            # preprocessing-only phase.
+            if not (
+                self._processing_active
+                or self._preprocessing_active
+                or self._semantic_answering_active
+            ):
                 return
             # Append search status note if index is ready but answers haven't appeared yet
             if self._semantic_ready and "search" not in message.lower():
@@ -1288,13 +1275,29 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
         if not self._processing_active:
             return
 
-        result = messagebox.askyesno(
-            "Stop Processing",
-            "Are you sure you want to stop?\n\n"
-            "Completed results (vocabulary, search results) will be kept,\n"
-            "but any work still in progress will be lost.",
-            icon="warning",
-        )
+        # Disable stop button during confirmation to prevent duplicate modals
+        # from rapid clicks (Tk re-fires events while a modal is open).
+        try:
+            self.stop_btn.configure(state="disabled")
+        except Exception as e:
+            logger.debug("Could not disable stop button: %s", e)
+
+        try:
+            result = messagebox.askyesno(
+                "Stop Processing",
+                "Are you sure you want to stop?\n\n"
+                "Completed results (vocabulary, search results) will be kept,\n"
+                "but any work still in progress will be lost.",
+                icon="warning",
+            )
+        finally:
+            # On cancel, restore the button so the user can click stop again.
+            if self._processing_active is not False:
+                try:
+                    self.stop_btn.configure(state="normal")
+                except Exception as e:
+                    logger.debug("Could not re-enable stop button: %s", e)
+
         if not result:
             return
 
@@ -1303,6 +1306,17 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
         # Send cancel to worker subprocess
         if self._worker_manager and self._worker_manager.is_alive():
             self._worker_manager.cancel()
+
+        # Cancel any pending retry timers so they can't re-fire commands
+        # after the user has cancelled (e.g. queued extract retry).
+        for attr_name in ("_preprocessing_retry_id", "_extraction_retry_id"):
+            retry_id = getattr(self, attr_name, None)
+            if retry_id:
+                try:
+                    self.after_cancel(retry_id)
+                except Exception as e:
+                    logger.debug("Could not cancel %s: %s", attr_name, e)
+                setattr(self, attr_name, None)
 
         # Reset processing state
         self._semantic_answering_active = False
@@ -1437,12 +1451,7 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
         # Send run_qa command to worker subprocess
         # The subprocess handles embeddings loading and vector store creation
         logger.debug("Sending run_qa: mode=extraction")
-        self._worker_manager.send_command(
-            "run_qa",
-            {
-                "answer_mode": "extraction",
-            },
-        )
+        self._worker_manager.send_command("run_qa", {})
 
         # Ensure queue polling is active
         if self._queue_poll_id:

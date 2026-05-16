@@ -24,7 +24,6 @@ Usage:
 """
 
 from src.core.preprocessing.base import BasePreprocessor, PreprocessingPipeline
-from src.core.preprocessing.coreference_resolver import CoreferenceResolver
 from src.core.preprocessing.header_footer_remover import HeaderFooterRemover
 from src.core.preprocessing.index_page_remover import IndexPageRemover
 from src.core.preprocessing.line_number_remover import LineNumberRemover
@@ -106,7 +105,6 @@ def create_default_pipeline(settings: dict | None = None) -> PreprocessingPipeli
 
 __all__ = [
     "BasePreprocessor",
-    "CoreferenceResolver",
     "HeaderFooterRemover",
     "IndexPageRemover",
     "LineNumberRemover",

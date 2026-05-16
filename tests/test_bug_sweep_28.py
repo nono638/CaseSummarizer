@@ -156,7 +156,7 @@ class TestA6HtmlExportConditionalAnswer:
             citation: str = "Some citation"
             source_summary: str = "doc.pdf"
 
-        html = _build_search_section([FakeResult()], include_verification=False)
+        html = _build_search_section([FakeResult()])
         assert ">Answer<" not in html
 
     def test_nonempty_answer_has_answer_div(self):
@@ -170,7 +170,7 @@ class TestA6HtmlExportConditionalAnswer:
             citation: str = "Some citation"
             source_summary: str = "doc.pdf"
 
-        html = _build_search_section([FakeResult()], include_verification=False)
+        html = _build_search_section([FakeResult()])
         assert "Answer" in html
         assert "The answer is yes." in html
 

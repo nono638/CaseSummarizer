@@ -147,8 +147,6 @@ def main():
     try:
         import customtkinter as ctk
 
-        # CRITICAL: Import src.core.ai BEFORE UI framework to avoid DLL load order conflicts
-        import src.core.ai  # noqa: F401
         from src.config import LOGS_DIR
         from src.ui.main_window import MainWindow
     except Exception:

@@ -136,7 +136,6 @@ class SemanticOrchestrator:
         self,
         vector_store_path: Path,
         embeddings,
-        answer_mode: str = "extraction",
         questions_path: Path | None = None,
     ):
         """
@@ -145,12 +144,10 @@ class SemanticOrchestrator:
         Args:
             vector_store_path: Path to FAISS index directory
             embeddings: HuggingFaceEmbeddings model for query encoding
-            answer_mode: Ignored (kept for backward compat). Always uses extraction.
             questions_path: Path to questions YAML (default: config/semantic_questions.yaml)
         """
         self.vector_store_path = Path(vector_store_path)
         self.embeddings = embeddings
-        self.answer_mode = "extraction"
         self.questions_path = questions_path or DEFAULT_QUESTIONS_PATH
 
         # Initialize retriever
