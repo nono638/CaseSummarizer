@@ -12,23 +12,30 @@
   <meta property="og:image" content="https://caseprepd-app.github.io/CaseSummarizer/screenshots/CasePrepedMainMenu1.png">
   <meta property="og:url" content="https://caseprepd-app.github.io/CaseSummarizer/">
   <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500;1,6..72,600;1,6..72,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <header>
   <nav>
-    <a href="#" class="logo">CasePrepd</a>
+    <a href="index.html" class="logo">CasePrepd</a>
     <button class="hamburger" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#screenshots">Screenshots</a>
-      <a href="#who">Who Is This For?</a>
-      <a href="#how">How It Works</a>
-      <a href="built-for-court-reporters.html">Built for CR &raquo;</a>
-      <a href="#requirements">Requirements</a>
-      <a href="#download">Download</a>
+      <div class="nav-dropdown">
+        <button type="button" aria-haspopup="true" aria-expanded="false">Documentation</button>
+        <div class="nav-dropdown-menu" role="menu">
+          <span class="menu-eyebrow">Guides</span>
+          <a href="guide.html" role="menuitem">User Guide</a>
+          <a href="power-user.html" role="menuitem">Power User &amp; CLI</a>
+          <a href="built-for-court-reporters.html" role="menuitem">Built for Court Reporters</a>
+        </div>
+      </div>
       <a href="#faq">FAQ</a>
-      <a href="guide.html">User Guide &raquo;</a>
+      <a href="#download">Download</a>
     </div>
   </nav>
 </header>
@@ -36,18 +43,33 @@
 <main>
 
 <section class="hero">
+  <span class="eyebrow">Vol. 1 &middot; Issue 35 &middot; May 2026</span>
   <h1>CasePrepd</h1>
-  <p class="tagline">Case Prep That Never Leaves Your Computer</p>
+  <p class="tagline">Case prep that never leaves your computer.</p>
   <p class="subtitle">
     Vocabulary lists, semantic search, and key excerpts from your case
     documents &mdash; processed 100% on your machine.
     Nothing uploaded. Nothing stored in the cloud.
   </p>
   <p class="built-for">Built for sensitive court matters, HIPAA, and anything you can't risk sharing.</p>
-  <a href="#download" class="cta-button">Download CasePrepd</a>
+  <a href="#download" class="cta-button">Download for Windows</a>
   <p class="attribution">
     Built by Noah Collin, a court reporter.
   </p>
+
+  <div class="toc">
+    <p class="toc-eyebrow">In this issue</p>
+    <ol class="toc-list">
+      <li><span class="toc-num">01</span><a href="#features">What You Get</a></li>
+      <li><span class="toc-num">02</span><a href="#screenshots">Screenshots</a></li>
+      <li><span class="toc-num">03</span><a href="#who">Who It's For</a></li>
+      <li><span class="toc-num">04</span><a href="#how">How It Works</a></li>
+      <li><span class="toc-num">05</span><a href="built-for-court-reporters.html">Built for Court Reporters</a></li>
+      <li><span class="toc-num">06</span><a href="#requirements">System Requirements</a></li>
+      <li><span class="toc-num">07</span><a href="#download">Download</a></li>
+      <li><span class="toc-num">08</span><a href="#faq">FAQ</a></li>
+    </ol>
+  </div>
 </section>
 
 <section id="features" class="features">
@@ -326,7 +348,13 @@
   <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="NoahCollin" data-color="#5F7FFF" data-emoji="" data-font="Arial" data-text="Buy me a coffee" data-outline-color="#000000" data-font-color="#ffffff" data-coffee-color="#FFDD00"></script>
 </footer>
 
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged screenshot">
+  <button class="lightbox-close" aria-label="Close enlarged screenshot">&times;</button>
+  <img src="" alt="">
+</div>
+
 <script>
+  // Hamburger menu
   const hamburger = document.querySelector('.hamburger');
   const navLinks = document.querySelector('.nav-links');
   hamburger.addEventListener('click', () => {
@@ -334,10 +362,42 @@
     hamburger.setAttribute('aria-expanded', open);
   });
   navLinks.addEventListener('click', (e) => {
+    // Don't close when clicking the dropdown toggle button
+    if (e.target.closest('.nav-dropdown > button')) return;
     if (e.target.tagName === 'A') {
       navLinks.classList.remove('open');
       hamburger.setAttribute('aria-expanded', 'false');
     }
+  });
+
+  // Lightbox: click any screenshot to zoom
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = lightbox.querySelector('img');
+  const lightboxClose = lightbox.querySelector('.lightbox-close');
+
+  function openLightbox(src, alt) {
+    lightboxImg.src = src;
+    lightboxImg.alt = alt || '';
+    lightbox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    lightboxImg.src = '';
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('.screenshot-item img, .smartscreen-screenshot').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.src, img.alt));
+  });
+
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox || e.target === lightboxImg || e.target === lightboxClose) {
+      closeLightbox();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
   });
 </script>
 

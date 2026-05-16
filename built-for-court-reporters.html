@@ -11,6 +11,9 @@
   <meta property="og:description" content="What makes CasePrepd different from a generic AI tool: court-reporting-specific features built by a court reporter.">
   <meta property="og:url" content="https://caseprepd-app.github.io/CaseSummarizer/built-for-court-reporters.html">
   <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500;1,6..72,600;1,6..72,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -20,23 +23,27 @@
     <button class="hamburger" aria-label="Menu" aria-expanded="false">&#9776;</button>
     <div class="nav-links">
       <a href="index.html">Home</a>
-      <a href="#offline">Offline &amp; Private</a>
-      <a href="#why">Why This Matters</a>
+      <a href="#offline">Offline</a>
       <a href="#names">Name Canonicalizer</a>
-      <a href="#artifacts">Transcript Artifacts</a>
-      <a href="#sections">Section Awareness</a>
       <a href="#cleanup">Page Cleanup</a>
       <a href="#roles">Role Detection</a>
-      <a href="#transparency">Transparency</a>
-      <a href="guide.html">User Guide</a>
+      <div class="nav-dropdown">
+        <button type="button" aria-haspopup="true" aria-expanded="false">More</button>
+        <div class="nav-dropdown-menu" role="menu">
+          <span class="menu-eyebrow">Guides</span>
+          <a href="guide.html" role="menuitem">User Guide</a>
+          <a href="power-user.html" role="menuitem">Power User &amp; CLI</a>
+        </div>
+      </div>
     </div>
   </nav>
 </header>
 
 <main>
 
-<section class="hero" style="padding: 3rem 0 2rem;">
-  <h1 style="font-size: 2.2rem;">Built for Court Reporters</h1>
+<section class="hero" style="padding: 3.5rem 0 2.5rem;">
+  <span class="eyebrow">Documentation &middot; Domain Specifics</span>
+  <h1 style="font-size: clamp(2.2rem, 5vw, 3.4rem);">Built for Court Reporters</h1>
   <p class="subtitle">
     CasePrepd isn't a generic AI tool with a court-reporting label slapped
     on it. The logic inside was built by a working court reporter to handle
@@ -337,6 +344,11 @@
   </p>
 </footer>
 
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged screenshot">
+  <button class="lightbox-close" aria-label="Close">&times;</button>
+  <img src="" alt="">
+</div>
+
 <script>
   const hamburger = document.querySelector('.hamburger');
   const navLinks = document.querySelector('.nav-links');
@@ -345,10 +357,36 @@
     hamburger.setAttribute('aria-expanded', open);
   });
   navLinks.addEventListener('click', (e) => {
+    if (e.target.closest('.nav-dropdown > button')) return;
     if (e.target.tagName === 'A') {
       navLinks.classList.remove('open');
       hamburger.setAttribute('aria-expanded', 'false');
     }
+  });
+
+  // Lightbox
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = lightbox.querySelector('img');
+  const lightboxClose = lightbox.querySelector('.lightbox-close');
+  function openLightbox(src, alt) {
+    lightboxImg.src = src;
+    lightboxImg.alt = alt || '';
+    lightbox.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    lightboxImg.src = '';
+    document.body.style.overflow = '';
+  }
+  document.querySelectorAll('.screenshot-item img, .smartscreen-screenshot').forEach(img => {
+    img.addEventListener('click', () => openLightbox(img.src, img.alt));
+  });
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox || e.target === lightboxImg || e.target === lightboxClose) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
   });
 </script>
 
