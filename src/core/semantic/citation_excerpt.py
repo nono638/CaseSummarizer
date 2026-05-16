@@ -66,7 +66,15 @@ def extract_citation_excerpt(
     if not windows:
         return _truncate_to_sentence(chunk, max_chars)
 
-    start, end, window_text = _select_best_window(windows, question, embeddings)
+    selected = _select_best_window(windows, question, embeddings)
+    if selected is None:
+        # Embedding similarity gave no positive signal — fall back to a
+        # deterministic sentence-truncated excerpt rather than picking an
+        # arbitrary window that would look semantically chosen.
+        logger.debug("No positive similarity match; using truncation fallback")
+        return _truncate_to_sentence(chunk, max_chars)
+
+    start, end, _window_text = selected
     return _format_excerpt(chunk, start, end, max_chars=max_chars)
 
 
@@ -121,9 +129,14 @@ def _select_best_window(
     windows: list[tuple[int, int, str]],
     question: str,
     embeddings,
-) -> tuple[int, int, str]:
+) -> tuple[int, int, str] | None:
     """
     Select the window most similar to the question using embedding cosine similarity.
+
+    Returns None when the best similarity is non-positive — this happens for
+    queries semantically orthogonal or anti-correlated to every window, and
+    the caller should fall back to a deterministic excerpt rather than
+    presenting an arbitrary window as the semantically selected match.
 
     Args:
         windows: List of (start_position, end_position, window_text) tuples.
@@ -131,7 +144,8 @@ def _select_best_window(
         embeddings: HuggingFaceEmbeddings model.
 
     Returns:
-        (start_position, end_position, window_text) of the best-matching window.
+        (start_position, end_position, window_text) of the best-matching
+        window, or None if no window has a positive similarity score.
     """
     q_emb = np.array(embeddings.embed_query(question))
     w_texts = [text for _, _, text in windows]
@@ -144,12 +158,15 @@ def _select_best_window(
     similarities = w_embs @ q_emb / np.maximum(norms, 1e-10)
 
     best_idx = int(np.argmax(similarities))
+    best_score = float(similarities[best_idx])
     logger.debug(
         "Best window %d/%d (similarity=%.3f)",
         best_idx + 1,
         len(windows),
-        similarities[best_idx],
+        best_score,
     )
+    if best_score <= 0.0:
+        return None
     return windows[best_idx]
 
 

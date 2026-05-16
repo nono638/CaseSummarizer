@@ -511,33 +511,35 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
         self._update_doc_count_badge()
         self.set_status("Files cleared")
 
-    def _on_file_selected(self, filename):
+    def _on_file_selected(self, file_path):
         """
         Handle file row click — show document preview in the Document tab.
 
         Args:
-            filename: The display filename that was clicked.
+            file_path: The full path of the file row that was clicked.
         """
-        # Find the result dict for this filename
+        # Find the result dict for this file_path
         result = next(
-            (r for r in self.processing_results if r.get("filename") == filename),
+            (r for r in self.processing_results if r.get("file_path") == file_path),
             None,
         )
         if result:
             self.output_display.show_document_preview(result)
         else:
             # File added but not yet extracted
-            logger.debug("No extraction result for %s yet", filename)
+            logger.debug("No extraction result for %s yet", file_path)
 
-    def _remove_file(self, filename):
+    def _remove_file(self, file_path):
         """
-        Remove a single file from the session by filename.
+        Remove a single file from the session by full path.
 
         Blocked during active processing to prevent state inconsistency
-        with the worker subprocess.
+        with the worker subprocess. Matching by full path ensures that
+        two files with the same basename from different folders are
+        tracked independently.
 
         Args:
-            filename: The display filename to remove.
+            file_path: The full path of the file to remove.
         """
         if (
             self._processing_active
@@ -549,27 +551,30 @@ class MainWindow(WindowLayoutMixin, ctk.CTk):
             self.set_status("Cannot remove files during processing")
             return
 
-        # Remove from selected_files (match by basename)
-        self.selected_files = [f for f in self.selected_files if Path(f).name != filename]
+        # Remove from selected_files (full-path match)
+        self.selected_files = [f for f in self.selected_files if f != file_path]
 
-        # Remove from processing_results
+        # Remove from processing_results (full-path match)
         self.processing_results = [
-            r for r in self.processing_results if r.get("filename") != filename
+            r for r in self.processing_results if r.get("file_path") != file_path
         ]
 
         # Remove from file table widget
-        self.file_table.remove_result(filename)
+        self.file_table.remove_result(file_path)
 
-        # Clear document preview if the removed file is currently previewed
-        if self.output_display.document_preview_filename == filename:
+        # Clear document preview if the removed file is currently previewed.
+        # The preview pane still tracks by basename for backward compat — that's
+        # fine because at most one preview is shown at a time.
+        display_name = Path(file_path).name
+        if self.output_display.document_preview_filename == display_name:
             self.output_display.clear_document_preview()
 
         # Update UI state
         self._update_generate_button_state()
         self._update_session_stats()
         self._update_doc_count_badge()
-        self.set_status(f"Removed {filename}")
-        logger.debug("Removed file: %s (%d files remain)", filename, len(self.selected_files))
+        self.set_status(f"Removed {display_name}")
+        logger.debug("Removed file: %s (%d files remain)", file_path, len(self.selected_files))
 
     def _check_ocr_availability(self) -> bool:
         """

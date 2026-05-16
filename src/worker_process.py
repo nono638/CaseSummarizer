@@ -123,6 +123,7 @@ def worker_process_main(command_queue, result_queue):
         "documents": None,
         "active_worker": None,
         "auto_semantic_worker": None,
+        "followup_thread": None,
         "ask_default_questions": True,
         "shutdown": threading.Event(),
         "worker_lock": threading.Lock(),
@@ -306,6 +307,11 @@ def _run_followup(args, internal_queue, state):
     question = args.get("question", "")
     logger.debug("Follow-up question: %.80s", question)
     with state["worker_lock"]:
+        existing = state.get("followup_thread")
+        if existing is not None and existing.is_alive():
+            logger.warning("Rejecting follow-up: previous one still running")
+            internal_queue.put(QueueMessage.semantic_followup_result(None))
+            return
         vector_store_path = state.get("vector_store_path")
         embeddings = state.get("embeddings")
 
@@ -330,8 +336,9 @@ def _run_followup(args, internal_queue, state):
             internal_queue.put(QueueMessage.semantic_followup_result(None))
 
     thread = threading.Thread(target=do_followup, daemon=True, name="followup")
+    with state["worker_lock"]:
+        state["followup_thread"] = thread
     thread.start()
-    # Don't track as active_worker -- followups are lightweight
 
 
 def _stop_active_worker(state):

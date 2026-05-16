@@ -37,6 +37,7 @@ def _make_table(on_remove=None):
     }
     table.file_item_map = {}
     table._result_data = {}
+    table._item_to_path = {}
     table._hovered_row = None
     table._tooltip_window = None
     table._remove_icon = MagicMock()
@@ -79,10 +80,11 @@ def _make_window_stub():
     return stub
 
 
-def _sample_result(filename, status="success", confidence=90):
+def _sample_result(filename, status="success", confidence=90, file_path=None):
     """Build a minimal processing result dict."""
     return {
         "filename": filename,
+        "file_path": file_path or rf"C:\docs\{filename}",
         "status": status,
         "confidence": confidence,
         "method": "digital",
@@ -164,19 +166,19 @@ class TestOnClick:
     """Tests for the ✕ column click handler."""
 
     def test_click_on_remove_column_calls_callback(self):
-        """Clicking tree column #0 on a valid row invokes on_remove(filename)."""
+        """Clicking tree column #0 on a valid row invokes on_remove(file_path)."""
         callback = MagicMock()
         table = _make_table(on_remove=callback)
         table.tree.identify_column.return_value = "#0"
         table.tree.identify_row.return_value = "row1"
-        table.tree.item.return_value = ("report.pdf", "✓ Ready")
+        table._item_to_path["row1"] = r"C:\docs\report.pdf"
 
         event = MagicMock()
         event.x = 10
         event.y = 20
         table._on_click(event)
 
-        callback.assert_called_once_with("report.pdf")
+        callback.assert_called_once_with(r"C:\docs\report.pdf")
 
     def test_click_on_other_column_ignored(self):
         """Clicking a non-remove column should not call on_remove."""
@@ -250,7 +252,7 @@ class TestRemoveFile:
     """Tests for MainWindow._remove_file()."""
 
     def test_removes_from_selected_files(self):
-        """_remove_file should remove the matching path from selected_files."""
+        """_remove_file should remove the matching full path from selected_files."""
         from src.ui.main_window import MainWindow
 
         stub = _make_window_stub()
@@ -260,34 +262,34 @@ class TestRemoveFile:
             _sample_result("brief.pdf"),
         ]
 
-        MainWindow._remove_file(stub, "report.pdf")
+        MainWindow._remove_file(stub, r"C:\docs\report.pdf")
 
         assert len(stub.selected_files) == 1
-        assert stub.selected_files[0].endswith("brief.pdf")
+        assert stub.selected_files[0] == r"C:\docs\brief.pdf"
 
     def test_removes_from_processing_results(self):
-        """_remove_file should remove the result dict for that filename."""
+        """_remove_file should remove the result dict for that file_path."""
         from src.ui.main_window import MainWindow
 
         stub = _make_window_stub()
         stub.selected_files = [r"C:\docs\report.pdf"]
         stub.processing_results = [_sample_result("report.pdf")]
 
-        MainWindow._remove_file(stub, "report.pdf")
+        MainWindow._remove_file(stub, r"C:\docs\report.pdf")
 
         assert len(stub.processing_results) == 0
 
     def test_calls_file_table_remove(self):
-        """_remove_file should call file_table.remove_result."""
+        """_remove_file should call file_table.remove_result with the full path."""
         from src.ui.main_window import MainWindow
 
         stub = _make_window_stub()
         stub.selected_files = [r"C:\docs\test.pdf"]
         stub.processing_results = [_sample_result("test.pdf")]
 
-        MainWindow._remove_file(stub, "test.pdf")
+        MainWindow._remove_file(stub, r"C:\docs\test.pdf")
 
-        stub.file_table.remove_result.assert_called_once_with("test.pdf")
+        stub.file_table.remove_result.assert_called_once_with(r"C:\docs\test.pdf")
 
     def test_updates_ui_state(self):
         """_remove_file should refresh button state and session stats."""
@@ -297,11 +299,29 @@ class TestRemoveFile:
         stub.selected_files = []
         stub.processing_results = []
 
-        MainWindow._remove_file(stub, "test.pdf")
+        MainWindow._remove_file(stub, r"C:\docs\test.pdf")
 
         stub._update_generate_button_state.assert_called_once()
         stub._update_session_stats.assert_called_once()
         stub.set_status.assert_called_once()
+
+    def test_same_basename_different_folders_removed_independently(self):
+        """Two files with the same basename from different folders should
+        remove independently — basename matching used to silently drop both."""
+        from src.ui.main_window import MainWindow
+
+        stub = _make_window_stub()
+        stub.selected_files = [r"C:\caseA\notes.pdf", r"C:\caseB\notes.pdf"]
+        stub.processing_results = [
+            _sample_result("notes.pdf", file_path=r"C:\caseA\notes.pdf"),
+            _sample_result("notes.pdf", file_path=r"C:\caseB\notes.pdf"),
+        ]
+
+        MainWindow._remove_file(stub, r"C:\caseA\notes.pdf")
+
+        assert stub.selected_files == [r"C:\caseB\notes.pdf"]
+        remaining_paths = [r["file_path"] for r in stub.processing_results]
+        assert remaining_paths == [r"C:\caseB\notes.pdf"]
 
 
 # ===========================================================================

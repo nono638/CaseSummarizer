@@ -43,8 +43,12 @@ class FileReviewTable(ctk.CTkFrame):
         }
 
         self._create_treeview()
-        self.file_item_map = {}  # To map filename to treeview item ID
-        self._result_data = {}  # Map filename -> full result dict (for hover previews)
+        # All internal maps key on the full file path so that two files with
+        # the same basename (e.g. caseA/notes.pdf + caseB/notes.pdf) are
+        # tracked separately. The visible column still shows the basename.
+        self.file_item_map = {}  # file_path -> treeview item ID
+        self._result_data = {}  # file_path -> full result dict (for hover previews)
+        self._item_to_path = {}  # treeview item ID -> file_path (for click handlers)
         self._hovered_row = None  # Track currently hovered row for tooltip
         self._tooltip_window = None  # Single tooltip window for hover previews
 
@@ -149,14 +153,15 @@ class FileReviewTable(ctk.CTkFrame):
         values = (filename, "Extracting...", "—", "—", "—", size_display)
         tag = "extracting"
 
-        if filename in self.file_item_map:
-            item_id = self.file_item_map[filename]
+        if file_path in self.file_item_map:
+            item_id = self.file_item_map[file_path]
             self.tree.item(item_id, values=values, image=self._remove_icon, tags=(tag,))
         else:
             item_id = self.tree.insert(
                 "", "end", values=values, image=self._remove_icon, tags=(tag,)
             )
-            self.file_item_map[filename] = item_id
+            self.file_item_map[file_path] = item_id
+            self._item_to_path[item_id] = file_path
 
         from src.ui.theme import resolve_tags
 
@@ -165,20 +170,23 @@ class FileReviewTable(ctk.CTkFrame):
 
     def add_result(self, result):
         """Add or update a processing result in the table."""
-        filename = result.get("filename", "Unknown")
+        # The full path is the stable identity; basename is for display only.
+        # Fallback to filename if file_path is missing (shouldn't happen in
+        # normal flow, but keeps the widget resilient).
+        file_path = result.get("file_path") or result.get("filename", "Unknown")
 
         # Hide empty state overlay on first file
         if not self.file_item_map and self._drop_zone.winfo_ismapped():
             self._drop_zone.place_forget()
 
         # Store full result data for hover previews
-        self._result_data[filename] = result
+        self._result_data[file_path] = result
 
         values, status_color_tag = self._prepare_result_for_display(result)
 
-        if filename in self.file_item_map:
+        if file_path in self.file_item_map:
             # Update existing item
-            item_id = self.file_item_map[filename]
+            item_id = self.file_item_map[file_path]
             self.tree.item(
                 item_id, values=values, image=self._remove_icon, tags=(status_color_tag,)
             )
@@ -187,7 +195,8 @@ class FileReviewTable(ctk.CTkFrame):
             item_id = self.tree.insert(
                 "", "end", values=values, image=self._remove_icon, tags=(status_color_tag,)
             )
-            self.file_item_map[filename] = item_id
+            self.file_item_map[file_path] = item_id
+            self._item_to_path[item_id] = file_path
 
         # Configure colors for tags
         from src.ui.theme import resolve_tags
@@ -250,6 +259,7 @@ class FileReviewTable(ctk.CTkFrame):
         """Clear all items and show empty state overlay."""
         self.file_item_map.clear()
         self._result_data.clear()
+        self._item_to_path.clear()
         self._hide_tooltip()
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -264,34 +274,30 @@ class FileReviewTable(ctk.CTkFrame):
 
         col = self.tree.identify_column(event.x)
 
-        try:
-            values = self.tree.item(row_id, "values")
-            filename = values[0] if values else None
-        except Exception:
-            return
-
-        if not filename:
+        file_path = self._item_to_path.get(row_id)
+        if not file_path:
             return
 
         if col == "#0" and self._on_remove:
             # Tree column (#0) holds the orange ✕ icon
-            self._on_remove(filename)
+            self._on_remove(file_path)
         elif col != "#0" and self._on_select:
             # Any data column click triggers selection
             self.tree.selection_set(row_id)
-            self._on_select(filename)
+            self._on_select(file_path)
 
-    def remove_result(self, filename):
+    def remove_result(self, file_path):
         """
-        Remove a single file from the table by filename.
+        Remove a single file from the table by full file path.
 
         Args:
-            filename: The filename to remove.
+            file_path: The full path of the file to remove.
         """
-        item_id = self.file_item_map.pop(filename, None)
-        self._result_data.pop(filename, None)
+        item_id = self.file_item_map.pop(file_path, None)
+        self._result_data.pop(file_path, None)
 
         if item_id:
+            self._item_to_path.pop(item_id, None)
             self._hide_tooltip()
             try:
                 self.tree.delete(item_id)
@@ -309,14 +315,11 @@ class FileReviewTable(ctk.CTkFrame):
             return
 
         self._hovered_row = row_id
-        # Get filename from the row values (column index 0)
-        try:
-            values = self.tree.item(row_id, "values")
-            filename = values[0] if values else None
-        except Exception:
+        file_path = self._item_to_path.get(row_id)
+        if not file_path:
             return
 
-        result = self._result_data.get(filename)
+        result = self._result_data.get(file_path)
         if not result:
             return
 

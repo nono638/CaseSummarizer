@@ -179,12 +179,18 @@ class SemanticRetriever:
         faiss_file = persist_dir / "index.faiss"
         pkl_file = persist_dir / "index.pkl"
 
+        if not faiss_file.exists() or not pkl_file.exists():
+            raise FileNotFoundError(
+                f"Vector store integrity check cannot run at {persist_dir}: "
+                f"missing required files. FAISS exists: {faiss_file.exists()}, "
+                f"PKL exists: {pkl_file.exists()}. Please rebuild the vector store."
+            )
+
         hasher = hashlib.sha256()
         for file_path in [faiss_file, pkl_file]:
-            if file_path.exists():
-                with open(file_path, "rb") as f:
-                    for chunk in iter(lambda: f.read(65536), b""):
-                        hasher.update(chunk)
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    hasher.update(chunk)
 
         computed_hash = hasher.hexdigest()
         stored_hash = hash_file.read_text().strip()
