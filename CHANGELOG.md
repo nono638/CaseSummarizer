@@ -7,6 +7,48 @@ This project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.34] - 2026-05-16
+
+### Fixed
+- Stop button now disables during its confirmation modal so a panicked double-click no longer queues a duplicate prompt
+- Stop button now cancels pending extraction/preprocessing retry callbacks — no more ghost re-extraction after a cancel
+- Preprocessing-phase status updates ("Extracting…", "Cleaning headers…") now reach the status bar; they were previously dropped because the gate only checked vocabulary-phase activity
+- Load More in the vocabulary panel now disables itself while loading so a second click can't silently no-op
+- Drag-drop file payloads parsed via `tk.splitlist` (the standard tkinterdnd2 recipe) — paths with braces no longer mis-split
+- CLI: `search.json` now writes whenever `--query` is given regardless of `--only` filter
+- CLI: `vocabulary.json` no longer written when the vocabulary list is empty (matches the human-output behavior)
+- CLI: `combined.docx` now embeds the key excerpts as the summary section, matching the GUI's combined export
+- Silent `re.error` in transcript cleaner upgraded to `logger.warning`
+- `QuestionEditDialog` import-time `NameError` (missing `pathlib.Path`) introduced by the BaseModalDialog refactor
+
+### Changed
+- Renamed `SemanticResult.is_answered` → `has_relevant_match`, `get_summary_tab_status` → `get_key_excerpts_tab_status`, and `_configure_qa_table_style` → `_configure_semantic_table_style` so names reflect the retrieval-only architecture
+- `QuestionEditDialog` now inherits from `BaseModalDialog` like every other dialog (17 lines of manual setup removed)
+- `FileReaders` per-format methods consolidated behind a `_wrap_reader` helper that owns shared logging, confidence, and error handling
+- Stale docstrings/comments that described removed Coreference, QAConverter, and LLM-answer-generation flows rewritten or deleted
+
+### Removed
+- Dead `answer_mode` parameter chain (GUI → WorkerManager → worker subprocess → SemanticWorker → SemanticOrchestrator) — every consumer hard-coded "extraction"
+- Dead `include_verification` / `include_verification_colors` parameter chain across the entire export stack
+- `CoreferenceResolver` no-op stub and its package export
+- Dead UI module `src/ui/pipeline_indicator.py` (instantiated but never displayed)
+- Dead Ollama leftover `config/models.yaml` and the `MODEL_CONFIGS`/`load_model_configs()` block
+- Orphan download scripts for removed features (`download_coref_model.py`, `download_hallucination_model.py`)
+- `src.core.ai` import from `main.py` (package was emptied last release)
+- Empty `data/keywords/` directory and its `.gitignore` rule
+- Dead config constants (`LOG_FILE`, `LOG_FORMAT`, `LOG_DATE_FORMAT`, `DEBUG_DEFAULT_FILE`, `RESIZE_DEBOUNCE_MS`, `ERROR_DISPLAY_MAX_CHARS`, `CHUNK_OVERLAP_FRACTION`, `VOCAB_FEEDBACK_CSV`, `SPACY_THREAD_TIMEOUT_SEC`)
+- Commented-out deprecated single-section vocab export shortcuts in `dynamic_output.py`
+- Dead `_filter_sentences` function in `key_sentences.py`
+
+### Added
+- 74 new tests: `ExtractionResult` factories + dict access, `FileReaders._wrap_reader` paths, CLI helpers (`collect_inputs`, `drain`, `parse_args`, `write_json`/`write_human`, `run_query`), `worker_process._build_scorer_inputs`
+- 22 regression tests for the bug-sweep fixes in `test_bug_sweep_2026_05.py`
+
+### Infrastructure
+- 12 existing tests hardened with content-verifying assertions (layout analyzer bounds, extraction error-state, name-dataset content, feedback ML singleton identity)
+- `torch>=2.4,<3.0` and `transformers>=5.0,<6.0` pinned explicitly (previously transitive via sentence-transformers)
+- `pandas>=2.0,<4` and `pyinstaller>=6.0` added to `requirements-dev.txt` for tests/scripts and build
+
 ## [1.0.33] - 2026-04-20
 
 ### Fixed
