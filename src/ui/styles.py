@@ -121,7 +121,7 @@ def reinitialize_styles(font_offset: int | None = None) -> None:
 def _apply_all_styles(style: ttk.Style, scale_factor: float, font_offset: int) -> None:
     """Apply all treeview style configurations using current theme colors."""
     _configure_vocab_treeview_style(style, scale_factor, font_offset)
-    _configure_qa_table_style(style, scale_factor, font_offset)
+    _configure_semantic_table_style(style, scale_factor, font_offset)
     _configure_file_review_style(style, scale_factor, font_offset)
     _configure_question_list_style(style, scale_factor, font_offset)
 
@@ -187,7 +187,7 @@ def _configure_vocab_treeview_style(style: ttk.Style, sf: float, font_offset: in
     )
 
 
-def _configure_qa_table_style(style: ttk.Style, sf: float, font_offset: int) -> None:
+def _configure_semantic_table_style(style: ttk.Style, sf: float, font_offset: int) -> None:
     """Configure style for search results table (Search Panel)."""
     from src.ui.theme import get_color
 

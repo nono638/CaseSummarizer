@@ -526,7 +526,7 @@ class TestInitializeAllStyles:
 
         for name in [
             "_configure_vocab_treeview_style",
-            "_configure_qa_table_style",
+            "_configure_semantic_table_style",
             "_configure_file_review_style",
             "_configure_question_list_style",
         ]:
@@ -876,16 +876,20 @@ class TestQAQuestionEditorScaling:
     """Verify semantic_question_editor.py uses scale_value for geometry."""
 
     def test_geometry_scaled(self):
-        """Question editor geometry uses scale_value, not hardcoded '500x300'."""
+        """Question editor delegates scaling to BaseModalDialog (which uses scale_value)."""
         source = _read_source("src/ui/semantic_question_editor.py")
+        # QuestionEditDialog should inherit from BaseModalDialog (which applies
+        # scale_value internally) and not hardcode an unscaled "500x300" geometry.
         assert 'geometry("500x300")' not in source
-        assert "scale_value(500)" in source
-        assert "scale_value(300)" in source
+        assert "BaseModalDialog" in source
+        # The width/height it requests must still be 500x300 (scaling happens in base).
+        assert "width=500" in source
+        assert "height=300" in source
 
     def test_centering_uses_scaled_values(self):
-        """Centering calculation uses scaled width/height variables."""
+        """Centering is delegated to BaseModalDialog._center_on_parent."""
         source = _read_source("src/ui/semantic_question_editor.py")
-        # Should use _w and _h variables, not hardcoded 500/300
+        # Subclass should not perform manual centering with hardcoded 500/300.
         assert "- 500)" not in source
         assert "- 300)" not in source
 

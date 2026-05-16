@@ -66,7 +66,9 @@ class SemanticResult:
     """
 
     question: str
-    quick_answer: str = ""  # Deprecated — always empty string
+    quick_answer: str = (
+        ""  # Always empty since LLM removal (Mar 2026); kept for export schema stability
+    )
     citation: str = ""  # Raw retrieved text from BM25+/vector search
     include_in_export: bool = True
     source_summary: str = ""
@@ -77,11 +79,11 @@ class SemanticResult:
 
     @property
     def answer(self) -> str:
-        """Backward compatibility: returns quick_answer (or citation as fallback)."""
+        """Returns the citation text; kept as ``answer`` for export schema callers."""
         return self.quick_answer or self.citation
 
     @property
-    def is_answered(self) -> bool:
+    def has_relevant_match(self) -> bool:
         """Whether this question received a meaningful answer from the documents."""
         # After LLM removal (Mar 2026), quick_answer is always "".
         # Relevance > 0 is the definitive signal that retrieval found something.
@@ -361,18 +363,17 @@ class SemanticOrchestrator:
 
     def retrieve_for_question(self, question: str, is_followup: bool = True) -> SemanticResult:
         """
-        Phase 1 of split follow-up flow: retrieve context only.
+        Retrieve context for a question and build the SemanticResult.
 
-        Returns a partial SemanticResult with citation/source/relevance populated
-        but quick_answer set to a placeholder. Stashes raw retrieval context
-        as _retrieval_context for phase 2.
+        ``quick_answer`` is always empty (LLM generation removed Mar 2026);
+        the citation field carries the user-visible content.
 
         Args:
             question: The question to search for
             is_followup: Whether this is a user follow-up (default True)
 
         Returns:
-            Partial SemanticResult with placeholder answer
+            SemanticResult with citation/source/relevance populated.
         """
         retrieval_result = self.retriever.retrieve_context(question)
 

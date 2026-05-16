@@ -61,24 +61,24 @@ class TestSemanticResult:
 class TestSemanticResultRelevance:
     """Tests for SemanticResult.relevance field and is_exportable property."""
 
-    def test_is_answered_with_nonzero_relevance(self):
+    def test_has_relevant_match_with_nonzero_relevance(self):
         """Result with relevance > 0 is considered answered."""
         result = SemanticResult(question="Q?", relevance=0.5)
-        assert result.is_answered is True
+        assert result.has_relevant_match is True
 
-    def test_is_answered_zero_relevance_with_empty_answer(self):
+    def test_has_relevant_match_zero_relevance_with_empty_answer(self):
         """Result with relevance=0 and empty answer is not answered."""
         result = SemanticResult(question="Q?", relevance=0.0, quick_answer="")
-        assert result.is_answered is False
+        assert result.has_relevant_match is False
 
-    def test_is_answered_zero_relevance_empty_quick_answer(self):
+    def test_has_relevant_match_zero_relevance_empty_quick_answer(self):
         """Result with relevance=0 and empty quick_answer is not answered.
 
         Regression: _ask_single_question always sets quick_answer='',
-        so is_answered must detect unanswered via relevance, not quick_answer.
+        so has_relevant_match must detect unanswered via relevance, not quick_answer.
         """
         result = SemanticResult(question="Q?", relevance=0.0, quick_answer="")
-        assert result.is_answered is False
+        assert result.has_relevant_match is False
 
     def test_is_exportable_above_floor(self):
         """Result above export relevance floor is exportable."""

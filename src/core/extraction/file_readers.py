@@ -57,148 +57,104 @@ class FileReaders:
         self.dictionary = dictionary
         self.ocr_processor = ocr_processor
 
-    def read_text_file(self, file_path: Path) -> ExtractionResult:
+    def _wrap_reader(
+        self,
+        file_path: Path,
+        log_label: str,
+        method_name: str,
+        error_subject: str,
+        read_fn,
+    ) -> ExtractionResult:
         """
-        Read a plain text (.txt) file.
+        Run a reader callback and wrap the result in an ExtractionResult.
+
+        Shared scaffolding for text/RTF/DOCX readers: logs, calls ``read_fn``
+        which must return ``(text, page_count)``, computes dictionary
+        confidence, and converts exceptions to ExtractionResult errors. If
+        ``read_fn`` returns a pre-built ExtractionResult (e.g. an early-out
+        error like "no readable text"), it is returned unchanged.
 
         Args:
-            file_path: Path to the text file
+            file_path: File being read (used for logging only)
+            log_label: Human-readable format name (debug logs)
+            method_name: Method tag stored on the ExtractionResult
+            error_subject: Subject used in the failure message,
+                "Failed to read {error_subject}: ..."
+            read_fn: Callable taking no args, returning ``(text, page_count)``
+                or an ExtractionResult to short-circuit.
 
         Returns:
-            ExtractionResult with text, method='direct_read', confidence.
-
-        Example:
-            >>> readers = FileReaders(DictionaryTextValidator())
-            >>> result = readers.read_text_file(Path("notes.txt"))
-            >>> print(f"Read {len(result['text'])} characters")
+            ExtractionResult.success on text, or ExtractionResult.error on failure.
         """
         from .extraction_result import ExtractionResult
 
-        logger.debug("Reading text file: %s", file_path.name)
-
+        logger.debug("Reading %s file: %s", log_label, file_path.name)
         try:
-            with open(file_path, encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-
+            result = read_fn()
+            if isinstance(result, ExtractionResult):
+                return result
+            text, page_count = result
             confidence = self.dictionary.calculate_confidence(text)
-            logger.debug("Text file dictionary confidence: %.1f%%", confidence)
-
-            return ExtractionResult.success(
-                text,
-                "direct_read",
-                confidence,
-                page_count=1,
-            )
-
+            logger.debug("%s dictionary confidence: %.1f%%", log_label, confidence)
+            return ExtractionResult.success(text, method_name, confidence, page_count=page_count)
         except Exception as e:
             return ExtractionResult.error(
-                f"Failed to read text file: {e!s}",
+                f"Failed to read {error_subject}: {e!s}",
                 page_count=0,
             )
 
+    def read_text_file(self, file_path: Path) -> ExtractionResult:
+        """Read a plain text (.txt) file via UTF-8 direct read."""
+
+        def _read():
+            """Read raw UTF-8 text and return (text, 1-page-count)."""
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
+                return f.read(), 1
+
+        return self._wrap_reader(file_path, "text", "direct_read", "text file", _read)
+
     def read_rtf_file(self, file_path: Path) -> ExtractionResult:
-        """
-        Read a Rich Text Format (.rtf) file.
+        """Read a Rich Text Format (.rtf) file via striprtf."""
 
-        Uses striprtf library to convert RTF to plain text.
-
-        Args:
-            file_path: Path to the RTF file
-
-        Returns:
-            ExtractionResult with text, method='rtf_extraction', confidence.
-
-        Example:
-            >>> readers = FileReaders(DictionaryTextValidator())
-            >>> result = readers.read_rtf_file(Path("document.rtf"))
-        """
-        from .extraction_result import ExtractionResult
-
-        logger.debug("Reading RTF file: %s", file_path.name)
-
-        try:
+        def _read():
+            """Strip RTF markup and return (plain_text, 1-page-count)."""
             from striprtf.striprtf import rtf_to_text
 
             with open(file_path, encoding="utf-8", errors="ignore") as f:
                 rtf_content = f.read()
-
             text = rtf_to_text(rtf_content)
             logger.debug("Extracted %d characters from RTF", len(text))
+            return text, 1
 
-            confidence = self.dictionary.calculate_confidence(text)
-            logger.debug("RTF dictionary confidence: %.1f%%", confidence)
-
-            return ExtractionResult.success(
-                text,
-                "rtf_extraction",
-                confidence,
-                page_count=1,
-            )
-
-        except Exception as e:
-            return ExtractionResult.error(
-                f"Failed to read RTF file: {e!s}",
-                page_count=0,
-            )
+        return self._wrap_reader(file_path, "RTF", "rtf_extraction", "RTF file", _read)
 
     def read_docx_file(self, file_path: Path) -> ExtractionResult:
-        """
-        Read a Word document (.docx) file.
-
-        Extracts text from paragraphs and tables using python-docx.
-
-        Args:
-            file_path: Path to the DOCX file
-
-        Returns:
-            ExtractionResult with text, method='docx_extraction', confidence.
-
-        Example:
-            >>> readers = FileReaders(DictionaryTextValidator())
-            >>> result = readers.read_docx_file(Path("report.docx"))
-            >>> print(f"Pages: ~{result['page_count']}")
-        """
+        """Read a Word document (.docx) via python-docx; paragraphs + tables."""
         from .extraction_result import ExtractionResult
 
-        logger.debug("Reading Word document: %s", file_path.name)
-
-        try:
+        def _read():
+            """Pull paragraphs + table cells; short-circuit on empty docs."""
             from docx import Document
 
             doc = Document(file_path)
-
-            # Extract text from paragraphs
             paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
             text = "\n".join(paragraphs)
-
-            # Also extract text from tables
             for table in doc.tables:
                 for row in table.rows:
                     row_text = [cell.text.strip() for cell in row.cells if cell.text.strip()]
                     if row_text:
                         text += "\n" + " | ".join(row_text)
-
             if not text.strip():
+                # Preserve exact original error contract for empty docs.
                 return ExtractionResult.error(
                     "Word document contains no readable text.",
                     page_count=0,
                 )
+            return text, len(doc.sections) or 1
 
-            confidence = self.dictionary.calculate_confidence(text)
-            logger.debug("DOCX dictionary confidence: %.1f%%", confidence)
-
-            return ExtractionResult.success(
-                text,
-                "docx_extraction",
-                confidence,
-                page_count=len(doc.sections) or 1,
-            )
-
-        except Exception as e:
-            return ExtractionResult.error(
-                f"Failed to read Word document: {e!s}",
-                page_count=0,
-            )
+        return self._wrap_reader(
+            file_path, "Word document", "docx_extraction", "Word document", _read
+        )
 
     def read_image_file(self, file_path: Path) -> ExtractionResult:
         """

@@ -9,7 +9,7 @@ from src.ui.workflow_status import (
     TabStatusConfig,
     WorkflowPhase,
     get_semantic_tab_status,
-    get_summary_tab_status,
+    get_key_excerpts_tab_status,
 )
 
 
@@ -113,39 +113,39 @@ class TestSummaryTabStatus:
     def test_idle_shows_key_excerpts_message(self):
         """When idle, show key excerpts will appear message."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.IDLE, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.IDLE, config)
         assert "Key excerpts" in msg
         assert "processed" in msg
 
     def test_extracting_docs_phase(self):
         """During document extraction, show extraction status."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.EXTRACTING_DOCS, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.EXTRACTING_DOCS, config)
         assert "Extracting" in msg
 
     def test_vocab_running_phase(self):
         """During vocab extraction, mention key excerpts will follow."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.VOCAB_RUNNING, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.VOCAB_RUNNING, config)
         assert "Vocabulary extraction" in msg
         assert "Key excerpts" in msg
 
     def test_qa_indexing_phase(self):
         """During search indexing, show building index message."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.SEMANTIC_INDEXING, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.SEMANTIC_INDEXING, config)
         assert "search index" in msg.lower() or "Building" in msg
 
     def test_semantic_searching_phase(self):
         """During search answering, mention key excerpts coming soon."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.SEMANTIC_SEARCHING, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.SEMANTIC_SEARCHING, config)
         assert "Key excerpts" in msg or "searches" in msg
 
     def test_complete_phase(self):
         """When complete, show complete message."""
         config = TabStatusConfig()
-        msg = get_summary_tab_status(WorkflowPhase.COMPLETE, config)
+        msg = get_key_excerpts_tab_status(WorkflowPhase.COMPLETE, config)
         assert "Processing complete" in msg
 
 
@@ -163,7 +163,7 @@ class TestStatusMessageConsistency:
         """Every phase should return a non-empty summary message."""
         config = TabStatusConfig()
         for phase in WorkflowPhase:
-            msg = get_summary_tab_status(phase, config)
+            msg = get_key_excerpts_tab_status(phase, config)
             assert msg, f"Empty message for Summary phase {phase.name}"
 
     def test_idle_message_mentions_process_documents(self):

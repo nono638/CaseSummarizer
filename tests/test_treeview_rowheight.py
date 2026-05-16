@@ -120,7 +120,7 @@ class TestFontOffsetInStyles:
 
         for name in [
             "_configure_vocab_treeview_style",
-            "_configure_qa_table_style",
+            "_configure_semantic_table_style",
             "_configure_file_review_style",
             "_configure_question_list_style",
         ]:
@@ -134,7 +134,7 @@ class TestFontOffsetInStyles:
         source = _read_source("src/ui/styles.py")
         for name in [
             "_configure_vocab_treeview_style",
-            "_configure_qa_table_style",
+            "_configure_semantic_table_style",
             "_configure_file_review_style",
             "_configure_question_list_style",
         ]:

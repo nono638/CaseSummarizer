@@ -91,7 +91,7 @@ def get_semantic_tab_status(phase: WorkflowPhase, config: TabStatusConfig) -> st
     return ""
 
 
-def get_summary_tab_status(phase: WorkflowPhase, config: TabStatusConfig) -> str:
+def get_key_excerpts_tab_status(phase: WorkflowPhase, config: TabStatusConfig) -> str:
     """
     Get the status message to display in the Key Excerpts tab.
 

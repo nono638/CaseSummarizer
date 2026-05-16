@@ -293,21 +293,12 @@ class SemanticService:
             question: The follow-up question
 
         Returns:
-            Partial SemanticResult with citation but placeholder answer
+            Partial SemanticResult with citation; ``quick_answer`` is always empty.
         """
         return orchestrator.retrieve_for_question(question, is_followup=True)
 
     def generate_answer_for_followup(self, orchestrator, result):
-        """
-        No-op stub -- answer generation was removed (Mar 2026).
-
-        Args:
-            orchestrator: SemanticOrchestrator instance
-            result: Partial SemanticResult from retrieve_for_followup
-
-        Returns:
-            The same SemanticResult, unchanged
-        """
+        """Legacy no-op kept so the UI can call it unconditionally; LLM answer generation was removed Mar 2026."""
         return orchestrator.generate_answer_for_result(result)
 
     def get_placeholder_texts(self) -> dict[str, str]:

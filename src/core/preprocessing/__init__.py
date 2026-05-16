@@ -32,8 +32,6 @@ from src.core.preprocessing.title_page_remover import TitlePageRemover
 from src.core.preprocessing.transcript_cleaner import TranscriptCleaner
 
 # Mapping from setting key to preprocessor class name
-# Note: Coreference resolution runs in UnifiedChunker before chunking,
-# so it only affects search and key excerpts, not vocabulary extraction.
 # Note: title_page_handling is handled separately (3-way dropdown, not bool).
 _SETTING_TO_PREPROCESSOR = {
     "preprocess_index_pages": "Index Page Remover",
@@ -55,9 +53,6 @@ def create_default_pipeline(settings: dict | None = None) -> PreprocessingPipeli
     4. LineNumberRemover - Removes line numbers from margins
     5. PageBoundaryCleaner - Cleans collapsed page boundary artifacts
     6. TranscriptCleaner - Removes page numbers, certification, index pages
-
-    Note: Coreference resolution runs in UnifiedChunker (before chunking),
-    affecting only search and key excerpts.
 
     The title_page_handling setting controls TitlePageRemover:
     - "exclude_all": enabled in this pipeline (removes title pages before vocab)

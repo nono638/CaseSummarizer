@@ -360,14 +360,14 @@ class DynamicOutputWidget(ctk.CTkFrame):
 
     def _update_tab_status_messages(self):
         """Update status labels in Search and Key Excerpts tabs based on workflow phase and config."""
-        from src.ui.workflow_status import get_semantic_tab_status, get_summary_tab_status
+        from src.ui.workflow_status import get_semantic_tab_status, get_key_excerpts_tab_status
 
         # Update Search tab status
         semantic_status = get_semantic_tab_status(self._workflow_phase, self._tab_status_config)
         self._semantic_status_label.configure(text=semantic_status)
 
         # Update Summary tab status
-        summary_status = get_summary_tab_status(self._workflow_phase, self._tab_status_config)
+        summary_status = get_key_excerpts_tab_status(self._workflow_phase, self._tab_status_config)
         self._summary_status_label.configure(text=summary_status)
 
     def set_workflow_phase(self, phase):
@@ -2577,30 +2577,6 @@ class DynamicOutputWidget(ctk.CTkFrame):
         except Exception as e:
             logger.warning("Vocab export failed: %s", e)
             messagebox.showerror("Export Failed", f"Could not save file:\n{e}")
-
-    # --- Deprecated single-section export shortcuts (Mar 2026) ---
-    # Kept for potential future use. Export dropdown now uses _export_all()
-    # which exports all sections (vocab, search, key excerpts) together.
-    #
-    # def _quick_export_vocab_csv(self):
-    #     """Quick export vocabulary to CSV file."""
-    #     self._export_vocab("csv")
-    #
-    # def _export_vocab_to_word(self):
-    #     """Export vocabulary to Word document."""
-    #     self._export_vocab("word")
-    #
-    # def _export_vocab_to_pdf(self):
-    #     """Export vocabulary to PDF document."""
-    #     self._export_vocab("pdf")
-    #
-    # def _export_vocab_to_txt(self):
-    #     """Export vocabulary to plain text file."""
-    #     self._export_vocab("txt")
-    #
-    # def _export_vocab_to_html(self):
-    #     """Export vocabulary to interactive HTML file."""
-    #     self._export_vocab("html")
 
     # -----------------------------------------------------------------
     # Combined Export (all sections: vocab + search + key excerpts)

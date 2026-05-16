@@ -43,7 +43,7 @@ class MessageType:
     # Vocabulary extraction
     VOCAB_CSV_GENERATED = "vocab_csv_generated"
 
-    # Summarization (deprecated — kept for backward compat with tests)
+    # Summarization (legacy — feature removed Mar 2026; the message types and helpers remain only because test_worker_process.py exercises queue round-tripping).
     SUMMARY_RESULT = "summary_result"
     MULTI_DOC_RESULT = "multi_doc_result"
     META_SUMMARY_GENERATED = "meta_summary_generated"

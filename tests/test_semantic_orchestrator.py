@@ -36,19 +36,19 @@ class TestSemanticResult:
         r = SemanticResult(question="Q?", citation="See page 5.")
         assert r.answer == "See page 5."
 
-    def test_is_answered_true_for_valid_result(self):
-        """is_answered should be True for results with relevance > 0."""
+    def test_has_relevant_match_true_for_valid_result(self):
+        """has_relevant_match should be True for results with relevance > 0."""
         from src.core.semantic.semantic_orchestrator import SemanticResult
 
         r = SemanticResult(question="Q?", relevance=0.8)
-        assert r.is_answered is True
+        assert r.has_relevant_match is True
 
-    def test_is_answered_false_for_unanswered(self):
-        """is_answered should be False for unanswered results."""
+    def test_has_relevant_match_false_for_unanswered(self):
+        """has_relevant_match should be False for unanswered results."""
         from src.core.semantic.semantic_orchestrator import SemanticResult
 
         r = SemanticResult(question="Q?", relevance=0.0, quick_answer="")
-        assert r.is_answered is False
+        assert r.has_relevant_match is False
 
     def test_is_exportable_true_above_floor(self):
         """is_exportable should be True when relevance meets the floor."""

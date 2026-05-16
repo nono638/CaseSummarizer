@@ -427,7 +427,7 @@ class SemanticQuestionEditor(BaseModalDialog):
         self.destroy()
 
 
-class QuestionEditDialog(ctk.CTkToplevel):
+class QuestionEditDialog(BaseModalDialog):
     """
     Dialog for editing a single question.
 
@@ -443,29 +443,10 @@ class QuestionEditDialog(ctk.CTkToplevel):
             title: Dialog title
             question: Existing question dict to edit (None for new)
         """
-        super().__init__(parent)
+        super().__init__(parent, title=title, width=500, height=300, resizable=False)
 
         self.result = None
         self._question = question or {}
-
-        from src.ui.scaling import scale_value
-
-        _w, _h = scale_value(500), scale_value(300)
-
-        # Window configuration
-        self.title(title)
-        self.geometry(f"{_w}x{_h}")
-        self.resizable(False, False)
-
-        # Make modal
-        self.transient(parent)
-        self.grab_set()
-
-        # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_x() + (parent.winfo_width() - _w) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - _h) // 2
-        self.geometry(f"+{x}+{y}")
 
         self._create_ui()
 

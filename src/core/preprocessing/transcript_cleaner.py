@@ -15,7 +15,7 @@ transcripts that aren't covered by those specialized preprocessors.
 
 Usage:
     Automatically included in the default preprocessing pipeline.
-    Runs after LineNumberRemover, before QAConverter.
+    Runs after LineNumberRemover.
 """
 
 import json

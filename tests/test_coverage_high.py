@@ -6,7 +6,7 @@ Covers behavioral tests (not just import checks) for:
 2. SemanticRetriever         — retrieve_context, get_chunk_count, empty results
 3. PDFExtractor        — _extract_pymupdf with mocked fitz
 
-All external dependencies (fitz, pdfplumber, FAISS, Ollama, langchain, etc.)
+All external dependencies (fitz, pdfplumber, FAISS, langchain, etc.)
 are mocked so tests run without real models or connections.
 """
 
